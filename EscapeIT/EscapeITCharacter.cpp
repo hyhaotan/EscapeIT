@@ -9,6 +9,7 @@
 #include "InputActionValue.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "EscapeIT.h"
+#include "EscapeIT/Actor/Components/SanityComponent.h"
 
 AEscapeITCharacter::AEscapeITCharacter()
 {
@@ -42,6 +43,8 @@ AEscapeITCharacter::AEscapeITCharacter()
 	// Configure character movement
 	GetCharacterMovement()->BrakingDecelerationFalling = 1500.0f;
 	GetCharacterMovement()->AirControl = 0.5f;
+
+	SanityComponent = CreateDefaultSubobject<USanityComponent>(TEXT("SanityComponent"));
 }
 
 void AEscapeITCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
