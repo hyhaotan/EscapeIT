@@ -9,6 +9,8 @@
 class UUserWidget;
 class USanityWidget;
 class USanityComponent;
+class UQuickbarWidget;
+class UInventoryWidget;
 
 UCLASS()
 class ESCAPEIT_API AWidgetManager : public AHUD
@@ -32,6 +34,12 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Widgets")
 	TSubclassOf<UUserWidget> MainMenuClass;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Widgets")
+	TSubclassOf<UQuickbarWidget> QuickbarWidgetClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Widgets")
+	TSubclassOf<UInventoryWidget> InventoryWidgetClass;
+
 	// Widget Instances
 	UPROPERTY()
 	USanityWidget* SanityWidget;
@@ -42,12 +50,31 @@ public:
 	UPROPERTY()
 	UUserWidget* MainMenu;
 
+	UPROPERTY()
+	UQuickbarWidget* QuickbarWidget;
+
+	UPROPERTY()
+	UInventoryWidget* InventoryWidget;
+
 	// Initialization
 	UFUNCTION(BlueprintCallable, Category = "Widget Manager")
 	void InitializeWidgets();
 
 	UFUNCTION(BlueprintCallable, Category = "Widget Manager")
 	void InitializeSanityWidget(USanityComponent* SanityComponent);
+
+	// Inventory Widget
+	UFUNCTION(BlueprintCallable, Category = "Widget Manager")
+	void Inventory();
+
+	UFUNCTION(BlueprintCallable, Category = "Widget Manager")
+	void ShowInventoryScreen();
+
+	UFUNCTION(BlueprintCallable, Category = "Widget Manager")
+	void HideInventoryScreen();
+
+	UFUNCTION(BlueprintCallable, Category = "Widget Manager")
+	bool IsInventoryOpen() const { return bIsInventoryOpen; }
 
 	// Sanity Widget
 	UFUNCTION(BlueprintCallable, Category = "Widget Manager")
@@ -92,7 +119,10 @@ private:
 	template<typename T>
 	T* CreateWidgetInstance(TSubclassOf<UUserWidget> WidgetClass);
 
+	APlayerController* PlayerController;
+
 	// Helper function để show/hide widget
 	void ShowWidget(UUserWidget* Widget);
 	void HideWidget(UUserWidget* Widget);
+	bool bIsInventoryOpen = false;
 };

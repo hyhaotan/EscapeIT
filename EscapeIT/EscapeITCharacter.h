@@ -11,7 +11,10 @@ class UInputComponent;
 class USkeletalMeshComponent;
 class UCameraComponent;
 class UInputAction;
+class USanityWidget;
 class USanityComponent;
+class UInventoryComponent;
+class UFlashlightComponent;
 struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
@@ -78,11 +81,11 @@ protected:
 	virtual void DoJumpEnd();
 
 protected:
-
 	/** Set up input action bindings */
 	virtual void SetupPlayerInputComponent(UInputComponent* InputComponent) override;
-	
 
+	virtual void BeginPlay() override;
+	
 public:
 
 	/** Returns the first person mesh **/
@@ -91,8 +94,14 @@ public:
 	/** Returns first person camera component **/
 	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
 
-private:
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Component")
 	USanityComponent* SanityComponent;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Component")
+	UInventoryComponent* InventoryComponent;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Component")
+	UFlashlightComponent* FlashlightComponent;
 };
 

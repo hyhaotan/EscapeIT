@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "EscapeITCharacter.h"
 #include "Animation/AnimInstance.h"
@@ -10,6 +10,11 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "EscapeIT.h"
 #include "EscapeIT/Actor/Components/SanityComponent.h"
+#include "EscapeIT/Actor/Components/InventoryComponent.h"
+#include "EscapeIT/Actor/Components/FlashlightComponent.h"
+#include "EscapeIT/UI/SanityWidget.h"
+#include "Kismet/GameplayStatics.h"
+#include "EscapeIT/UI/HUD/WidgetManager.h"
 
 AEscapeITCharacter::AEscapeITCharacter()
 {
@@ -45,6 +50,8 @@ AEscapeITCharacter::AEscapeITCharacter()
 	GetCharacterMovement()->AirControl = 0.5f;
 
 	SanityComponent = CreateDefaultSubobject<USanityComponent>(TEXT("SanityComponent"));
+	InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
+	FlashlightComponent = CreateDefaultSubobject<UFlashlightComponent>(TEXT("FlashlightComponent"));
 }
 
 void AEscapeITCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -69,6 +76,10 @@ void AEscapeITCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 	}
 }
 
+void AEscapeITCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+}
 
 void AEscapeITCharacter::MoveInput(const FInputActionValue& Value)
 {

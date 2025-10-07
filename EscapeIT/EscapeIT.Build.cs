@@ -25,12 +25,6 @@ public class EscapeIT : ModuleRules
 
 		PublicIncludePaths.AddRange(new string[] {
 			"EscapeIT",
-			"EscapeIT/Variant_Horror",
-			"EscapeIT/Variant_Horror/UI",
-			"EscapeIT/Variant_Shooter",
-			"EscapeIT/Variant_Shooter/AI",
-			"EscapeIT/Variant_Shooter/UI",
-			"EscapeIT/Variant_Shooter/Weapons"
 		});
 
 		// Uncomment if you are using Slate UI
