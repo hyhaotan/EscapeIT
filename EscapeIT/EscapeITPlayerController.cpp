@@ -1,40 +1,57 @@
-﻿#include "EscapeITPlayerController.h"
-#include "Blueprint/UserWidget.h"
+﻿// EscapeITPlayerController.cpp
+#include "EscapeITPlayerController.h"
 #include "EscapeIT/Actor/ItemPickupActor.h"
-#include "EnhancedInputComponent.h"
-#include "Engine/LocalPlayer.h"
-#include "EscapeIT/UI/HUD/WidgetManager.h"
-#include "InputMappingContext.h"
+#include "EscapeIT/Actor/Components/InventoryComponent.h"
+#include "EscapeIT/UI/Inventory/InteractionPromptWidget.h"
+#include "EscapeIT/UI/Inventory/InventoryWidget.h"
 #include "EscapeIT/UI/Inventory/QuickbarWidget.h"
-#include "EnhancedInputSubsystems.h"
+#include "Blueprint/UserWidget.h"
+#include "InputMappingContext.h"
+#include "EnhancedInputComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "DrawDebugHelpers.h"
-#include "GameFramework/Pawn.h"
-#include "Components/PrimitiveComponent.h"
-#include "Engine/World.h"
-#include "EscapeIT/Actor/Components/InventoryComponent.h"
-#include "EscapeIT/Actor/Components/FlashlightComponent.h"
-
-AEscapeITPlayerController::AEscapeITPlayerController()
-{
-    bShowMouseCursor = false;
-    bEnableClickEvents = false;
-
-    InteractionRange = 500.0f; // default tương đối
-    CurrentInteractableActor = nullptr;
-}
+#include "Engine/LocalPlayer.h"
+#include <EnhancedInputSubsystems.h>
 
 void AEscapeITPlayerController::BeginPlay()
 {
     Super::BeginPlay();
 
-    InitializeComponents();
-
-    // Lấy WidgetManager từ HUD (kiểm tra kiểu cast)
-    WidgetManager = Cast<AWidgetManager>(GetHUD());
-    if (!WidgetManager)
+    // Get inventory component
+    if (GetPawn())
     {
-        UE_LOG(LogTemp, Error, TEXT("PlayerController: WidgetManager not found!"));
+        InventoryComponent = GetPawn()->FindComponentByClass<UInventoryComponent>();
+    }
+
+    // Create interaction prompt widget
+    if (InteractionPromptWidgetClass)
+    {
+        InteractionPromptWidget = CreateWidget<UInteractionPromptWidget>(this, InteractionPromptWidgetClass);
+        if (InteractionPromptWidget)
+        {
+            InteractionPromptWidget->AddToViewport(10); // High Z-order
+            InteractionPromptWidget->HidePrompt();
+        }
+    }
+
+    if (QuickbarWidgetClass)
+    {
+        QuickbarWidget = CreateWidget<UQuickbarWidget>(this, QuickbarWidgetClass);
+        if (QuickbarWidget)
+        {
+            QuickbarWidget->AddToViewport(5); // Lower than interaction prompt
+            QuickbarWidget->Initialize(InventoryComponent, FlashlightComponent);
+
+            UE_LOG(LogTemp, Log, TEXT("QuickbarWidget created and initialized"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("Failed to create QuickbarWidget"));
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("QuickbarWidgetClass not set!"));
     }
 }
 
@@ -61,304 +78,302 @@ void AEscapeITPlayerController::SetupInputComponent()
 
         if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(InputComponent))
         {
-            if (Quickbar1) EnhancedInputComponent->BindAction(Quickbar1, ETriggerEvent::Completed, this, &AEscapeITPlayerController::UseQuickbarSlot1);
-            if (Quickbar2) EnhancedInputComponent->BindAction(Quickbar2, ETriggerEvent::Completed, this, &AEscapeITPlayerController::UseQuickbarSlot2);
-            if (Quickbar3) EnhancedInputComponent->BindAction(Quickbar3, ETriggerEvent::Completed, this, &AEscapeITPlayerController::UseQuickbarSlot3);
-            if (Quickbar4) EnhancedInputComponent->BindAction(Quickbar4, ETriggerEvent::Completed, this, &AEscapeITPlayerController::UseQuickbarSlot4);
-            if (ToggleInventory) EnhancedInputComponent->BindAction(ToggleInventory, ETriggerEvent::Completed, this, &AEscapeITPlayerController::DisplayInventory);
-            if (Interact) EnhancedInputComponent->BindAction(Interact, ETriggerEvent::Completed, this, &AEscapeITPlayerController::InteractItem);
-            if (ToggleFlashlight) EnhancedInputComponent->BindAction(ToggleFlashlight, ETriggerEvent::Completed, this, &AEscapeITPlayerController::Flashlight);
+            // Bind quickbar keys to EQUIP instead of USE
+            if (Quickbar1) EnhancedInputComponent->BindAction(Quickbar1, ETriggerEvent::Completed, this, &AEscapeITPlayerController::EquipQuickbarSlot1);
+            if (Quickbar2) EnhancedInputComponent->BindAction(Quickbar2, ETriggerEvent::Completed, this, &AEscapeITPlayerController::EquipQuickbarSlot2);
+            if (Quickbar3) EnhancedInputComponent->BindAction(Quickbar3, ETriggerEvent::Completed, this, &AEscapeITPlayerController::EquipQuickbarSlot3);
+            if (Quickbar4) EnhancedInputComponent->BindAction(Quickbar4, ETriggerEvent::Completed, this, &AEscapeITPlayerController::EquipQuickbarSlot4);
+
+            if (ToggleInventory) EnhancedInputComponent->BindAction(ToggleInventory, ETriggerEvent::Completed, this, &AEscapeITPlayerController::Inventory);
+            if (Interact) EnhancedInputComponent->BindAction(Interact, ETriggerEvent::Completed, this, &AEscapeITPlayerController::OnInteract);
+
+            // Add right-click to USE equipped item
+            if (UseEquippedItem) EnhancedInputComponent->BindAction(UseEquippedItem, ETriggerEvent::Completed, this, &AEscapeITPlayerController::UseCurrentEquippedItem);
+
+            // Drop equipped item
             if (DropItem) EnhancedInputComponent->BindAction(DropItem, ETriggerEvent::Completed, this, &AEscapeITPlayerController::DropCurrentItem);
+
+            /*      if (ToggleFlashlight) EnhancedInputComponent->BindAction(ToggleFlashlight, ETriggerEvent::Completed, this, &AEscapeITPlayerController::Flashlight);*/
         }
     }
 }
 
-// ============================================
-// INITIALIZATION
-// ============================================
-void AEscapeITPlayerController::InitializeComponents()
+void AEscapeITPlayerController::PlayerTick(float DeltaTime)
 {
-    APawn* PlayerPawn = GetPawn();
-    if (!PlayerPawn)
+    Super::PlayerTick(DeltaTime);
+
+    // Update interaction detection
+    CheckForInteractables();
+}
+
+void AEscapeITPlayerController::CheckForInteractables()
+{
+    if (!GetPawn())
     {
-        UE_LOG(LogTemp, Warning, TEXT("PlayerController: No pawn found!"));
         return;
     }
 
-    // Get components từ pawn
-    InventoryComponent = PlayerPawn->FindComponentByClass<UInventoryComponent>();
-    FlashlightComponent = PlayerPawn->FindComponentByClass<UFlashlightComponent>();
-
-    if (!InventoryComponent)
-    {
-        UE_LOG(LogTemp, Error, TEXT("PlayerController: InventoryComponent not found on pawn!"));
-    }
-
-    if (!FlashlightComponent)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("PlayerController: FlashlightComponent not found on pawn!"));
-    }
-}
-
-// ============================================
-// QUICKBAR INPUT
-// ============================================
-void AEscapeITPlayerController::UseQuickbarSlot1() { UseQuickbarSlot(0); }
-void AEscapeITPlayerController::UseQuickbarSlot2() { UseQuickbarSlot(1); }
-void AEscapeITPlayerController::UseQuickbarSlot3() { UseQuickbarSlot(2); }
-void AEscapeITPlayerController::UseQuickbarSlot4() { UseQuickbarSlot(3); }
-
-void AEscapeITPlayerController::UseQuickbarSlot(int32 SlotIndex)
-{
-    if (!InventoryComponent)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("UseQuickbarSlot: InventoryComponent null"));
-        return;
-    }
-
-    // Slot 0 = Flashlight (special handling)
-    if (SlotIndex == 0)
-    {
-        Flashlight();
-        return;
-    }
-
-    // Other slots = use item
-    bool bSuccess = InventoryComponent->UseQuickbarSlot(SlotIndex);
-
-    if (bSuccess)
-    {
-        UE_LOG(LogTemp, Log, TEXT("Used quickbar slot %d"), SlotIndex);
-
-        // Highlight slot trong UI nếu có WidgetManager
-        if (WidgetManager && WidgetManager->QuickbarWidget)
-        {
-            WidgetManager->QuickbarWidget->HighlightSlot(SlotIndex);
-        }
-    }
-}
-
-void AEscapeITPlayerController::DisplayInventory()
-{
-    if (WidgetManager)
-    {
-        WidgetManager->Inventory();
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("DisplayInventory: WidgetManager is null"));
-    }
-}
-
-// ============================================
-// INTERACTION SYSTEM
-// ============================================
-void AEscapeITPlayerController::InteractItem()
-{
-    AActor* InteractableActor = GetLookingAtActor();
-
-    if (InteractableActor)
-    {
-        // Check nếu là item pickup
-        AItemPickupActor* PickupActor = Cast<AItemPickupActor>(InteractableActor);
-        if (PickupActor)
-        {
-            APawn* Pawns = GetPawn();
-            if (Pawns)
-            {
-                PickupActor->PickupItem(Pawns);
-                UE_LOG(LogTemp, Log, TEXT("Interacted with pickup: %s"), *PickupActor->GetName());
-            }
-            return;
-        }
-
-        // TODO: Handle other interactable objects (doors, puzzles, etc.)
-        UE_LOG(LogTemp, Log, TEXT("Interacted with: %s"), *InteractableActor->GetName());
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("No interactable object in range"));
-    }
-}
-
-AActor* AEscapeITPlayerController::GetLookingAtActor()
-{
-    APawn* PlayerPawn = GetPawn();
-    if (!PlayerPawn)
-    {
-        return nullptr;
-    }
-
-    // Get camera location và direction
+    // Line trace from camera
     FVector CameraLocation;
     FRotator CameraRotation;
     GetPlayerViewPoint(CameraLocation, CameraRotation);
 
-    FVector TraceStart = CameraLocation;
-    FVector TraceEnd = TraceStart + (CameraRotation.Vector() * InteractionRange);
+    FVector TraceEnd = CameraLocation + (CameraRotation.Vector() * InteractionDistance);
 
-    // Line trace
     FHitResult HitResult;
-    FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(InteractionTrace), true);
-    QueryParams.AddIgnoredActor(PlayerPawn);
-    QueryParams.bTraceComplex = true;
+    FCollisionQueryParams QueryParams;
+    QueryParams.AddIgnoredActor(GetPawn());
+    QueryParams.AddIgnoredActor(this);
 
     bool bHit = GetWorld()->LineTraceSingleByChannel(
         HitResult,
-        TraceStart,
+        CameraLocation,
         TraceEnd,
         ECC_Visibility,
         QueryParams
     );
 
-    // Debug draw (chỉ trong development)
-#if WITH_EDITOR
-    DrawDebugLine(GetWorld(), TraceStart, TraceEnd, bHit ? FColor::Green : FColor::Red, false, 0.1f, 0, 1.0f);
-#endif
-
-    if (bHit)
+    // Debug line
+    if (bShowDebugTrace)
     {
-        AActor* HitActor = HitResult.GetActor();
-
-        // Check nếu actor có tag "Interactable" hoặc là AItemPickupActor
-        if (HitActor && (HitActor->ActorHasTag(FName("Interactable")) || Cast<AItemPickupActor>(HitActor)))
-        {
-            return HitActor;
-        }
-    }
-
-    return nullptr;
-}
-
-void AEscapeITPlayerController::UpdateInteractionPrompt()
-{
-    AActor* LookingAt = GetLookingAtActor();
-
-    if (LookingAt != CurrentInteractableActor)
-    {
-        CurrentInteractableActor = LookingAt;
-
-        if (CurrentInteractableActor)
-        {
-            // TODO: Show interaction prompt UI
-            // "Press E to Pick Up [ItemName]"
-            UE_LOG(LogTemp, Log, TEXT("Looking at: %s"), *CurrentInteractableActor->GetName());
-        }
-        else
-        {
-            // TODO: Hide interaction prompt
-        }
-    }
-}
-
-// ============================================
-// FLASHLIGHT
-// ============================================
-void AEscapeITPlayerController::Flashlight()
-{
-    if (!FlashlightComponent)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("ToggleFlashlight: FlashlightComponent is null"));
-        return;
-    }
-
-    // Check xem có flashlight trong quickbar không (nếu InventoryComponent được implement)
-    if (InventoryComponent)
-    {
-        FInventorySlot FlashlightSlot = InventoryComponent->GetQuickbarSlot(0);
-        if (!FlashlightSlot.IsValid())
-        {
-            UE_LOG(LogTemp, Warning, TEXT("ToggleFlashlight: No flashlight in quickbar slot 0"));
-            return;
-        }
-    }
-
-    FlashlightComponent->ToggleLight();
-}
-
-// ============================================
-// DROP ITEM
-// ============================================
-void AEscapeITPlayerController::DropCurrentItem()
-{
-    if (!InventoryComponent)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("DropItem: InventoryComponent is null"));
-        return;
-    }
-
-    APawn* PlayerPawn = GetPawn();
-    if (!PlayerPawn)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("DropItem: No pawn found"));
-        return;
-    }
-
-    // Lấy slot để drop (ở đây mặc định slot 1, có thể thay đổi)
-    int32 SlotToDrop = 1; // Slot 1, 2, hoặc 3 (không drop flashlight ở slot 0)
-
-    // Kiểm tra xem slot có item không
-    FInventorySlot SlotData = InventoryComponent->GetQuickbarSlot(SlotToDrop);
-    if (!SlotData.IsValid() || SlotData.Quantity <= 0)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("DropItem: No item in slot %d to drop"), SlotToDrop);
-        return;
-    }
-
-    // Tính vị trí drop (trước mặt player)
-    FVector PlayerLocation = PlayerPawn->GetActorLocation();
-    FRotator PlayerRotation = PlayerPawn->GetActorRotation();
-    FVector DropLocation = PlayerLocation + (PlayerRotation.Vector() * 150.0f); // 150cm trước mặt
-    DropLocation.Z += 50.0f;
-
-    // Spawn item pickup actor
-    FActorSpawnParameters SpawnParams;
-    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-
-    if (SlotData.ItemData && SlotData.ItemData->PickupActorClass)
-    {
-        AItemPickupActor* DroppedItem = GetWorld()->SpawnActor<AItemPickupActor>(
-            SlotData.ItemData->PickupActorClass,
-            DropLocation,
-            FRotator::ZeroRotator,
-            SpawnParams
+        DrawDebugLine(
+            GetWorld(),
+            CameraLocation,
+            TraceEnd,
+            bHit ? FColor::Green : FColor::Red,
+            false,
+            0.1f,
+            0,
+            2.0f
         );
+    }
 
-        if (DroppedItem)
+    AActor* HitActor = bHit ? HitResult.GetActor() : nullptr;
+
+    // Update current interactable
+    if (HitActor != CurrentInteractable)
+    {
+        CurrentInteractable = HitActor;
+
+        if (CurrentInteractable)
         {
-            // Set item data cho dropped item (hàm SetItemData cần implement trong ItemPickupActor)
-            //DroppedItem->SetItemDataByStruct(*SlotData.ItemData);
-
-            // Apply physics impulse để item bay ra một chút nếu root là primitive
-            if (UPrimitiveComponent* ItemMesh = Cast<UPrimitiveComponent>(DroppedItem->GetRootComponent()))
-            {
-                if (!ItemMesh->IsSimulatingPhysics())
-                {
-                    ItemMesh->SetSimulatePhysics(true);
-                }
-                FVector ImpulseDirection = PlayerRotation.Vector() + FVector(0, 0, 0.3f);
-                ImpulseDirection.Normalize();
-                ItemMesh->AddImpulse(ImpulseDirection * 300.0f, NAME_None, true);
-            }
-
-            if (InventoryComponent->DropItem(SlotData.ItemID, 1))
-            {
-                UE_LOG(LogTemp, Log, TEXT("Dropped item via InventoryComponent from slot %d"), SlotToDrop);
-            }
-            else
-            {
-                UE_LOG(LogTemp, Warning, TEXT("Failed to drop item via InventoryComponent"));
-            }
-
-            UE_LOG(LogTemp, Log, TEXT("Dropped item: %s from slot %d"), *SlotData.ItemData->ItemName.ToString(), SlotToDrop);
+            OnInteractableFound(CurrentInteractable);
         }
         else
         {
-            UE_LOG(LogTemp, Error, TEXT("Failed to spawn dropped item"));
+            OnInteractableLost();
         }
+    }
+}
+
+void AEscapeITPlayerController::OnInteractableFound(AActor* Interactable)
+{
+    if (!Interactable || !InteractionPromptWidget)
+    {
+        return;
+    }
+
+    // Check if it's an item pickup
+    AItemPickupActor* PickupActor = Cast<AItemPickupActor>(Interactable);
+    if (PickupActor)
+    {
+        FItemData ItemData;
+        if (PickupActor->GetItemData(ItemData))
+        {
+            FText ActionText = FText::FromString(TEXT("Press"));
+            FText TargetText = FText::Format(
+                FText::FromString(TEXT("to Pick Up {0}")),
+                ItemData.ItemName
+            );
+
+            InteractionPromptWidget->ShowPrompt(ActionText, TargetText, nullptr);
+        }
+        return;
+    }
+
+    // Check for other interactable types
+    InteractionPromptWidget->UpdatePromptForActor(Interactable);
+}
+
+void AEscapeITPlayerController::OnInteractableLost()
+{
+    if (InteractionPromptWidget)
+    {
+        InteractionPromptWidget->HidePrompt();
+    }
+}
+
+void AEscapeITPlayerController::OnInteract()
+{
+    if (!CurrentInteractable)
+    {
+        return;
+    }
+
+    // Handle item pickup
+    AItemPickupActor* PickupActor = Cast<AItemPickupActor>(CurrentInteractable);
+    if (PickupActor)
+    {
+        PickupActor->PickupItem(GetPawn());
+        CurrentInteractable = nullptr;
+
+        if (InteractionPromptWidget)
+        {
+            InteractionPromptWidget->HidePrompt();
+        }
+        return;
+    }
+
+    // Handle other interactables
+    // TODO: Add door, puzzle, etc.
+}
+
+void AEscapeITPlayerController::Inventory()
+{
+    if (!InventoryWidgetClass)
+    {
+        return;
+    }
+
+    if (InventoryWidget && InventoryWidget->IsInViewport())
+    {
+        // Close inventory
+        InventoryWidget->RemoveFromParent();
+        InventoryWidget = nullptr;
+
+        SetInputMode(FInputModeGameOnly());
+        bShowMouseCursor = false;
     }
     else
     {
-        UE_LOG(LogTemp, Error, TEXT("DropItem: ItemData or PickupActorClass is null"));
+        // Open inventory
+        InventoryWidget = CreateWidget<UInventoryWidget>(this, InventoryWidgetClass);
+        if (InventoryWidget)
+        {
+            InventoryWidget->AddToViewport(20);
+
+            // Initialize if it has Initialize function
+            if (UInventoryWidget* InvWidget = Cast<UInventoryWidget>(InventoryWidget))
+            {
+                if (InventoryComponent)
+                {
+                    InvWidget->Initialize(InventoryComponent);
+                }
+            }
+
+            FInputModeGameAndUI InputMode;
+            InputMode.SetWidgetToFocus(InventoryWidget->TakeWidget());
+            InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+            SetInputMode(InputMode);
+
+            bShowMouseCursor = true;
+        }
+    }
+}
+
+// ========== NEW EQUIP FUNCTIONS (Thay thế Use) ==========
+
+void AEscapeITPlayerController::EquipQuickbarSlot1()
+{
+    EquipQuickbarSlot(0);
+}
+
+void AEscapeITPlayerController::EquipQuickbarSlot2()
+{
+    EquipQuickbarSlot(1);
+}
+
+void AEscapeITPlayerController::EquipQuickbarSlot3()
+{
+    EquipQuickbarSlot(2);
+}
+
+void AEscapeITPlayerController::EquipQuickbarSlot4()
+{
+    EquipQuickbarSlot(3);
+}
+
+void AEscapeITPlayerController::EquipQuickbarSlot(int32 SlotIndex)
+{
+    if (!InventoryComponent)
+    {
+        return;
+    }
+
+    // Gọi hàm EquipQuickbarSlot thay vì UseQuickbarSlot
+    bool bSuccess = InventoryComponent->EquipQuickbarSlot(SlotIndex);
+
+    if (bSuccess)
+    {
+        CurrentEquippedSlotIndex = SlotIndex;
+        UE_LOG(LogTemp, Log, TEXT("Equipped item from quickbar slot %d"), SlotIndex + 1);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Failed to equip item from slot %d"), SlotIndex + 1);
+    }
+}
+
+// ========== USE EQUIPPED ITEM (Right-click) ==========
+
+void AEscapeITPlayerController::UseCurrentEquippedItem()
+{
+    if (!InventoryComponent)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("No inventory component found!"));
+        return;
+    }
+
+    if (CurrentEquippedSlotIndex < 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("No item currently equipped!"));
+        return;
+    }
+
+    // Sử dụng item đang equipped
+    bool bSuccess = InventoryComponent->UseEquippedItem();
+
+    if (bSuccess)
+    {
+        UE_LOG(LogTemp, Log, TEXT("Used equipped item from slot %d"), CurrentEquippedSlotIndex + 1);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Failed to use equipped item"));
+    }
+}
+
+// ========== DEPRECATED (Giữ lại cho tương thích) ==========
+
+void AEscapeITPlayerController::UseQuickbarSlot1()
+{
+    EquipQuickbarSlot1();
+}
+
+void AEscapeITPlayerController::UseQuickbarSlot2()
+{
+    EquipQuickbarSlot2();
+}
+
+void AEscapeITPlayerController::UseQuickbarSlot3()
+{
+    EquipQuickbarSlot3();
+}
+
+void AEscapeITPlayerController::UseQuickbarSlot4()
+{
+    EquipQuickbarSlot4();
+}
+
+void AEscapeITPlayerController::UseQuickbarSlot(int32 SlotIndex)
+{
+    EquipQuickbarSlot(SlotIndex);
+}
+
+void AEscapeITPlayerController::DropCurrentItem()
+{
+    if (InventoryComponent)
+    {
+        InventoryComponent->DropEquippedItem();
     }
 }

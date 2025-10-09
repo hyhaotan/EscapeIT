@@ -1,6 +1,6 @@
-#include "QuickbarWidget.h"
-#include "EscapeIT/Actor//Components/InventoryComponent.h"
-#include "EscapeIT/Actor//Components/FlashlightComponent.h"
+﻿#include "QuickbarWidget.h"
+#include "EscapeIT/Actor/Components/InventoryComponent.h"
+#include "EscapeIT/Actor/Components/FlashlightComponent.h"
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
 #include "Components/ProgressBar.h"
@@ -16,13 +16,17 @@ void UQuickbarWidget::NativeConstruct()
     if (Slot3_Hotkey) Slot3_Hotkey->SetText(FText::FromString("3"));
     if (Slot4_Hotkey) Slot4_Hotkey->SetText(FText::FromString("4"));
 
-    // Initialize visual state
-    RefreshQuickbar();
+    UE_LOG(LogTemp, Log, TEXT("QuickbarWidget: NativeConstruct called"));
 }
 
 void UQuickbarWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
     Super::NativeTick(MyGeometry, InDeltaTime);
+
+    if (!bIsInitialized)
+    {
+        return;
+    }
 
     // Update battery bar every frame for smooth animation
     if (FlashlightComponent && Slot1_Battery)
@@ -78,23 +82,43 @@ void UQuickbarWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 
 void UQuickbarWidget::Initialize(UInventoryComponent* InInventoryComp, UFlashlightComponent* InFlashlightComp)
 {
+    if (!InInventoryComp)
+    {
+        UE_LOG(LogTemp, Error, TEXT("QuickbarWidget::Initialize - InventoryComponent is NULL!"));
+        return;
+    }
+
     InventoryComponent = InInventoryComp;
     FlashlightComponent = InFlashlightComp;
 
-    if (InventoryComponent)
+    // Bind to inventory updates
+    if (!InventoryComponent->OnInventoryUpdated.IsAlreadyBound(this, &UQuickbarWidget::OnInventoryUpdated))
     {
-        // Bind to inventory updates
         InventoryComponent->OnInventoryUpdated.AddDynamic(this, &UQuickbarWidget::OnInventoryUpdated);
-        ItemDataTable = InventoryComponent->ItemDataTable;
+        UE_LOG(LogTemp, Log, TEXT("QuickbarWidget: Bound to OnInventoryUpdated"));
     }
+
+    ItemDataTable = InventoryComponent->ItemDataTable;
 
     if (FlashlightComponent)
     {
         // Bind to battery and flashlight events
-        FlashlightComponent->OnBatteryChanged.AddDynamic(this, &UQuickbarWidget::OnBatteryChanged);
-        FlashlightComponent->OnFlashlightToggled.AddDynamic(this, &UQuickbarWidget::OnFlashlightToggled);
+        if (!FlashlightComponent->OnBatteryChanged.IsAlreadyBound(this, &UQuickbarWidget::OnBatteryChanged))
+        {
+            FlashlightComponent->OnBatteryChanged.AddDynamic(this, &UQuickbarWidget::OnBatteryChanged);
+        }
+
+        if (!FlashlightComponent->OnFlashlightToggled.IsAlreadyBound(this, &UQuickbarWidget::OnFlashlightToggled))
+        {
+            FlashlightComponent->OnFlashlightToggled.AddDynamic(this, &UQuickbarWidget::OnFlashlightToggled);
+        }
+
+        UE_LOG(LogTemp, Log, TEXT("QuickbarWidget: Bound to FlashlightComponent events"));
     }
 
+    bIsInitialized = true;
+
+    // Initial refresh
     RefreshQuickbar();
 
     UE_LOG(LogTemp, Log, TEXT("QuickbarWidget initialized successfully"));
@@ -108,6 +132,8 @@ void UQuickbarWidget::RefreshQuickbar()
         return;
     }
 
+    UE_LOG(LogTemp, Log, TEXT("RefreshQuickbar: Updating all slots"));
+
     for (int32 i = 0; i < 4; i++)
     {
         UpdateSlot(i);
@@ -118,10 +144,24 @@ void UQuickbarWidget::UpdateSlot(int32 SlotIndex)
 {
     if (!InventoryComponent || SlotIndex < 0 || SlotIndex >= 4)
     {
+        UE_LOG(LogTemp, Warning, TEXT("UpdateSlot: Invalid params - Comp=%s, Index=%d"),
+            InventoryComponent ? TEXT("Valid") : TEXT("NULL"), SlotIndex);
         return;
     }
 
     FInventorySlot SlotData = InventoryComponent->GetQuickbarSlot(SlotIndex);
+
+    // Debug log CHI TIẾT
+    if (SlotData.IsValid())
+    {
+        UE_LOG(LogTemp, Log, TEXT("UpdateSlot %d: Item=%s, Quantity=%d, Cooldown=%.2f"),
+            SlotIndex, *SlotData.ItemID.ToString(), SlotData.Quantity, SlotData.CooldownRemaining);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Log, TEXT("UpdateSlot %d: EMPTY SLOT"), SlotIndex);
+    }
+
     UpdateSlotVisuals(SlotIndex, SlotData);
 }
 
@@ -161,8 +201,20 @@ void UQuickbarWidget::UpdateSlotVisuals(int32 SlotIndex, const FInventorySlot& S
         break;
     }
 
-    if (!Icon || !Quantity || !Border)
+    // Validate widget references
+    if (!Icon)
     {
+        UE_LOG(LogTemp, Error, TEXT("UpdateSlotVisuals: Icon widget is NULL for slot %d"), SlotIndex);
+        return;
+    }
+    if (!Quantity)
+    {
+        UE_LOG(LogTemp, Error, TEXT("UpdateSlotVisuals: Quantity widget is NULL for slot %d"), SlotIndex);
+        return;
+    }
+    if (!Border)
+    {
+        UE_LOG(LogTemp, Error, TEXT("UpdateSlotVisuals: Border widget is NULL for slot %d"), SlotIndex);
         return;
     }
 
@@ -185,13 +237,35 @@ void UQuickbarWidget::UpdateSlotVisuals(int32 SlotIndex, const FInventorySlot& S
 
     // Get item data
     FItemData ItemData;
+    bool bFoundItemData = false;
+
     if (ItemDataTable)
     {
         FItemData* Data = ItemDataTable->FindRow<FItemData>(SlotData.ItemID, TEXT("UpdateSlotVisuals"));
         if (Data)
         {
             ItemData = *Data;
+            bFoundItemData = true;
         }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("UpdateSlotVisuals: ItemID '%s' not found in DataTable"),
+                *SlotData.ItemID.ToString());
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("UpdateSlotVisuals: ItemDataTable is NULL"));
+    }
+
+    if (!bFoundItemData)
+    {
+        // Show placeholder for missing data
+        Icon->SetColorAndOpacity(FLinearColor::Red);
+        Quantity->SetText(FText::FromString("?"));
+        Quantity->SetVisibility(ESlateVisibility::Visible);
+        Border->SetBrushColor(FLinearColor::Red);
+        return;
     }
 
     // Set icon
@@ -199,6 +273,14 @@ void UQuickbarWidget::UpdateSlotVisuals(int32 SlotIndex, const FInventorySlot& S
     {
         Icon->SetBrushFromTexture(ItemData.Icon);
         Icon->SetColorAndOpacity(FLinearColor::White);
+        UE_LOG(LogTemp, Log, TEXT("UpdateSlotVisuals: Set icon for slot %d"), SlotIndex);
+    }
+    else
+    {
+        Icon->SetBrushFromTexture(nullptr);
+        Icon->SetColorAndOpacity(FLinearColor::Gray);
+        UE_LOG(LogTemp, Warning, TEXT("UpdateSlotVisuals: No icon for item '%s'"),
+            *ItemData.ItemName.ToString());
     }
 
     // Set quantity
@@ -326,14 +408,14 @@ void UQuickbarWidget::HighlightSlot(int32 SlotIndex)
     if (NewBorder)
     {
         NewBorder->SetBrushColor(SelectedBorderColor);
-
-        // Brief scale animation (optional - can be done in Blueprint animation)
-        // NewBorder->SetRenderScale(FVector2D(1.1f, 1.1f));
     }
+
+    UE_LOG(LogTemp, Log, TEXT("Quickbar: Highlighted slot %d"), SlotIndex);
 }
 
 void UQuickbarWidget::OnInventoryUpdated()
 {
+    UE_LOG(LogTemp, Log, TEXT("QuickbarWidget: OnInventoryUpdated called - Refreshing all slots"));
     RefreshQuickbar();
 }
 

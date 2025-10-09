@@ -14,13 +14,11 @@ AItemPickupActor::AItemPickupActor()
 {
     PrimaryActorTick.bCanEverTick = true;
 
-    // Root component
     MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComponent"));
     RootComponent = MeshComponent;
     MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
     MeshComponent->SetSimulatePhysics(false);
 
-    // Interaction sphere
     InteractionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("InteractionSphere"));
     InteractionSphere->SetupAttachment(RootComponent);
     InteractionSphere->SetSphereRadius(100.0f);
@@ -28,14 +26,12 @@ AItemPickupActor::AItemPickupActor()
     InteractionSphere->SetCollisionResponseToAllChannels(ECR_Ignore);
     InteractionSphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
 
-    // Widget component cho prompt
     PromptWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("PromptWidget"));
     PromptWidget->SetupAttachment(RootComponent);
     PromptWidget->SetRelativeLocation(FVector(0.0f, 0.0f, 50.0f));
     PromptWidget->SetWidgetSpace(EWidgetSpace::Screen);
     PromptWidget->SetVisibility(false);
 
-    // Default values
     InteractionRadius = 100.0f;
     Quantity = 1;
     bAutoPickup = false;
@@ -53,42 +49,55 @@ void AItemPickupActor::BeginPlay()
 
     InitialLocation = GetActorLocation();
 
-    // Bind overlap events (safety: unbind then bind to avoid double bind)
     if (InteractionSphere)
     {
         InteractionSphere->OnComponentBeginOverlap.AddDynamic(this, &AItemPickupActor::OnInteractionBeginOverlap);
         InteractionSphere->OnComponentEndOverlap.AddDynamic(this, &AItemPickupActor::OnInteractionEndOverlap);
+        InteractionSphere->SetSphereRadius(InteractionRadius);
     }
 
-    // Load mesh từ DataTable nếu có
-    FItemData RowData;
-    if (GetItemData(RowData) && RowData.WorldMesh && MeshComponent)
-    {
-        MeshComponent->SetStaticMesh(RowData.WorldMesh);
-    }
+    // Load mesh và data từ DataTable
+    InitializeFromDataTable();
 
-    // Hide prompt initially
     ShowPrompt(false);
+}
+
+void AItemPickupActor::InitializeFromDataTable()
+{
+    FItemData RowData;
+    if (GetItemData(RowData))
+    {
+        // Set mesh
+        if (RowData.ItemMesh && MeshComponent)
+        {
+            MeshComponent->SetStaticMesh(RowData.ItemMesh);
+        }
+
+        // Cache item name cho prompt
+        CachedItemName = RowData.ItemName;
+
+        UE_LOG(LogTemp, Log, TEXT("ItemPickupActor: Initialized '%s' from DataTable"), *RowData.ItemName.ToString());
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("ItemPickupActor: Failed to load data for ItemID '%s'"), *ItemID.ToString());
+    }
 }
 
 void AItemPickupActor::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
-
     UpdateVisualEffects(DeltaTime);
 }
 
-// ============================================
-// PICKUP LOGIC
-// ============================================
 void AItemPickupActor::PickupItem(AActor* Collector)
 {
     if (!Collector)
     {
+        UE_LOG(LogTemp, Warning, TEXT("PickupItem: Collector is null"));
         return;
     }
 
-    // Tìm InventoryComponent
     UInventoryComponent* Inventory = Collector->FindComponentByClass<UInventoryComponent>();
     if (!Inventory)
     {
@@ -96,7 +105,6 @@ void AItemPickupActor::PickupItem(AActor* Collector)
         return;
     }
 
-    // Lấy item data
     FItemData ItemData;
     if (!GetItemData(ItemData))
     {
@@ -104,31 +112,46 @@ void AItemPickupActor::PickupItem(AActor* Collector)
         return;
     }
 
-    // Thử add vào inventory
     if (Inventory->AddItem(ItemID, Quantity))
     {
         // Spawn particle effect
         if (PickupParticle)
         {
-            UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), PickupParticle, GetActorLocation());
+            UGameplayStatics::SpawnEmitterAtLocation(
+                GetWorld(),
+                PickupParticle,
+                GetActorLocation(),
+                FRotator::ZeroRotator,
+                FVector(1.0f)
+            );
         }
 
-        // Play sound (sử dụng sound từ ItemData)
+        // Play sound
         USoundBase* SoundToPlay = ItemData.PickupSound ? ItemData.PickupSound : PickupSound;
         if (SoundToPlay)
         {
-            UGameplayStatics::PlaySoundAtLocation(this, SoundToPlay, GetActorLocation());
+            UGameplayStatics::PlaySoundAtLocation(
+                this,
+                SoundToPlay,
+                GetActorLocation()
+            );
         }
 
-        UE_LOG(LogTemp, Log, TEXT("PickupItem: Picked up %d x %s"), Quantity, *ItemData.ItemName.ToString());
+        UE_LOG(LogTemp, Log, TEXT("PickupItem: Successfully picked up %d x %s"),
+            Quantity, *ItemData.ItemName.ToString());
 
         // Destroy actor
         Destroy();
     }
     else
     {
-        UE_LOG(LogTemp, Warning, TEXT("PickupItem: Failed to add item to inventory (full?)"));
-        // TODO: Hiện notification "Inventory Full"
+        UE_LOG(LogTemp, Warning, TEXT("PickupItem: Failed to add item (inventory full or overweight)"));
+
+        // TODO: Show notification to player
+        // if (APlayerController* PC = Cast<APlayerController>(Collector->GetInstigatorController()))
+        // {
+        //     ShowInventoryFullNotification(PC);
+        // }
     }
 }
 
@@ -145,7 +168,6 @@ bool AItemPickupActor::CanBePickedUp(AActor* Collector) const
         return false;
     }
 
-    // Check inventory có chỗ không
     return !Inventory->IsInventoryFull();
 }
 
@@ -157,6 +179,12 @@ bool AItemPickupActor::GetItemData(FItemData& OutData) const
         return false;
     }
 
+    if (ItemID.IsNone())
+    {
+        UE_LOG(LogTemp, Error, TEXT("GetItemData: ItemID is None!"));
+        return false;
+    }
+
     const FString ContextString = TEXT("GetItemData");
     FItemData* Data = ItemDataTable->FindRow<FItemData>(ItemID, ContextString);
     if (Data)
@@ -165,51 +193,50 @@ bool AItemPickupActor::GetItemData(FItemData& OutData) const
         return true;
     }
 
+    UE_LOG(LogTemp, Error, TEXT("GetItemData: ItemID '%s' not found in DataTable"), *ItemID.ToString());
     return false;
 }
 
-void AItemPickupActor::SetItemDataByStruct(bool bShow)
+void AItemPickupActor::SetItemID(FName NewItemID)
 {
-    // Nếu bạn có biến nội bộ lưu row hoặc ItemID, set tương ứng:
-    //ItemStoredData = InData; // nếu bạn định lưu struct (không bắt buộc)
-    // Cập nhật mesh nếu có
-    //if (InData.WorldMesh && MeshComponent)
-    //{
-    //    MeshComponent->SetStaticMesh(InData.WorldMesh);
-    //}
+    ItemID = NewItemID;
+    InitializeFromDataTable();
 }
 
-// ============================================
-// OVERLAP CALLBACKS
-// ============================================
-void AItemPickupActor::OnInteractionBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
-    UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+void AItemPickupActor::OnInteractionBeginOverlap(
+    UPrimitiveComponent* OverlappedComponent,
+    AActor* OtherActor,
+    UPrimitiveComponent* OtherComp,
+    int32 OtherBodyIndex,
+    bool bFromSweep,
+    const FHitResult& SweepResult)
 {
-    if (!OtherActor)
+    if (!OtherActor || OtherActor == this)
     {
         return;
     }
 
-    // Check if player (dựa trên tag "Player")
     if (OtherActor->ActorHasTag(FName("Player")))
     {
         bPlayerNearby = true;
         ShowPrompt(true);
 
-        // Auto pickup nếu enabled
         if (bAutoPickup)
         {
             PickupItem(OtherActor);
         }
 
-        UE_LOG(LogTemp, Log, TEXT("Player entered pickup range"));
+        UE_LOG(LogTemp, Log, TEXT("Player entered pickup range for '%s'"), *CachedItemName.ToString());
     }
 }
 
-void AItemPickupActor::OnInteractionEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
-    UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+void AItemPickupActor::OnInteractionEndOverlap(
+    UPrimitiveComponent* OverlappedComponent,
+    AActor* OtherActor,
+    UPrimitiveComponent* OtherComp,
+    int32 OtherBodyIndex)
 {
-    if (!OtherActor)
+    if (!OtherActor || OtherActor == this)
     {
         return;
     }
@@ -223,12 +250,8 @@ void AItemPickupActor::OnInteractionEndOverlap(UPrimitiveComponent* OverlappedCo
     }
 }
 
-// ============================================
-// VISUAL EFFECTS
-// ============================================
 void AItemPickupActor::UpdateVisualEffects(float DeltaTime)
 {
-    // Rotation
     if (bRotateItem)
     {
         FRotator CurrentRotation = GetActorRotation();
@@ -236,7 +259,6 @@ void AItemPickupActor::UpdateVisualEffects(float DeltaTime)
         SetActorRotation(CurrentRotation);
     }
 
-    // Floating
     if (bFloatItem)
     {
         FloatTimer += DeltaTime * FloatSpeed;
@@ -252,4 +274,9 @@ void AItemPickupActor::ShowPrompt(bool bShow)
     {
         PromptWidget->SetVisibility(bShow);
     }
+}
+
+FText AItemPickupActor::GetItemName() const
+{
+    return CachedItemName;
 }

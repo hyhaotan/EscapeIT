@@ -86,7 +86,7 @@ struct FItemData : public FTableRowBase
 
     // World visual & actor class to spawn when dropping
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World")
-    UStaticMesh* WorldMesh;
+    UStaticMesh* ItemMesh;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World")
     TSubclassOf<AItemPickupActor> PickupActorClass;
@@ -117,7 +117,7 @@ struct FItemData : public FTableRowBase
         , UsageCooldown(0.0f)
         , bHasDurability(false)
         , MaxUses(1)
-        , WorldMesh(nullptr)
+        , ItemMesh(nullptr)
         , PickupActorClass(nullptr)
         , PickupSound(nullptr)
         , UseSound(nullptr)
@@ -144,8 +144,6 @@ struct FInventorySlot
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     float CooldownRemaining; // Thời gian cooldown còn lại
 
-    // LƯU Ý: FItemData là struct (non-UObject). Không nên dùng UPROPERTY cho con trỏ tới struct non-UObject.
-    // Ta cache con trỏ const để tham chiếu nhanh tới dữ liệu từ DataTable (nếu cần).
     const FItemData* ItemData;
 
     FInventorySlot()

@@ -1,10 +1,8 @@
-﻿
+﻿// ItemPickupActor.h
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "Components/SphereComponent.h"
-#include "Components/WidgetComponent.h"
 #include "EscapeIT/Data/ItemData.h"
 #include "ItemPickupActor.generated.h"
 
@@ -18,109 +16,130 @@ public:
 
 protected:
     virtual void BeginPlay() override;
-    virtual void Tick(float DeltaTime) override;
 
 public:
+    virtual void Tick(float DeltaTime) override;
+
     // ============================================
     // COMPONENTS
     // ============================================
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-    UStaticMeshComponent* MeshComponent;
+    class UStaticMeshComponent* MeshComponent;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-    USphereComponent* InteractionSphere;
+    class USphereComponent* InteractionSphere;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-    UWidgetComponent* PromptWidget;
+    class UWidgetComponent* PromptWidget;
 
     // ============================================
-    // PROPERTIES
+    // ITEM DATA
     // ============================================
 
-    // Item ID trong DataTable
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
     FName ItemID;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
+    class UDataTable* ItemDataTable;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item", meta = (ClampMin = "1"))
     int32 Quantity = 1;
 
-    // Có tự động pickup khi chạm không
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
+    // ============================================
+    // INTERACTION
+    // ============================================
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+    float InteractionRadius = 100.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
     bool bAutoPickup = false;
 
-    // Interaction range
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
-    float InteractionRadius = 150.0f;
+    UPROPERTY(BlueprintReadOnly, Category = "Interaction")
+    bool bPlayerNearby = false;
 
-    // Visual effects
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item|VFX")
+    // ============================================
+    // VISUAL EFFECTS
+    // ============================================
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual")
     bool bRotateItem = true;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item|VFX")
-    float RotationSpeed = 50.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual", meta = (EditCondition = "bRotateItem"))
+    float RotationSpeed = 45.0f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item|VFX")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual")
     bool bFloatItem = true;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item|VFX")
-    float FloatAmplitude = 10.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual", meta = (EditCondition = "bFloatItem"))
+    float FloatSpeed = 1.0f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item|VFX")
-    float FloatSpeed = 2.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual", meta = (EditCondition = "bFloatItem"))
+    float FloatAmplitude = 8.0f;
 
-    // Particles
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item|VFX")
-    UParticleSystem* PickupParticle;
+    // ============================================
+    // EFFECTS
+    // ============================================
 
-    // Audio
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item|Audio")
-    USoundBase* PickupSound;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
+    class UParticleSystem* PickupParticle;
 
-    // Reference to DataTable
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item")
-    UDataTable* ItemDataTable;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
+    class USoundBase* PickupSound;
 
     // ============================================
     // FUNCTIONS
     // ============================================
 
-    // Pickup item
     UFUNCTION(BlueprintCallable, Category = "Item")
     void PickupItem(AActor* Collector);
 
-    // Check có thể pickup không
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Item")
     bool CanBePickedUp(AActor* Collector) const;
 
-    // Get item data
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Item")
     bool GetItemData(FItemData& OutData) const;
 
     UFUNCTION(BlueprintCallable, Category = "Item")
-    void SetItemDataByStruct(bool bShow);
+    void SetItemID(FName NewItemID);
+
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Item")
+    FText GetItemName() const;
+
+    UFUNCTION(BlueprintCallable, Category = "Visual")
+    void ShowPrompt(bool bShow);
 
 protected:
     // ============================================
-    // CALLBACKS
+    // OVERLAP CALLBACKS
     // ============================================
 
     UFUNCTION()
-    void OnInteractionBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
-        UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+    void OnInteractionBeginOverlap(
+        UPrimitiveComponent* OverlappedComponent,
+        AActor* OtherActor,
+        UPrimitiveComponent* OtherComp,
+        int32 OtherBodyIndex,
+        bool bFromSweep,
+        const FHitResult& SweepResult);
 
     UFUNCTION()
-    void OnInteractionEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
-        UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+    void OnInteractionEndOverlap(
+        UPrimitiveComponent* OverlappedComponent,
+        AActor* OtherActor,
+        UPrimitiveComponent* OtherComp,
+        int32 OtherBodyIndex);
 
-    // Visual updates
+    // ============================================
+    // INTERNAL FUNCTIONS
+    // ============================================
+
     void UpdateVisualEffects(float DeltaTime);
-
-    // Show/Hide prompt
-    void ShowPrompt(bool bShow);
+    void InitializeFromDataTable();
 
 private:
     FVector InitialLocation;
-    float FloatTimer = 0.0f;
-    bool bPlayerNearby = false;
+    float FloatTimer;
+    FText CachedItemName;
 };

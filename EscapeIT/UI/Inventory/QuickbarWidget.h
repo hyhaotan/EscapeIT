@@ -1,11 +1,8 @@
+// QuickbarWidget.h
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "Components/Image.h"
-#include "Components/TextBlock.h"
-#include "Components/ProgressBar.h"
-#include "Components/Border.h"
 #include "EscapeIT/Data/ItemData.h"
 #include "QuickbarWidget.generated.h"
 
@@ -14,109 +11,116 @@ class ESCAPEIT_API UQuickbarWidget : public UUserWidget
 {
     GENERATED_BODY()
 
-public:
+protected:
     virtual void NativeConstruct() override;
     virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
+public:
     // ============================================
-    // WIDGET BINDINGS (Must match UMG names exactly!)
-    // ============================================
-
-    // Slot 1 (Flashlight)
-    UPROPERTY(meta = (BindWidget))
-    UImage* Slot1_Icon;
-
-    UPROPERTY(meta = (BindWidget))
-    UTextBlock* Slot1_Quantity;
-
-    UPROPERTY(meta = (BindWidget))
-    UProgressBar* Slot1_Battery;
-
-    UPROPERTY(meta = (BindWidget))
-    UBorder* Slot1_Border;
-
-    UPROPERTY(meta = (BindWidget))
-    UTextBlock* Slot1_Hotkey;
-
-    // Slot 2
-    UPROPERTY(meta = (BindWidget))
-    UImage* Slot2_Icon;
-
-    UPROPERTY(meta = (BindWidget))
-    UTextBlock* Slot2_Quantity;
-
-    UPROPERTY(meta = (BindWidget))
-    UProgressBar* Slot2_Cooldown;
-
-    UPROPERTY(meta = (BindWidget))
-    UBorder* Slot2_Border;
-
-    UPROPERTY(meta = (BindWidget))
-    UTextBlock* Slot2_Hotkey;
-
-    // Slot 3
-    UPROPERTY(meta = (BindWidget))
-    UImage* Slot3_Icon;
-
-    UPROPERTY(meta = (BindWidget))
-    UTextBlock* Slot3_Quantity;
-
-    UPROPERTY(meta = (BindWidget))
-    UProgressBar* Slot3_Cooldown;
-
-    UPROPERTY(meta = (BindWidget))
-    UBorder* Slot3_Border;
-
-    UPROPERTY(meta = (BindWidget))
-    UTextBlock* Slot3_Hotkey;
-
-    // Slot 4
-    UPROPERTY(meta = (BindWidget))
-    UImage* Slot4_Icon;
-
-    UPROPERTY(meta = (BindWidget))
-    UTextBlock* Slot4_Quantity;
-
-    UPROPERTY(meta = (BindWidget))
-    UProgressBar* Slot4_Cooldown;
-
-    UPROPERTY(meta = (BindWidget))
-    UBorder* Slot4_Border;
-
-    UPROPERTY(meta = (BindWidget))
-    UTextBlock* Slot4_Hotkey;
-
-    // ============================================
-    // PROPERTIES
-    // ============================================
-
-    UPROPERTY(BlueprintReadWrite, Category = "Quickbar")
-    class UInventoryComponent* InventoryComponent;
-
-    UPROPERTY(BlueprintReadWrite, Category = "Quickbar")
-    class UFlashlightComponent* FlashlightComponent;
-
-    UPROPERTY(EditDefaultsOnly, Category = "Quickbar|Style")
-    FLinearColor NormalBorderColor = FLinearColor(0.2f, 0.2f, 0.2f, 0.8f);
-
-    UPROPERTY(EditDefaultsOnly, Category = "Quickbar|Style")
-    FLinearColor SelectedBorderColor = FLinearColor(1.0f, 0.8f, 0.0f, 1.0f);
-
-    UPROPERTY(EditDefaultsOnly, Category = "Quickbar|Style")
-    FLinearColor EmptySlotColor = FLinearColor(0.5f, 0.5f, 0.5f, 0.3f);
-
-    UPROPERTY(EditDefaultsOnly, Category = "Quickbar|Style")
-    FLinearColor LowBatteryColor = FLinearColor(1.0f, 0.2f, 0.2f, 1.0f);
-
-    // ============================================
-    // FUNCTIONS
+    // INITIALIZATION
     // ============================================
 
     UFUNCTION(BlueprintCallable, Category = "Quickbar")
-    void Initialize(UInventoryComponent* InInventoryComp, UFlashlightComponent* InFlashlightComp);
+    void Initialize(class UInventoryComponent* InInventoryComp, class UFlashlightComponent* InFlashlightComp);
 
     UFUNCTION(BlueprintCallable, Category = "Quickbar")
     void RefreshQuickbar();
+
+    // ============================================
+    // SLOT WIDGETS - SLOT 1 (Flashlight)
+    // ============================================
+
+    UPROPERTY(meta = (BindWidget))
+    class UImage* Slot1_Icon;
+
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* Slot1_Quantity;
+
+    UPROPERTY(meta = (BindWidget))
+    class UProgressBar* Slot1_Battery;
+
+    UPROPERTY(meta = (BindWidget))
+    class UBorder* Slot1_Border;
+
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* Slot1_Hotkey;
+
+    // ============================================
+    // SLOT WIDGETS - SLOT 2
+    // ============================================
+
+    UPROPERTY(meta = (BindWidget))
+    class UImage* Slot2_Icon;
+
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* Slot2_Quantity;
+
+    UPROPERTY(meta = (BindWidget))
+    class UProgressBar* Slot2_Cooldown;
+
+    UPROPERTY(meta = (BindWidget))
+    class UBorder* Slot2_Border;
+
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* Slot2_Hotkey;
+
+    // ============================================
+    // SLOT WIDGETS - SLOT 3
+    // ============================================
+
+    UPROPERTY(meta = (BindWidget))
+    class UImage* Slot3_Icon;
+
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* Slot3_Quantity;
+
+    UPROPERTY(meta = (BindWidget))
+    class UProgressBar* Slot3_Cooldown;
+
+    UPROPERTY(meta = (BindWidget))
+    class UBorder* Slot3_Border;
+
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* Slot3_Hotkey;
+
+    // ============================================
+    // SLOT WIDGETS - SLOT 4
+    // ============================================
+
+    UPROPERTY(meta = (BindWidget))
+    class UImage* Slot4_Icon;
+
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* Slot4_Quantity;
+
+    UPROPERTY(meta = (BindWidget))
+    class UProgressBar* Slot4_Cooldown;
+
+    UPROPERTY(meta = (BindWidget))
+    class UBorder* Slot4_Border;
+
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* Slot4_Hotkey;
+
+    // ============================================
+    // COLORS
+    // ============================================
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Colors")
+    FLinearColor NormalBorderColor = FLinearColor(0.2f, 0.2f, 0.2f, 0.8f);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Colors")
+    FLinearColor SelectedBorderColor = FLinearColor(1.0f, 0.8f, 0.0f, 1.0f);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Colors")
+    FLinearColor EmptySlotColor = FLinearColor(0.1f, 0.1f, 0.1f, 0.5f);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Colors")
+    FLinearColor LowBatteryColor = FLinearColor::Red;
+
+    // ============================================
+    // PUBLIC FUNCTIONS
+    // ============================================
 
     UFUNCTION(BlueprintCallable, Category = "Quickbar")
     void UpdateSlot(int32 SlotIndex);
@@ -125,9 +129,35 @@ public:
     void HighlightSlot(int32 SlotIndex);
 
 protected:
-    void UpdateSlotVisuals(int32 SlotIndex, const FInventorySlot& SlotData);
-    void UpdateBatteryDisplay(float Percentage);
-    void UpdateCooldownDisplay(int32 SlotIndex, float CooldownPercent);
+    // ============================================
+    // COMPONENT REFERENCES
+    // ============================================
+
+    UPROPERTY(BlueprintReadOnly, Category = "Components")
+    class UInventoryComponent* InventoryComponent;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Components")
+    class UFlashlightComponent* FlashlightComponent;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Data")
+    class UDataTable* ItemDataTable;
+
+    // ============================================
+    // STATE
+    // ============================================
+
+    UPROPERTY(BlueprintReadOnly, Category = "State")
+    int32 CurrentSelectedSlot = -1;
+
+    UPROPERTY(BlueprintReadOnly, Category = "State")
+    bool bLowBatteryWarningActive = false;
+
+    UPROPERTY(BlueprintReadOnly, Category = "State")
+    bool bIsInitialized = false;
+
+    // ============================================
+    // EVENT HANDLERS
+    // ============================================
 
     UFUNCTION()
     void OnInventoryUpdated();
@@ -139,7 +169,11 @@ protected:
     void OnFlashlightToggled(bool bIsOn);
 
 private:
-    int32 CurrentSelectedSlot = -1;
-    UDataTable* ItemDataTable;
-    bool bLowBatteryWarningActive = false;
+    // ============================================
+    // INTERNAL FUNCTIONS
+    // ============================================
+
+    void UpdateSlotVisuals(int32 SlotIndex, const struct FInventorySlot& SlotData);
+    void UpdateBatteryDisplay(float Percentage);
+    void UpdateCooldownDisplay(int32 SlotIndex, float CooldownPercent);
 };
