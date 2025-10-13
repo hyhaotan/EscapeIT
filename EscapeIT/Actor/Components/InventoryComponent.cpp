@@ -5,6 +5,8 @@
 #include "EscapeIT/Actor/ItemPickupActor.h"
 #include "Sound/SoundBase.h"
 #include "GameFramework/Character.h"
+#include "EscapeIT/Actor/Components/SanityComponent.h"
+#include "EscapeIT/EscapeITCharacter.h"
 #include "Components/SkeletalMeshComponent.h"
 
 UInventoryComponent::UInventoryComponent()
@@ -39,9 +41,6 @@ void UInventoryComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
     UpdateCooldowns(DeltaTime);
 }
 
-// ============================================
-// ADD ITEM
-// ============================================
 bool UInventoryComponent::AddItem(FName ItemID, int32 Quantity)
 {
     if (ItemID.IsNone() || Quantity <= 0)
@@ -132,31 +131,55 @@ bool UInventoryComponent::AddItem(FName ItemID, int32 Quantity)
     OnItemAdded.Broadcast(ItemID, Quantity);
 
     bool bAlreadyInQuickbar = false;
+    int32 ExistingSlotIndex = -1;
+
+    // Check if item already in quickbar
     for (int32 i = 0; i < QuickbarSize; i++)
     {
         if (QuickbarSlots[i].ItemID == ItemID)
         {
             bAlreadyInQuickbar = true;
+            ExistingSlotIndex = i;
             UE_LOG(LogTemp, Log, TEXT("AddItem: Item '%s' already in quickbar slot %d"),
                 *ItemID.ToString(), i);
             break;
         }
     }
 
-    // If not in quickbar, try to auto-assign to first empty slot (skip slot 0 for flashlight)
     if (!bAlreadyInQuickbar)
     {
-        for (int32 i = 1; i < QuickbarSize; i++)
+        // SPECIAL CASE: Flashlight always goes to slot 0
+        if (ItemData.ItemType == EItemType::Tool)
         {
-            if (!QuickbarSlots[i].IsValid())
+            if (ItemData.ItemCategory == EItemCategory::Flashlight)
             {
-                bool bAssigned = AssignToQuickbar(ItemID, i);
+                bool bAssigned = AssignToQuickbar(ItemID, 0);
                 if (bAssigned)
                 {
-                    UE_LOG(LogTemp, Log, TEXT("AddItem: Auto-assigned '%s' to quickbar slot %d"),
-                        *ItemID.ToString(), i);
+                    UE_LOG(LogTemp, Log, TEXT("AddItem: Auto-assigned Flashlight '%s' to quickbar slot 0"),
+                        *ItemID.ToString());
                 }
-                break;
+                else
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("AddItem: Failed to assign Flashlight to slot 0"));
+                }
+            }
+        }
+        // Other items: auto-assign to slots 1-3
+        else
+        {
+            for (int32 i = 1; i < QuickbarSize; i++)
+            {
+                if (!QuickbarSlots[i].IsValid())
+                {
+                    bool bAssigned = AssignToQuickbar(ItemID, i);
+                    if (bAssigned)
+                    {
+                        UE_LOG(LogTemp, Log, TEXT("AddItem: Auto-assigned '%s' to quickbar slot %d"),
+                            *ItemID.ToString(), i);
+                    }
+                    break;
+                }
             }
         }
     }
@@ -165,9 +188,6 @@ bool UInventoryComponent::AddItem(FName ItemID, int32 Quantity)
     return true;
 }
 
-// ============================================
-// REMOVE ITEM
-// ============================================
 bool UInventoryComponent::RemoveItem(FName ItemID, int32 Quantity)
 {
     if (ItemID.IsNone() || Quantity <= 0)
@@ -232,9 +252,6 @@ bool UInventoryComponent::RemoveItem(FName ItemID, int32 Quantity)
     return true;
 }
 
-// ============================================
-// USE ITEM (Legacy - giờ chỉ dùng cho direct use)
-// ============================================
 bool UInventoryComponent::UseItem(FName ItemID)
 {
     if (!HasItem(ItemID, 1))
@@ -294,10 +311,6 @@ bool UInventoryComponent::UseItem(FName ItemID)
     UE_LOG(LogTemp, Log, TEXT("UseItem: Used '%s'"), *ItemData.ItemName.ToString());
     return true;
 }
-
-// ============================================
-// EQUIP SYSTEM - NEW
-// ============================================
 
 bool UInventoryComponent::EquipQuickbarSlot(int32 QuickbarIndex)
 {
@@ -399,7 +412,7 @@ bool UInventoryComponent::AttachItemToHand(const FItemData& ItemData)
     EquippedItemMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
     // Attach to hand socket
-    FName SocketName = TEXT("hand_r_socket"); // Hoặc "RightHandSocket" tuỳ skeleton
+    FName SocketName = TEXT("hand_r");
 
     if (!CharacterMesh->DoesSocketExist(SocketName))
     {
@@ -538,9 +551,6 @@ bool UInventoryComponent::DropEquippedItem()
     return DropItem(ItemToDrop, 1);
 }
 
-// ============================================
-// QUERY FUNCTIONS
-// ============================================
 bool UInventoryComponent::HasItem(FName ItemID, int32 Quantity) const
 {
     return GetItemQuantity(ItemID) >= Quantity;
@@ -589,9 +599,6 @@ bool UInventoryComponent::IsItemEquipped() const
     return !CurrentEquippedItemID.IsNone();
 }
 
-// ============================================
-// QUICKBAR
-// ============================================
 bool UInventoryComponent::AssignToQuickbar(FName ItemID, int32 QuickbarIndex)
 {
     if (QuickbarIndex < 0 || QuickbarIndex >= QuickbarSize)
@@ -824,9 +831,6 @@ bool UInventoryComponent::RemoveItemFromQuickbar(int32 QuickbarIndex, int32 Quan
     return true;
 }
 
-// ============================================
-// UTILITY
-// ============================================
 bool UInventoryComponent::IsInventoryFull() const
 {
     return InventorySlots.Num() >= MaxInventorySlots;
@@ -879,9 +883,6 @@ void UInventoryComponent::PrintInventory()
     UE_LOG(LogTemp, Log, TEXT("==============================="));
 }
 
-// ============================================
-// INTERNAL FUNCTIONS
-// ============================================
 FInventorySlot* UInventoryComponent::FindItemSlot(FName ItemID)
 {
     for (FInventorySlot& Slot : InventorySlots)
@@ -927,12 +928,11 @@ void UInventoryComponent::ApplyItemEffect(const FItemData& ItemData)
         AActor* Owner = GetOwner();
         if (Owner)
         {
-            // Giả sử có SanityComponent
-            // USanityComponent* SanityComp = Owner->FindComponentByClass<USanityComponent>();
-            // if (SanityComp)
-            // {
-            //     SanityComp->RestoreSanity(ItemData.SanityRestoreAmount);
-            // }
+             USanityComponent* SanityComp = Owner->FindComponentByClass<USanityComponent>();
+             if (SanityComp)
+             {
+                 SanityComp->RestoreSanity(ItemData.SanityRestoreAmount);
+             }
 
             UE_LOG(LogTemp, Log, TEXT("ApplyItemEffect: Restore Sanity +%.1f"), ItemData.SanityRestoreAmount);
         }
@@ -995,6 +995,34 @@ bool UInventoryComponent::TryAutoAssignToQuickbar(FName ItemID)
         if (!QuickbarSlots[i].IsValid())
         {
             return AssignToQuickbar(ItemID, i);
+        }
+    }
+    return false;
+}
+
+bool UInventoryComponent::GetQuickbarSlotItem(int32 SlotIndex, FItemData& OutItemData) const
+{
+    if (SlotIndex >= 0 && SlotIndex < QuickbarSlots.Num())
+    {
+        const FInventorySlot& Slot = QuickbarSlots[SlotIndex];
+        if (Slot.IsValid())
+        {
+            // Get ItemData from DataTable using ItemID
+            return GetItemData(Slot.ItemID, OutItemData);
+        }
+    }
+    return false;
+}
+
+bool UInventoryComponent::GetEquippedItem(FItemData& OutItemData) const
+{
+    if (CurrentEquippedSlotIndex >= 0 && CurrentEquippedSlotIndex < QuickbarSlots.Num())
+    {
+        const FInventorySlot& Slot = QuickbarSlots[CurrentEquippedSlotIndex];
+        if (Slot.IsValid())
+        {
+            // Get ItemData from DataTable using ItemID
+            return GetItemData(Slot.ItemID, OutItemData);
         }
     }
     return false;

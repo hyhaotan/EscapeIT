@@ -118,6 +118,9 @@ public:
     UPROPERTY(BlueprintReadOnly, Category = "Inventory")
     int32 SelectedSlotIndex = -1;
 
+    UPROPERTY(BlueprintReadOnly, Category = "Inventory")
+    bool bShowAllItems = true;
+
     // ============================================
     // FUNCTIONS
     // ============================================

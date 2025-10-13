@@ -1,5 +1,6 @@
 ﻿#include "FlashlightComponent.h"
 #include "Components/SpotLightComponent.h"
+#include "EscapeIT/Actor/Item/Flashlight.h"
 #include "Kismet/GameplayStatics.h"
 
 UFlashlightComponent::UFlashlightComponent()
@@ -13,7 +14,7 @@ void UFlashlightComponent::BeginPlay()
     Super::BeginPlay();
 
     // Tìm SpotLight component trong owner
-    AActor* Owner = GetOwner();
+    AFlashlight* Owner = Cast<AFlashlight>(GetOwner());
     if (Owner)
     {
         SpotLight = Owner->FindComponentByClass<USpotLightComponent>();

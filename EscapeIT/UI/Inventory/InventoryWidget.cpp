@@ -56,6 +56,7 @@ void UInventoryWidget::NativeConstruct()
 
     // Initialize with no filter
     CurrentFilter = EItemType::Consumable; // Will show all
+    bShowAllItems = true;
 
     HideItemDetails();
 }
@@ -127,7 +128,7 @@ void UInventoryWidget::CreateSlotWidgets()
         {
             UInventorySlotWidget* SlotWidget = CreateWidget<UInventorySlotWidget>(this, SlotWidgetClass);
             if (SlotWidget)
-            {
+            { 
                 SlotWidget->SlotIndex = i;
                 SlotWidget->bIsQuickbarSlot = true;
                 SlotWidget->ParentInventoryWidget = this;
@@ -187,6 +188,22 @@ void UInventoryWidget::UpdateSlotWidget(int32 SlotIndex)
     if (SlotIndex < InventoryComponent->InventorySlots.Num())
     {
         FInventorySlot SlotData = InventoryComponent->InventorySlots[SlotIndex];
+
+        // Apply filter if needed
+        if (!bShowAllItems && CurrentFilter != EItemType::Consumable) // Assuming Consumable as "no filter"
+        {
+            FItemData ItemData;
+            if (InventoryComponent->GetItemData(SlotData.ItemID, ItemData))
+            {
+                if (ItemData.ItemType != CurrentFilter)
+                {
+                    // Hide this slot by showing empty
+                    SlotWidgets[SlotIndex]->UpdateSlot(FInventorySlot());
+                    return;
+                }
+            }
+        }
+
         SlotWidgets[SlotIndex]->UpdateSlot(SlotData);
     }
     else
@@ -240,13 +257,20 @@ void UInventoryWidget::ShowItemDetails(int32 SlotIndex)
 {
     if (!InventoryComponent || !ItemDetailPanel)
     {
+        UE_LOG(LogTemp, Error, TEXT("ShowItemDetails failed: InventoryComponent=%s, ItemDetailPanel=%s"),
+            InventoryComponent ? TEXT("Valid") : TEXT("NULL"),
+            ItemDetailPanel ? TEXT("Valid") : TEXT("NULL"));
         return;
     }
 
     SelectedSlotIndex = SlotIndex;
 
+    // Validate slot index
     if (SlotIndex < 0 || SlotIndex >= InventoryComponent->InventorySlots.Num())
     {
+        UE_LOG(LogTemp, Warning, TEXT("Invalid slot index: %d (Max: %d)"),
+            SlotIndex,
+            InventoryComponent->InventorySlots.Num() - 1);
         HideItemDetails();
         return;
     }
@@ -254,6 +278,7 @@ void UInventoryWidget::ShowItemDetails(int32 SlotIndex)
     FInventorySlot SlotData = InventoryComponent->InventorySlots[SlotIndex];
     if (!SlotData.IsValid())
     {
+        UE_LOG(LogTemp, Warning, TEXT("Slot %d has invalid data"), SlotIndex);
         HideItemDetails();
         return;
     }
@@ -262,11 +287,15 @@ void UInventoryWidget::ShowItemDetails(int32 SlotIndex)
     FItemData ItemData;
     if (!InventoryComponent->GetItemData(SlotData.ItemID, ItemData))
     {
+        UE_LOG(LogTemp, Error, TEXT("Failed to get item data for ItemID: %s"),
+            *SlotData.ItemID.ToString());
         HideItemDetails();
         return;
     }
 
-    // Show panel
+    // SUCCESS - Show the panel
+    UE_LOG(LogTemp, Warning, TEXT("Showing item details for: %s"), *ItemData.ItemName.ToString());
+
     ItemDetailPanel->SetVisibility(ESlateVisibility::Visible);
 
     // Update texts
@@ -284,6 +313,30 @@ void UInventoryWidget::ShowItemDetails(int32 SlotIndex)
     {
         FString StatsText;
 
+        // Rarity
+        FString RarityStr;
+        switch (ItemData.Rarity)
+        {
+        case EItemRarity::Common: RarityStr = TEXT("Common"); break;
+        case EItemRarity::Uncommon: RarityStr = TEXT("Uncommon"); break;
+        case EItemRarity::Rare: RarityStr = TEXT("Rare"); break;
+        case EItemRarity::Unique: RarityStr = TEXT("Unique"); break;
+        default: RarityStr = TEXT("Unknown"); break;
+        }
+        StatsText += FString::Printf(TEXT("Rarity: %s\n"), *RarityStr);
+
+        // Type
+        FString TypeStr;
+        switch (ItemData.ItemType)
+        {
+        case EItemType::Consumable: TypeStr = TEXT("Consumable"); break;
+        case EItemType::Tool: TypeStr = TEXT("Tool"); break;
+        case EItemType::Document: TypeStr = TEXT("Document"); break;
+        default: TypeStr = TEXT("Unknown"); break;
+        }
+        StatsText += FString::Printf(TEXT("Type: %s\n\n"), *TypeStr);
+
+        // Stats
         if (ItemData.SanityRestoreAmount > 0.0f)
         {
             StatsText += FString::Printf(TEXT("Sanity Restore: +%.0f\n"), ItemData.SanityRestoreAmount);
@@ -296,23 +349,50 @@ void UInventoryWidget::ShowItemDetails(int32 SlotIndex)
 
         if (ItemData.bHasDurability)
         {
-            StatsText += FString::Printf(TEXT("Uses: %d / %d\n"), SlotData.RemainingUses, ItemData.MaxUses);
+            float DurabilityPercent = (float)SlotData.RemainingUses / (float)ItemData.MaxUses * 100.0f;
+            StatsText += FString::Printf(TEXT("Durability: %d / %d (%.0f%%)\n"),
+                SlotData.RemainingUses,
+                ItemData.MaxUses,
+                DurabilityPercent);
         }
 
         if (ItemData.UsageCooldown > 0.0f)
         {
-            StatsText += FString::Printf(TEXT("Cooldown: %.0fs\n"), ItemData.UsageCooldown);
+            StatsText += FString::Printf(TEXT("Cooldown: %.1fs\n"), ItemData.UsageCooldown);
         }
 
-        StatsText += FString::Printf(TEXT("Weight: %.1f kg"), ItemData.Weight);
+        StatsText += FString::Printf(TEXT("\nWeight: %.1f kg\n"), ItemData.Weight);
+
+        if (SlotData.Quantity > 1)
+        {
+            StatsText += FString::Printf(TEXT("Quantity: %d"), SlotData.Quantity);
+        }
 
         Text_ItemStats->SetText(FText::FromString(StatsText));
     }
 
-    // Enable/disable action buttons
+    // Enable/disable action buttons based on item properties
     if (Btn_Use)
     {
-        Btn_Use->SetIsEnabled(ItemData.bIsConsumable || ItemData.ItemType == EItemType::Tool);
+        bool bCanUse = (ItemData.bIsConsumable || ItemData.ItemType == EItemType::Tool);
+        Btn_Use->SetIsEnabled(bCanUse);
+
+        // Update button text based on item type
+        if (UTextBlock* UseButtonText = Cast<UTextBlock>(Btn_Use->GetChildAt(0)))
+        {
+            if (ItemData.ItemType == EItemType::Tool)
+            {
+                UseButtonText->SetText(FText::FromString(TEXT("Equip")));
+            }
+            else if (ItemData.bIsConsumable)
+            {
+                UseButtonText->SetText(FText::FromString(TEXT("Use")));
+            }
+            else
+            {
+                UseButtonText->SetText(FText::FromString(TEXT("Examine")));
+            }
+        }
     }
 
     if (Btn_Drop)
@@ -414,21 +494,25 @@ void UInventoryWidget::OnCloseButtonClicked()
 
 void UInventoryWidget::OnFilterAllClicked()
 {
-    RefreshInventory(); // Show all
+    bShowAllItems = true;
+    RefreshInventory();
 }
 
 void UInventoryWidget::OnFilterConsumablesClicked()
 {
+    bShowAllItems = false;
     FilterByType(EItemType::Consumable);
 }
 
 void UInventoryWidget::OnFilterToolsClicked()
 {
+    bShowAllItems = false;
     FilterByType(EItemType::Tool);
 }
 
 void UInventoryWidget::OnFilterDocumentsClicked()
 {
+    bShowAllItems = false;
     FilterByType(EItemType::Document);
 }
 
@@ -436,13 +520,16 @@ void UInventoryWidget::OnInventoryUpdated()
 {
     RefreshInventory();
     RefreshQuickbar();
+
+    // If we had an item selected, refresh its details
+    if (SelectedSlotIndex >= 0)
+    {
+        ShowItemDetails(SelectedSlotIndex);
+    }
 }
 
 void UInventoryWidget::ClearSelection()
 {
-    HideItemDetails();
-
-    // Visual clear selection on all slots
     for (UInventorySlotWidget* Slots : SlotWidgets)
     {
         if (Slots)

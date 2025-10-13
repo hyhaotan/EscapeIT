@@ -79,6 +79,9 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
     UInputAction* DropItem;
 
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+    UInputAction* ToggleFlashlight;
+
     // ========== Interaction System ==========
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
     float InteractionDistance = 300.0f;
@@ -99,6 +102,7 @@ protected:
     void OnInteractableLost();
     void OnInteract();
     void Inventory();
+    void OnFlashlight();
 
     // Equip functions
     void EquipQuickbarSlot1();

@@ -4,6 +4,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Engine/DataTable.h"
+#include "EscapeIT/Data/ItemData.h"
 #include "InventoryComponent.generated.h"
 
 class UStaticMesh;
@@ -63,6 +64,12 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Inventory|Equip")
     bool DropEquippedItem();
+
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    bool GetEquippedItem(FItemData& OutItemData) const;
+
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    bool GetQuickbarSlotItem(int32 SlotIndex, FItemData& OutItemData) const;
 
     UFUNCTION(BlueprintCallable, Category = "Inventory|Equip")
     FName GetCurrentEquippedItemID() const;
@@ -169,6 +176,7 @@ protected:
     void UpdateCooldowns(float DeltaTime);
     void PlayItemSound(USoundBase* Sound);
     bool TryAutoAssignToQuickbar(FName ItemID);
+    EItemCategory ItemCategory;
 
     // Equip helpers
     bool AttachItemToHand(const FItemData& ItemData);

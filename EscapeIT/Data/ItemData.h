@@ -7,22 +7,19 @@
 #include "Sound/SoundBase.h"
 #include "ItemData.generated.h"
 
-// forward declare AItemPickupActor để dùng TSubclassOf mà không include header (tránh circular)
 class AItemPickupActor;
 
-// Enum cho loại item
 UENUM(BlueprintType)
 enum class EItemType : uint8
 {
-    Consumable      UMETA(DisplayName = "Consumable"),     // Medkit, Painkiller
-    Tool            UMETA(DisplayName = "Tool"),           // Flashlight, MasterKey
-    Battery         UMETA(DisplayName = "Battery"),        // Pin đèn pin
-    QuestItem       UMETA(DisplayName = "Quest Item"),     // Fuse, PuzzlePiece
-    Document        UMETA(DisplayName = "Document"),       // Notes, Diary
-    Special         UMETA(DisplayName = "Special")         // Teddy Bear
+    Consumable      UMETA(DisplayName = "Consumable"),
+    Tool            UMETA(DisplayName = "Tool"),
+    Battery         UMETA(DisplayName = "Battery"),
+    QuestItem       UMETA(DisplayName = "Quest Item"),
+    Document        UMETA(DisplayName = "Document"),
+    Special         UMETA(DisplayName = "Special")
 };
 
-// Enum cho độ hiếm
 UENUM(BlueprintType)
 enum class EItemRarity : uint8
 {
@@ -32,13 +29,20 @@ enum class EItemRarity : uint8
     Unique          UMETA(DisplayName = "Unique")
 };
 
-// Struct cho dữ liệu item (dùng với DataTable)
+UENUM(BlueprintType)
+enum class EItemCategory : uint8
+{
+    Flashlight      UMETA(DisplayName = "Flashlight"),
+    MasterKey       UMETA(DisplayName = "Master Key"),
+    Wrench          UMETA(DisplayName = "Wrench"),
+    Other           UMETA(DisplayName = "Other")
+};
+
 USTRUCT(BlueprintType)
 struct FItemData : public FTableRowBase
 {
     GENERATED_BODY()
 
-    // Thông tin cơ bản
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Basic")
     FName ItemID;
 
@@ -54,10 +58,13 @@ struct FItemData : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Basic")
     EItemType ItemType;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Basic",
+        meta = (EditCondition = "ItemType == EItemType::Tool", EditConditionHides))
+    EItemCategory ItemCategory;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Basic")
     EItemRarity Rarity;
 
-    // Stack và sử dụng
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stack")
     int32 MaxStackSize;
 
@@ -67,24 +74,21 @@ struct FItemData : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Usage")
     bool bCanBeDropped;
 
-    // Hiệu ứng sanity
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
     float SanityRestoreAmount;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
-    float PassiveSanityDrainReduction; // % giảm drain (Teddy Bear = 5%)
+    float PassiveSanityDrainReduction;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
-    float UsageCooldown; // Cooldown sau khi dùng (giây)
+    float UsageCooldown;
 
-    // Durability (cho tools)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Durability")
     bool bHasDurability;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Durability")
-    int32 MaxUses; // Số lần dùng (Master Key = 3)
+    int32 MaxUses;
 
-    // World visual & actor class to spawn when dropping
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World")
     UStaticMesh* ItemMesh;
 
@@ -97,17 +101,16 @@ struct FItemData : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio")
     USoundBase* UseSound;
 
-    // Weight (optional)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weight")
     float Weight;
 
-    // Constructor - khởi tạo giá trị mặc định
     FItemData()
         : ItemID(NAME_None)
         , ItemName(FText::FromString("Unknown"))
         , Description(FText::FromString(""))
         , Icon(nullptr)
         , ItemType(EItemType::Consumable)
+        , ItemCategory(EItemCategory::Other)
         , Rarity(EItemRarity::Common)
         , MaxStackSize(1)
         , bIsConsumable(false)
@@ -126,7 +129,7 @@ struct FItemData : public FTableRowBase
     }
 };
 
-// Struct cho inventory slot
+// FIXED: Remove ItemData field, only store ItemID
 USTRUCT(BlueprintType)
 struct FInventorySlot
 {
@@ -139,19 +142,16 @@ struct FInventorySlot
     int32 Quantity;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    int32 RemainingUses; // Cho items có durability
+    int32 RemainingUses;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    float CooldownRemaining; // Thời gian cooldown còn lại
-
-    const FItemData* ItemData;
+    float CooldownRemaining;
 
     FInventorySlot()
         : ItemID(NAME_None)
         , Quantity(0)
         , RemainingUses(-1)
         , CooldownRemaining(0.0f)
-        , ItemData(nullptr)
     {
     }
 
@@ -160,25 +160,11 @@ struct FInventorySlot
         , Quantity(InQuantity)
         , RemainingUses(-1)
         , CooldownRemaining(0.0f)
-        , ItemData(nullptr)
     {
     }
 
     bool IsValid() const
     {
         return !ItemID.IsNone() && Quantity > 0;
-    }
-
-    void SetItemData(const FItemData* InData)
-    {
-        ItemData = InData;
-        if (ItemData && ItemData->bHasDurability)
-        {
-            RemainingUses = ItemData->MaxUses;
-        }
-        else
-        {
-            RemainingUses = -1;
-        }
     }
 };
