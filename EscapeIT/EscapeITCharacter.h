@@ -15,6 +15,7 @@ class USanityWidget;
 class USanityComponent;
 class UInventoryComponent;
 class UFlashlightComponent;
+class UHeaderBobComponent;
 struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
@@ -27,6 +28,7 @@ class AEscapeITCharacter : public ACharacter
 {
 	GENERATED_BODY()
 
+public:
 	/** Pawn mesh: first person view (arms; seen only by self) */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	USkeletalMeshComponent* FirstPersonMesh;
@@ -100,6 +102,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Component")
 	UInventoryComponent* InventoryComponent;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Component")
+	UHeaderBobComponent* HeaderBobComponent;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Component")
 	UFlashlightComponent* FlashlightComponent;

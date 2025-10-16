@@ -99,8 +99,7 @@ void AEscapeITPlayerController::SetupInputComponent()
             if (Quickbar2) EnhancedInputComponent->BindAction(Quickbar2, ETriggerEvent::Completed, this, &AEscapeITPlayerController::EquipQuickbarSlot2);
             if (Quickbar3) EnhancedInputComponent->BindAction(Quickbar3, ETriggerEvent::Completed, this, &AEscapeITPlayerController::EquipQuickbarSlot3);
             if (Quickbar4) EnhancedInputComponent->BindAction(Quickbar4, ETriggerEvent::Completed, this, &AEscapeITPlayerController::EquipQuickbarSlot4);
-            if (ToggleFlashlight)
-                EnhancedInputComponent->BindAction(ToggleFlashlight, ETriggerEvent::Completed, this, &AEscapeITPlayerController::OnFlashlight);
+            if (ToggleFlashlight) EnhancedInputComponent->BindAction(ToggleFlashlight, ETriggerEvent::Completed, this, &AEscapeITPlayerController::OnFlashlight);
             if (ToggleInventory) EnhancedInputComponent->BindAction(ToggleInventory, ETriggerEvent::Completed, this, &AEscapeITPlayerController::Inventory);
             if (Interact) EnhancedInputComponent->BindAction(Interact, ETriggerEvent::Completed, this, &AEscapeITPlayerController::OnInteract);
 

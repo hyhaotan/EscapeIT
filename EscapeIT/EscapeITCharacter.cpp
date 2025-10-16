@@ -12,6 +12,7 @@
 #include "EscapeIT/Actor/Components/SanityComponent.h"
 #include "EscapeIT/Actor/Components/InventoryComponent.h"
 #include "EscapeIT/Actor/Components/FlashlightComponent.h"
+#include "EscapeIT/Actor/Components/HeaderBobComponent.h"
 #include "EscapeIT/UI/SanityWidget.h"
 #include "Kismet/GameplayStatics.h"
 #include "EscapeIT/UI/HUD/WidgetManager.h"
@@ -51,6 +52,7 @@ AEscapeITCharacter::AEscapeITCharacter()
 
 	SanityComponent = CreateDefaultSubobject<USanityComponent>(TEXT("SanityComponent"));
 	InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
+	HeaderBobComponent = CreateDefaultSubobject<UHeaderBobComponent>(TEXT("HeaderBobComponent"));
 	FlashlightComponent = CreateDefaultSubobject<UFlashlightComponent>(TEXT("FlashlightComponent"));
 }
 
