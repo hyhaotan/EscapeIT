@@ -109,8 +109,6 @@ void AEscapeITPlayerController::SetupInputComponent()
 
             // Drop equipped item
             if (DropItem) EnhancedInputComponent->BindAction(DropItem, ETriggerEvent::Completed, this, &AEscapeITPlayerController::DropCurrentItem);
-
-            /*      if (ToggleFlashlight) EnhancedInputComponent->BindAction(ToggleFlashlight, ETriggerEvent::Completed, this, &AEscapeITPlayerController::Flashlight);*/
         }
     }
 }
@@ -404,13 +402,11 @@ void AEscapeITPlayerController::UseCurrentEquippedItem()
 {
     if (!InventoryComponent)
     {
-        UE_LOG(LogTemp, Warning, TEXT("No inventory component found!"));
         return;
     }
 
     if (CurrentEquippedSlotIndex < 0)
     {
-        UE_LOG(LogTemp, Warning, TEXT("No item currently equipped!"));
         return;
     }
 

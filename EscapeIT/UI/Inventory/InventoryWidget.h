@@ -40,16 +40,6 @@ public:
     UPROPERTY(meta = (BindWidget))
     UUniformGridPanel* QuickbarGrid;
 
-    // Info panels
-    UPROPERTY(meta = (BindWidget))
-    UTextBlock* Text_Weight;
-
-    UPROPERTY(meta = (BindWidget))
-    UTextBlock* Text_Capacity;
-
-    UPROPERTY(meta = (BindWidget))
-    UTextBlock* Text_Gold; // Optional: for future currency
-
     // Item details panel
     UPROPERTY(meta = (BindWidget))
     UBorder* ItemDetailPanel;
@@ -84,9 +74,6 @@ public:
     UButton* Btn_Drop;
 
     UPROPERTY(meta = (BindWidget))
-    UButton* Btn_Sort;
-
-    UPROPERTY(meta = (BindWidget))
     UButton* Btn_Close;
 
     // Documents scroll box
@@ -106,10 +93,10 @@ public:
 
     // Grid dimensions
     UPROPERTY(EditDefaultsOnly, Category = "Inventory")
-    int32 GridColumns = 5;
+    int32 GridColumns = 3;
 
     UPROPERTY(EditDefaultsOnly, Category = "Inventory")
-    int32 GridRows = 4;
+    int32 GridRows = 3;
 
     // Current filter
     UPROPERTY(BlueprintReadOnly, Category = "Inventory")
@@ -135,9 +122,6 @@ public:
     void RefreshQuickbar();
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
-    void UpdateInfoPanel();
-
-    UFUNCTION(BlueprintCallable, Category = "Inventory")
     void ShowItemDetails(int32 SlotIndex);
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
@@ -147,7 +131,13 @@ public:
     void FilterByType(EItemType ItemType);
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
-    void SortInventory();
+    void ClearSelection();
+
+    FString BuildStatsText(const FItemData& ItemData, const FInventorySlot& SlotData);
+
+    void UpdateItemCountDisplay();
+
+    void ConfigureActionButtons(const FItemData& ItemData);
 
 protected:
     // Button callbacks
@@ -156,9 +146,6 @@ protected:
 
     UFUNCTION()
     void OnDropButtonClicked();
-
-    UFUNCTION()
-    void OnSortButtonClicked();
 
     UFUNCTION()
     void OnCloseButtonClicked();
@@ -182,7 +169,6 @@ protected:
     // Helper functions
     void CreateSlotWidgets();
     void UpdateSlotWidget(int32 SlotIndex);
-    void ClearSelection();
 
     TArray<class UInventorySlotWidget*> SlotWidgets;
     TArray<class UInventorySlotWidget*> QuickbarSlotWidgets;

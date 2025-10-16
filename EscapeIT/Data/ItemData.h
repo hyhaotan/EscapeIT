@@ -21,15 +21,6 @@ enum class EItemType : uint8
 };
 
 UENUM(BlueprintType)
-enum class EItemRarity : uint8
-{
-    Common          UMETA(DisplayName = "Common"),
-    Uncommon        UMETA(DisplayName = "Uncommon"),
-    Rare            UMETA(DisplayName = "Rare"),
-    Unique          UMETA(DisplayName = "Unique")
-};
-
-UENUM(BlueprintType)
 enum class EItemCategory : uint8
 {
     Flashlight      UMETA(DisplayName = "Flashlight"),
@@ -61,9 +52,6 @@ struct FItemData : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Basic",
         meta = (EditCondition = "ItemType == EItemType::Tool", EditConditionHides))
     EItemCategory ItemCategory;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Basic")
-    EItemRarity Rarity;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stack")
     int32 MaxStackSize;
@@ -101,9 +89,6 @@ struct FItemData : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio")
     USoundBase* UseSound;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weight")
-    float Weight;
-
     FItemData()
         : ItemID(NAME_None)
         , ItemName(FText::FromString("Unknown"))
@@ -111,7 +96,6 @@ struct FItemData : public FTableRowBase
         , Icon(nullptr)
         , ItemType(EItemType::Consumable)
         , ItemCategory(EItemCategory::Other)
-        , Rarity(EItemRarity::Common)
         , MaxStackSize(1)
         , bIsConsumable(false)
         , bCanBeDropped(true)
@@ -124,7 +108,6 @@ struct FItemData : public FTableRowBase
         , PickupActorClass(nullptr)
         , PickupSound(nullptr)
         , UseSound(nullptr)
-        , Weight(1.0f)
     {
     }
 };

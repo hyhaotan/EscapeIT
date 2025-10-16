@@ -62,6 +62,15 @@ void AWidgetManager::InitializeWidgets()
 		}
 	}
 
+	if (CrossHairClass && !CrossHair)
+	{
+		CrossHair = CreateWidget<UUserWidget>(GetWorld(), CrossHairClass);
+		if (CrossHair)
+		{
+			CrossHair->AddToViewport();
+		}
+	}
+
 	// Create quickbar widget
 	if (QuickbarWidgetClass && !QuickbarWidget)
 	{

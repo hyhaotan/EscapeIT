@@ -3,13 +3,14 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "Blueprint/IUserObjectListEntry.h"
-#include "Components/Image.h"
-#include "Components/TextBlock.h"
-#include "Components/Border.h"
-#include "Components/Button.h"
 #include "EscapeIT/Data/ItemData.h"
 #include "InventorySlotWidget.generated.h"
+
+class UImage;
+class UTextBlock;
+class UBorder;
+class UProgressBar;
+class UInventoryWidget;
 
 UCLASS()
 class ESCAPEIT_API UInventorySlotWidget : public UUserWidget
@@ -17,20 +18,9 @@ class ESCAPEIT_API UInventorySlotWidget : public UUserWidget
     GENERATED_BODY()
 
 public:
-    virtual void NativeConstruct() override;
-    virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
-    virtual void NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
-    virtual void NativeOnMouseLeave(const FPointerEvent& InMouseEvent) override;
-    virtual FReply NativeOnPreviewMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
-
-    // Drag & Drop support
-    virtual void NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation) override;
-    virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
-
     // ============================================
     // WIDGET BINDINGS
     // ============================================
-
     UPROPERTY(meta = (BindWidget))
     UBorder* SlotBorder;
 
@@ -41,23 +31,23 @@ public:
     UTextBlock* QuantityText;
 
     UPROPERTY(meta = (BindWidget))
-    UTextBlock* HotkeyText; // For quickbar slots
+    UTextBlock* HotkeyText;
 
-    UPROPERTY(meta = (BindWidget))
-    UImage* QualityBorder; // Rarity indicator
+    // NEW: Visual feedback widgets
+    UPROPERTY(meta = (BindWidgetOptional))
+    UProgressBar* DurabilityBar;
+
+    UPROPERTY(meta = (BindWidgetOptional))
+    UProgressBar* CooldownBar;
+
+    UPROPERTY(meta = (BindWidgetOptional))
+    UImage* CooldownOverlay;
 
     // ============================================
     // PROPERTIES
     // ============================================
-
     UPROPERTY(BlueprintReadWrite, Category = "Slot")
     int32 SlotIndex = -1;
-
-    UPROPERTY(BlueprintReadWrite, Category = "Slot")
-    FInventorySlot SlotData;
-
-    UPROPERTY(BlueprintReadWrite, Category = "Slot")
-    FItemData ItemData;
 
     UPROPERTY(BlueprintReadWrite, Category = "Slot")
     bool bIsQuickbarSlot = false;
@@ -66,44 +56,59 @@ public:
     bool bIsEmpty = true;
 
     UPROPERTY(BlueprintReadWrite, Category = "Slot")
-    bool bIsSelected = false;
+    FInventorySlot SlotData;
 
-    // Reference to parent inventory widget
     UPROPERTY(BlueprintReadWrite, Category = "Slot")
-    class UInventoryWidget* ParentInventoryWidget;
+    FItemData ItemData;
 
-    // Style colors
-    UPROPERTY(EditDefaultsOnly, Category = "Slot|Style")
-    FLinearColor NormalColor = FLinearColor(0.1f, 0.1f, 0.1f, 0.9f);
+    UPROPERTY()
+    UInventoryWidget* ParentInventoryWidget;
 
-    UPROPERTY(EditDefaultsOnly, Category = "Slot|Style")
+    // ============================================
+    // COLORS
+    // ============================================
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Slot|Colors")
+    FLinearColor NormalColor = FLinearColor(0.1f, 0.1f, 0.1f, 1.0f);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Slot|Colors")
     FLinearColor HoverColor = FLinearColor(0.3f, 0.3f, 0.3f, 1.0f);
 
-    UPROPERTY(EditDefaultsOnly, Category = "Slot|Style")
-    FLinearColor SelectedColor = FLinearColor(0.8f, 0.6f, 0.2f, 1.0f);
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Slot|Colors")
+    FLinearColor SelectedColor = FLinearColor(0.5f, 0.5f, 0.1f, 1.0f);
 
-    UPROPERTY(EditDefaultsOnly, Category = "Slot|Style")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Slot|Colors")
     FLinearColor EmptyColor = FLinearColor(0.05f, 0.05f, 0.05f, 0.5f);
 
-    // Rarity colors
-    UPROPERTY(EditDefaultsOnly, Category = "Slot|Style")
-    FLinearColor CommonColor = FLinearColor::Gray;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Slot|Colors")
+    FLinearColor EquippedColor = FLinearColor(0.1f, 0.5f, 0.1f, 1.0f);
 
-    UPROPERTY(EditDefaultsOnly, Category = "Slot|Style")
-    FLinearColor UncommonColor = FLinearColor::Green;
-
-    UPROPERTY(EditDefaultsOnly, Category = "Slot|Style")
-    FLinearColor RareColor = FLinearColor::Blue;
-
-    UPROPERTY(EditDefaultsOnly, Category = "Slot|Style")
-    FLinearColor UniqueColor = FLinearColor(1.0f, 0.5f, 0.0f, 1.0f); // Orange
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Slot|Colors")
+    FLinearColor OnCooldownColor = FLinearColor(0.5f, 0.1f, 0.1f, 1.0f);
 
     // ============================================
     // FUNCTIONS
     // ============================================
+    virtual void NativeConstruct() override;
+    virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
+    // Mouse events
+    virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+    virtual void NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+    virtual void NativeOnMouseLeave(const FPointerEvent& InMouseEvent) override;
+    virtual FReply NativeOnPreviewMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+
+    // Drag & Drop
+    virtual void NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation) override;
+    virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+    virtual void NativeOnDragEnter(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+    virtual void NativeOnDragLeave(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+
+    // Slot management
     UFUNCTION(BlueprintCallable, Category = "Slot")
     void UpdateSlot(const FInventorySlot& NewSlotData);
+
+    UFUNCTION(BlueprintCallable, Category = "Slot")
+    void UpdateVisuals();
 
     UFUNCTION(BlueprintCallable, Category = "Slot")
     void SetSelected(bool bSelected);
@@ -111,18 +116,12 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Slot")
     void OnSlotClicked();
 
-    UFUNCTION(BlueprintCallable, Category = "Slot")
-    void OnSlotDoubleClicked();
-
-protected:
-    void UpdateVisuals();
-    void ShowTooltip();
-    void HideTooltip();
-
-    FLinearColor GetRarityColor(EItemRarity Rarity) const;
-
 private:
+    bool bIsSelected = false;
     bool bIsHovered = false;
-    FTimerHandle DoubleClickTimerHandle;
-    int32 ClickCount = 0;
+    bool bIsDragHovered = false;
+    bool bIsEquipped = false;
+
+    void UpdateDurabilityBar();
+    void UpdateCooldownVisuals();
 };

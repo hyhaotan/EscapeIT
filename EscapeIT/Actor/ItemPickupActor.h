@@ -60,25 +60,6 @@ public:
     bool bPlayerNearby = false;
 
     // ============================================
-    // VISUAL EFFECTS
-    // ============================================
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual")
-    bool bRotateItem = true;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual", meta = (EditCondition = "bRotateItem"))
-    float RotationSpeed = 45.0f;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual")
-    bool bFloatItem = true;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual", meta = (EditCondition = "bFloatItem"))
-    float FloatSpeed = 1.0f;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual", meta = (EditCondition = "bFloatItem"))
-    float FloatAmplitude = 8.0f;
-
-    // ============================================
     // EFFECTS
     // ============================================
 
@@ -135,11 +116,9 @@ protected:
     // INTERNAL FUNCTIONS
     // ============================================
 
-    void UpdateVisualEffects(float DeltaTime);
     void InitializeFromDataTable();
 
 private:
     FVector InitialLocation;
-    float FloatTimer;
     FText CachedItemName;
 };

@@ -35,6 +35,9 @@ public:
 	TSubclassOf<UUserWidget> MainMenuClass;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Widgets")
+	TSubclassOf<UUserWidget> CrossHairClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Widgets")
 	TSubclassOf<UQuickbarWidget> QuickbarWidgetClass;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Widgets")
@@ -49,6 +52,9 @@ public:
 
 	UPROPERTY()
 	UUserWidget* MainMenu;
+
+	UPROPERTY()
+	UUserWidget* CrossHair;
 
 	UPROPERTY()
 	UQuickbarWidget* QuickbarWidget;

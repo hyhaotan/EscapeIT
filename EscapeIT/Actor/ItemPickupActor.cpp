@@ -17,7 +17,7 @@ AItemPickupActor::AItemPickupActor()
     MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComponent"));
     RootComponent = MeshComponent;
     MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-    MeshComponent->SetSimulatePhysics(false);
+    MeshComponent->SetSimulatePhysics(true);
 
     InteractionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("InteractionSphere"));
     InteractionSphere->SetupAttachment(RootComponent);
@@ -35,12 +35,6 @@ AItemPickupActor::AItemPickupActor()
     InteractionRadius = 100.0f;
     Quantity = 1;
     bAutoPickup = false;
-    bRotateItem = true;
-    RotationSpeed = 45.0f;
-    bFloatItem = true;
-    FloatSpeed = 1.0f;
-    FloatAmplitude = 8.0f;
-    FloatTimer = 0.0f;
 }
 
 void AItemPickupActor::BeginPlay()
@@ -87,7 +81,6 @@ void AItemPickupActor::InitializeFromDataTable()
 void AItemPickupActor::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
-    UpdateVisualEffects(DeltaTime);
 }
 
 void AItemPickupActor::PickupItem(AActor* Collector)
@@ -247,24 +240,6 @@ void AItemPickupActor::OnInteractionEndOverlap(
         ShowPrompt(false);
 
         UE_LOG(LogTemp, Log, TEXT("Player left pickup range"));
-    }
-}
-
-void AItemPickupActor::UpdateVisualEffects(float DeltaTime)
-{
-    if (bRotateItem)
-    {
-        FRotator CurrentRotation = GetActorRotation();
-        CurrentRotation.Yaw += RotationSpeed * DeltaTime;
-        SetActorRotation(CurrentRotation);
-    }
-
-    if (bFloatItem)
-    {
-        FloatTimer += DeltaTime * FloatSpeed;
-        float ZOffset = FMath::Sin(FloatTimer) * FloatAmplitude;
-        FVector NewLocation = InitialLocation + FVector(0.0f, 0.0f, ZOffset);
-        SetActorLocation(NewLocation);
     }
 }
 
