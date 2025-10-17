@@ -346,14 +346,6 @@ bool UInventoryComponent::EquipQuickbarSlot(int32 QuickbarIndex)
         return false;
     }
 
-    // Only equip tools, not consumables
-    if (ItemData.ItemType != EItemType::Tool)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("EquipQuickbarSlot: Item '%s' is not a tool, cannot equip"),
-            *ItemData.ItemName.ToString());
-        return false;
-    }
-
     // Attach to hand
     bool bSuccess = AttachItemToHand(ItemData);
 

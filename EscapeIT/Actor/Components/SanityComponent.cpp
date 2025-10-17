@@ -1,5 +1,9 @@
-﻿#include "SanityComponent.h"
+﻿
+#include "SanityComponent.h"
 #include "TimerManager.h"
+#include "EscapeIT/EscapeITCharacter.h"
+#include "GameFramework/PlayerController.h"
+#include "Kismet/GameplayStatics.h"
 
 USanityComponent::USanityComponent()
 {
@@ -7,13 +11,14 @@ USanityComponent::USanityComponent()
 
     MaxSanity = 100.0f;
     MinSanity = 0.0f;
-    Sanity = 100.0f;
+    Sanity = MaxSanity;
     SanityDecayRate = 1.0f;
     bAutoDecay = false;
 
     RecoveryDelay = 3.0f;
     PassiveRecoveryRate = 2.0f;
     bIsInSafeZone = false;
+    bIsRecovering = false;
 
     CurrentSanityLevel = ESanityLevel::High;
     PreviousSanityLevel = ESanityLevel::High;
@@ -28,14 +33,34 @@ USanityComponent::USanityComponent()
     VisualEffectIntensity = 0.0f;
     bIsInDarkZone = false;
     CurrentDecayMultiplier = 1.0f;
+
+    HeartbeatShakeIntensity = 1.0f;
+    DizzyRotationAmount = 3.0f;
+    DizzyPulseSpeed = 1.0f;
+
+    bIsCameraEffectActive = false;
+    CameraEffectElapsedTime = 0.0f;
 }
 
 void USanityComponent::BeginPlay()
 {
     Super::BeginPlay();
+
     Sanity = MaxSanity;
     CurrentSanityLevel = ESanityLevel::High;
     PreviousSanityLevel = ESanityLevel::High;
+
+    OwnerCharacter = Cast<AEscapeITCharacter>(GetOwner());
+    if (OwnerCharacter)
+    {
+        CameraComponent = OwnerCharacter->GetFirstPersonCameraComponent();
+
+        APlayerController* PlayerController = Cast<APlayerController>(OwnerCharacter->Controller);
+        if (PlayerController)
+        {
+            PlayerCameraManager = PlayerController->PlayerCameraManager;
+        }
+    }
 }
 
 void USanityComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -49,8 +74,8 @@ void USanityComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
         CalculatorSanity(-DecayAmount);
     }
 
-    // Passive recovery trong safe zone
-    if (bIsInSafeZone && PassiveRecoveryRate > 0.0f)
+    // Passive recovery in safe zone only after RecoveryDelay has elapsed
+    if (bIsInSafeZone && bIsRecovering && PassiveRecoveryRate > 0.0f)
     {
         float RecoveryAmount = PassiveRecoveryRate * RecoveryMultiplier * DeltaTime;
         CalculatorSanity(RecoveryAmount);
@@ -58,6 +83,9 @@ void USanityComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 
     // Update visual effects
     UpdateVisualEffects();
+
+    // Update camera panic effects
+    UpdateCameraEffects();
 }
 
 // === GETTERS ===
@@ -123,7 +151,14 @@ void USanityComponent::SetAutoDecay(bool bEnabled)
 
 void USanityComponent::SetIsInSafeZone(bool bSafe)
 {
-    bIsInSafeZone = bSafe;
+    if (bSafe)
+    {
+        EnterSafeZone();
+    }
+    else
+    {
+        ExitSafeZone();
+    }
 }
 
 void USanityComponent::SetRecoveryMultiplier(float Multiplier)
@@ -215,26 +250,34 @@ void USanityComponent::ExitDarkZone()
 void USanityComponent::EnterSafeZone()
 {
     bIsInSafeZone = true;
+    bIsRecovering = false;
 
-    // Delay trước khi bắt đầu hồi
     if (RecoveryDelay > 0.0f)
     {
-        GetWorld()->GetTimerManager().SetTimer(
-            RecoveryTimerHandle,
-            this,
-            &USanityComponent::StartRecovery,
-            RecoveryDelay,
-            false
-        );
+        if (GetWorld())
+        {
+            GetWorld()->GetTimerManager().SetTimer(
+                RecoveryTimerHandle,
+                this,
+                &USanityComponent::StartRecovery,
+                RecoveryDelay,
+                false
+            );
+        }
+    }
+    else
+    {
+        // start recovery immediately
+        StartRecovery();
     }
 }
 
 void USanityComponent::ExitSafeZone()
 {
     bIsInSafeZone = false;
+    bIsRecovering = false;
 
-    // Clear recovery timer
-    if (RecoveryTimerHandle.IsValid())
+    if (RecoveryTimerHandle.IsValid() && GetWorld())
     {
         GetWorld()->GetTimerManager().ClearTimer(RecoveryTimerHandle);
     }
@@ -257,14 +300,11 @@ bool USanityComponent::IsSanityCritical() const
     return CurrentSanityLevel == ESanityLevel::Critical;
 }
 
-// === PRIVATE FUNCTIONS ===
-
 void USanityComponent::CalculatorSanity(float Amount)
 {
     float OldSanity = Sanity;
     Sanity = FMath::Clamp(Sanity + Amount, MinSanity, MaxSanity);
 
-    // Chỉ update nếu thực sự có thay đổi
     if (!FMath::IsNearlyEqual(OldSanity, Sanity, 0.01f))
     {
         UpdateSanity();
@@ -275,13 +315,11 @@ void USanityComponent::UpdateSanity()
 {
     OnSanityChanged.Broadcast(Sanity);
 
-    // Check depletion
     if (Sanity <= MinSanity)
     {
         OnSanityDepleted.Broadcast();
     }
 
-    // Update level
     UpdateSanityLevel();
 }
 
@@ -307,7 +345,6 @@ void USanityComponent::UpdateSanityLevel()
         NewLevel = ESanityLevel::Critical;
     }
 
-    // Broadcast nếu level thay đổi
     if (NewLevel != PreviousSanityLevel)
     {
         PreviousSanityLevel = CurrentSanityLevel;
@@ -318,7 +355,6 @@ void USanityComponent::UpdateSanityLevel()
 
 void USanityComponent::UpdateVisualEffects()
 {
-    // Tính intensity dựa trên Sanity level
     float Percent = GetSanityPercent();
 
     if (Percent >= 0.7f)
@@ -327,7 +363,6 @@ void USanityComponent::UpdateVisualEffects()
     }
     else if (Percent >= 0.5f)
     {
-        // 70% -> 50%: intensity 0 -> 0.3
         VisualEffectIntensity = FMath::GetMappedRangeValueClamped(
             FVector2D(0.7f, 0.5f),
             FVector2D(0.0f, 0.3f),
@@ -336,7 +371,6 @@ void USanityComponent::UpdateVisualEffects()
     }
     else if (Percent >= 0.3f)
     {
-        // 50% -> 30%: intensity 0.3 -> 0.6
         VisualEffectIntensity = FMath::GetMappedRangeValueClamped(
             FVector2D(0.5f, 0.3f),
             FVector2D(0.3f, 0.6f),
@@ -345,7 +379,6 @@ void USanityComponent::UpdateVisualEffects()
     }
     else
     {
-        // < 30%: intensity 0.6 -> 1.0
         VisualEffectIntensity = FMath::GetMappedRangeValueClamped(
             FVector2D(0.3f, 0.0f),
             FVector2D(0.6f, 1.0f),
@@ -356,8 +389,7 @@ void USanityComponent::UpdateVisualEffects()
 
 void USanityComponent::StartRecovery()
 {
-    // Function này được gọi sau RecoveryDelay
-    // Có thể thêm logic đặc biệt khi bắt đầu hồi phục
+    bIsRecovering = true;
 }
 
 FSanitySaveData USanityComponent::CaptureSaveData() const
@@ -391,14 +423,205 @@ void USanityComponent::LoadFromSaveData(const FSanitySaveData& SaveData)
     bAutoDecay = SaveData.bAutoDecay;
     SanityDecayRate = SaveData.SanityDecayRate;
 
-    // Update UI
     UpdateSanity();
 }
 
 void USanityComponent::ResetToCheckpoint(const FSanitySaveData& CheckpointData)
 {
     LoadFromSaveData(CheckpointData);
-
-    // Optional: Thêm hiệu ứng khi respawn
     OnSanityChanged.Broadcast(Sanity);
+}
+
+void USanityComponent::UpdateCameraEffects()
+{
+    if (!CameraComponent || !PlayerCameraManager)
+    {
+        return;
+    }
+
+    float Percent = GetSanityPercent();
+
+    // Activate panic effect when sanity < 30%
+    if (Percent < 0.3f && !bIsCameraEffectActive)
+    {
+        StartCameraPanicEffect();
+    }
+    else if (Percent >= 0.3f && bIsCameraEffectActive)
+    {
+        StopCameraPanicEffect();
+    }
+
+    if (bIsCameraEffectActive)
+    {
+        float DeltaTime = GetWorld()->DeltaTimeSeconds;
+
+        ApplyCameraHeartbeatShake(DeltaTime);
+        ApplyCameraDizzyEffect(DeltaTime);
+        ApplyPanicPostProcess(Percent);
+
+        CameraEffectElapsedTime += DeltaTime;
+    }
+}
+
+void USanityComponent::StartCameraPanicEffect()
+{
+    bIsCameraEffectActive = true;
+    CameraEffectElapsedTime = 0.0f;
+
+    if (PlayerCameraManager)
+    {
+        if (HeartbeatCameraShake)
+        {
+            PlayerCameraManager->StartCameraShake(HeartbeatCameraShake, HeartbeatShakeIntensity * 2.0f);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("HeartbeatCameraShake not assigned. Skipping initial shake class start."));
+            // fallback: use StartCameraShake with null is not valid; just log.
+        }
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("🔴 PANIC MODE ACTIVATED - Vision deteriorating!"));
+}
+
+void USanityComponent::StopCameraPanicEffect()
+{
+    bIsCameraEffectActive = false;
+    CameraEffectElapsedTime = 0.0f;
+
+    if (CameraComponent)
+    {
+        FRotator CurrentRotation = CameraComponent->GetRelativeRotation();
+        CameraComponent->SetRelativeRotation(FRotator(
+            CurrentRotation.Pitch,
+            CurrentRotation.Yaw,
+            0.0f
+        ));
+    }
+
+    if (PlayerCameraManager)
+    {
+        PlayerCameraManager->StopAllCameraShakes(true);
+    }
+
+    // Reset panic post process values by broadcasting zeroes
+    OnPanicPostProcessUpdated.Broadcast(0.0f, 0.0f);
+
+    UE_LOG(LogTemp, Warning, TEXT("🟢 PANIC MODE DEACTIVATED"));
+}
+
+void USanityComponent::ApplyCameraHeartbeatShake(float DeltaTime)
+{
+    if (!CameraComponent)
+    {
+        return;
+    }
+
+    float HeartbeatCycle = FMath::Fmod(CameraEffectElapsedTime, 1.0f);
+    float ShakeIntensity = 0.0f;
+
+    if (HeartbeatCycle < 0.2f)
+    {
+        float T = HeartbeatCycle / 0.2f;
+        ShakeIntensity = HeartbeatShakeIntensity * FMath::Sin(T * PI);
+    }
+    else if (HeartbeatCycle < 0.4f)
+    {
+        ShakeIntensity = 0.0f;
+    }
+    else if (HeartbeatCycle < 0.55f)
+    {
+        float T = (HeartbeatCycle - 0.4f) / 0.15f;
+        ShakeIntensity = HeartbeatShakeIntensity * 0.6f * FMath::Sin(T * PI);
+    }
+    else
+    {
+        ShakeIntensity = 0.0f;
+    }
+
+    float RandomShake = FMath::RandRange(-ShakeIntensity * 0.3f, ShakeIntensity * 0.3f);
+
+    FVector ShakeDirection = FVector(
+        FMath::RandRange(-1.0f, 1.0f),
+        FMath::RandRange(-1.0f, 1.0f),
+        FMath::RandRange(-0.5f, 0.5f)
+    ).GetSafeNormal();
+
+    FVector CurrentLocation = CameraComponent->GetRelativeLocation();
+    CameraComponent->SetRelativeLocation(CurrentLocation + ShakeDirection * (ShakeIntensity + RandomShake) * DeltaTime);
+}
+
+void USanityComponent::ApplyCameraDizzyEffect(float DeltaTime)
+{
+    if (!CameraComponent)
+    {
+        return;
+    }
+
+    float DizzyRotation = FMath::Sin(CameraEffectElapsedTime * DizzyPulseSpeed) * DizzyRotationAmount;
+    DizzyRotation += FMath::Cos(CameraEffectElapsedTime * DizzyPulseSpeed * 1.3f) * DizzyRotationAmount * 0.5f;
+    DizzyRotation += FMath::Sin(CameraEffectElapsedTime * 8.0f) * DizzyRotationAmount * 0.3f;
+
+    FRotator CurrentRotation = CameraComponent->GetRelativeRotation();
+    CameraComponent->SetRelativeRotation(FRotator(
+        CurrentRotation.Pitch + FMath::Sin(CameraEffectElapsedTime * 1.5f) * 5.0f,
+        CurrentRotation.Yaw,
+        DizzyRotation
+    ));
+}
+
+void USanityComponent::ApplyPanicPostProcess(float SanityPercent)
+{
+    if (!PlayerCameraManager)
+    {
+        return;
+    }
+
+    float PanicIntensity = 0.0f;
+
+    if (SanityPercent < 0.3f)
+    {
+        PanicIntensity = FMath::GetMappedRangeValueClamped(
+            FVector2D(0.3f, 0.0f),
+            FVector2D(0.0f, 1.0f),
+            SanityPercent
+        );
+    }
+
+    ApplyVignetteEffect(SanityPercent);
+    ApplyMotionBlur(SanityPercent);
+}
+
+void USanityComponent::ApplyVignetteEffect(float SanityPercent)
+{
+    float VignetteAmount = 0.0f;
+
+    if (SanityPercent < 0.3f)
+    {
+        VignetteAmount = FMath::GetMappedRangeValueClamped(
+            FVector2D(0.3f, 0.0f),
+            FVector2D(0.0f, 0.8f),
+            SanityPercent
+        );
+    }
+
+    // Broadcast to any Blueprint listener to actually apply to post process / UI overlay
+    OnPanicPostProcessUpdated.Broadcast(VignetteAmount, 0.0f);
+}
+
+void USanityComponent::ApplyMotionBlur(float SanityPercent)
+{
+    float BlurIntensity = 0.0f;
+
+    if (SanityPercent < 0.3f)
+    {
+        BlurIntensity = FMath::GetMappedRangeValueClamped(
+            FVector2D(0.3f, 0.0f),
+            FVector2D(0.0f, 1.0f),
+            SanityPercent
+        );
+    }
+
+    // Broadcast motion blur in second param (vignette was in first param in ApplyVignetteEffect)
+    OnPanicPostProcessUpdated.Broadcast(0.0f, BlurIntensity);
 }

@@ -43,13 +43,13 @@ public:
     // ============================================
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Interaction")
-    UTexture2D* KeyTexture_E;
+    TObjectPtr<UTexture2D> KeyTexture_E;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Interaction")
-    UTexture2D* KeyTexture_F;
+    TObjectPtr<UTexture2D> KeyTexture_F;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Interaction")
-    UTexture2D* KeyTexture_Mouse;
+    TObjectPtr<UTexture2D> KeyTexture_Mouse;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Interaction|Style")
     FLinearColor NormalColor = FLinearColor(0.2f, 0.2f, 0.2f, 0.8f);

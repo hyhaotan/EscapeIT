@@ -2,13 +2,16 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Camera/CameraComponent.h"
+#include "Camera/CameraShakeBase.h"
 #include "EscapeIT/Data/SanityStructs.h"
 #include "SanityComponent.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSanityChanged, float, NewSanity);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnSanityDepleted);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnSanityEvent, float, Amount, const FString&, EventName);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSanityLevelChanged, ESanityLevel, NewLevel);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnSanityEvent, float, Amount, FString, EventName);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnPanicPostProcessUpdated, float, VignetteAmount, float, MotionBlurAmount);
 
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class ESCAPEIT_API USanityComponent : public UActorComponent
@@ -18,193 +21,219 @@ class ESCAPEIT_API USanityComponent : public UActorComponent
 public:
     USanityComponent();
 
-protected:
     virtual void BeginPlay() override;
-
-public:
     virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-    // === PROPERTIES ===
+    // --- Events ---
+    UPROPERTY(BlueprintAssignable)
+    FOnSanityChanged OnSanityChanged;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity|Base")
+    UPROPERTY(BlueprintAssignable)
+    FOnSanityDepleted OnSanityDepleted;
+
+    UPROPERTY(BlueprintAssignable)
+    FOnSanityEvent OnSanityEvent;
+
+    UPROPERTY(BlueprintAssignable)
+    FOnSanityLevelChanged OnSanityLevelChanged;
+
+    // Broadcast when panic post-process values change (bind in BP to update materials/postprocess volumes)
+    UPROPERTY(BlueprintAssignable)
+    FOnPanicPostProcessUpdated OnPanicPostProcessUpdated;
+
+    // --- Getters ---
+    UFUNCTION(BlueprintCallable)
+    float GetSanity() const;
+
+    UFUNCTION(BlueprintCallable)
+    float GetMinSanity() const;
+
+    UFUNCTION(BlueprintCallable)
+    float GetMaxSanity() const;
+
+    UFUNCTION(BlueprintCallable)
+    float GetSanityPercent() const; // 0..1
+
+    UFUNCTION(BlueprintCallable)
+    ESanityLevel GetSanityLevel() const;
+
+    UFUNCTION(BlueprintCallable)
+    float GetVisualEffectIntensity() const;
+
+    // --- Setters ---
+    UFUNCTION(BlueprintCallable)
+    void SetSanity(float Amount);
+
+    UFUNCTION(BlueprintCallable)
+    void SetMinSanity(float Amount);
+
+    UFUNCTION(BlueprintCallable)
+    void SetMaxSanity(float Amount);
+
+    UFUNCTION(BlueprintCallable)
+    void SetAutoDecay(bool bEnabled);
+
+    UFUNCTION(BlueprintCallable)
+    void SetIsInSafeZone(bool bSafe);
+
+    UFUNCTION(BlueprintCallable)
+    void SetRecoveryMultiplier(float Multiplier);
+
+    // Core
+    UFUNCTION(BlueprintCallable)
+    void ModifySanity(float Amount);
+
+    UFUNCTION(BlueprintCallable)
+    void RestoreSanity(float Amount);
+
+    UFUNCTION(BlueprintCallable)
+    void ReduceSanity(float Amount);
+
+    UFUNCTION(BlueprintCallable)
+    void ApplySanityEvent(const FSanityEventData& EventData);
+
+    // Zone helpers
+    UFUNCTION(BlueprintCallable)
+    void EnterDarkZone();
+
+    UFUNCTION(BlueprintCallable)
+    void ExitDarkZone();
+
+    UFUNCTION(BlueprintCallable)
+    void EnterSafeZone();
+
+    UFUNCTION(BlueprintCallable)
+    void ExitSafeZone();
+
+    UFUNCTION(BlueprintCallable)
+    void ResetSanity();
+
+    UFUNCTION(BlueprintCallable)
+    bool IsSanityDepleted() const;
+
+    UFUNCTION(BlueprintCallable)
+    bool IsSanityCritical() const;
+
+    // === EVENT-BASED FUNCTIONS ===
+    UFUNCTION()
+    void OnWitnessHorror(float Amount);
+
+    UFUNCTION()
+    void OnJumpScare(float Amount);
+
+    UFUNCTION()
+    void OnPuzzleComplete(float Amount);
+
+    UFUNCTION()
+    void OnPuzzleFailed(float Amount);
+
+    // Save/Load
+    FSanitySaveData CaptureSaveData() const;
+    void LoadFromSaveData(const FSanitySaveData& SaveData);
+    void ResetToCheckpoint(const FSanitySaveData& CheckpointData);
+
+protected:
+    // Core values
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity")
     float MaxSanity;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity|Base")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity")
     float MinSanity;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Sanity|Base")
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Sanity")
     float Sanity;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity|Decay")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity")
     float SanityDecayRate;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity|Decay")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity")
     bool bAutoDecay;
 
+    // Recovery
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity|Recovery")
     float RecoveryDelay;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity|Recovery")
     float PassiveRecoveryRate;
 
-    UPROPERTY(BlueprintReadWrite, Category = "Sanity|Recovery")
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Sanity|Zones")
     bool bIsInSafeZone;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Sanity|State")
+    // internal flag set after RecoveryDelay
+    bool bIsRecovering;
+
+    // Sanity levels
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Sanity|Levels")
     ESanityLevel CurrentSanityLevel;
 
-    // === THRESHOLDS ===
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Sanity|Levels")
+    ESanityLevel PreviousSanityLevel;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity|Thresholds")
-    float HighSanityThreshold = 70.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity|Levels")
+    float HighSanityThreshold; // percent 0-100
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity|Thresholds")
-    float MediumSanityThreshold = 50.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity|Levels")
+    float MediumSanityThreshold;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity|Thresholds")
-    float LowSanityThreshold = 30.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity|Levels")
+    float LowSanityThreshold;
 
-    // === MULTIPLIERS ===
+    // Dark zone
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity|Zones")
+    float DarknessDecayMultiplier;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity|Multipliers")
-    float DarknessDecayMultiplier = 2.0f;
+    bool bIsInDarkZone;
+    float CurrentDecayMultiplier;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity|Multipliers")
-    float RecoveryMultiplier = 1.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity|Recovery")
+    float RecoveryMultiplier;
 
-    // === EFFECTS ===
-
-    UPROPERTY(BlueprintReadOnly, Category = "Sanity|Effects")
+    // Visual effect
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Sanity|Visual")
     float VisualEffectIntensity;
 
-    // ==== SAVE GAME ===
-    UFUNCTION(BlueprintCallable, Category = "Sanity|Save")
-    void LoadFromSaveData(const FSanitySaveData& SaveData);
+    // Camera effects
+    UPROPERTY()
+    class AEscapeITCharacter* OwnerCharacter;
 
-    UFUNCTION(BlueprintCallable, Category = "Sanity|Save")
-    void ResetToCheckpoint(const FSanitySaveData& CheckpointData);
+    UPROPERTY()
+    UCameraComponent* CameraComponent;
 
-    // === EVENTS ===
+    UPROPERTY()
+    APlayerCameraManager* PlayerCameraManager;
 
-    UPROPERTY(BlueprintAssignable, Category = "Sanity|Events")
-    FOnSanityChanged OnSanityChanged;
+    // Camera shake class for heartbeat
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity|Camera")
+    TSubclassOf<UCameraShakeBase> HeartbeatCameraShake;
 
-    UPROPERTY(BlueprintAssignable, Category = "Sanity|Events")
-    FOnSanityDepleted OnSanityDepleted;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity|Camera")
+    float HeartbeatShakeIntensity;
 
-    UPROPERTY(BlueprintAssignable, Category = "Sanity|Events")
-    FOnSanityLevelChanged OnSanityLevelChanged;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity|Camera")
+    float DizzyRotationAmount;
 
-    UPROPERTY(BlueprintAssignable, Category = "Sanity|Events")
-    FOnSanityEvent OnSanityEvent;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity|Camera")
+    float DizzyPulseSpeed;
 
-    UFUNCTION(BlueprintCallable, Category = "Sanity|Save")
-    FSanitySaveData CaptureSaveData() const;
+    bool bIsCameraEffectActive;
+    float CameraEffectElapsedTime;
 
-    // === GETTERS ===
+    FTimerHandle RecoveryTimerHandle;
 
-    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Sanity")
-    float GetSanity() const;
-
-    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Sanity")
-    float GetMinSanity() const;
-
-    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Sanity")
-    float GetMaxSanity() const;
-
-    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Sanity")
-    float GetSanityPercent() const;
-
-    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Sanity")
-    ESanityLevel GetSanityLevel() const;
-
-    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Sanity")
-    float GetVisualEffectIntensity() const;
-
-    // === SETTERS ===
-
-    UFUNCTION(BlueprintCallable, Category = "Sanity")
-    void SetSanity(float Amount);
-
-    UFUNCTION(BlueprintCallable, Category = "Sanity")
-    void SetMinSanity(float Amount);
-
-    UFUNCTION(BlueprintCallable, Category = "Sanity")
-    void SetMaxSanity(float Amount);
-
-    UFUNCTION(BlueprintCallable, Category = "Sanity")
-    void SetAutoDecay(bool bEnabled);
-
-    UFUNCTION(BlueprintCallable, Category = "Sanity")
-    void SetIsInSafeZone(bool bSafe);
-
-    UFUNCTION(BlueprintCallable, Category = "Sanity")
-    void SetRecoveryMultiplier(float Multiplier);
-
-    // === CORE FUNCTIONS ===
-
-    UFUNCTION(BlueprintCallable, Category = "Sanity")
-    void ModifySanity(float Amount);
-
-    UFUNCTION(BlueprintCallable, Category = "Sanity")
-    void RestoreSanity(float Amount);
-
-    UFUNCTION(BlueprintCallable, Category = "Sanity")
-    void ReduceSanity(float Amount);
-
-    // === EVENT-BASED FUNCTIONS ===
-
-    UFUNCTION(BlueprintCallable, Category = "Sanity|Events")
-    void ApplySanityEvent(const FSanityEventData& EventData);
-
-    UFUNCTION(BlueprintCallable, Category = "Sanity|Events")
-    void OnWitnessHorror(float Amount = 20.0f);
-
-    UFUNCTION(BlueprintCallable, Category = "Sanity|Events")
-    void OnJumpScare(float Amount = 30.0f);
-
-    UFUNCTION(BlueprintCallable, Category = "Sanity|Events")
-    void OnPuzzleComplete(float Amount = 15.0f);
-
-    UFUNCTION(BlueprintCallable, Category = "Sanity|Events")
-    void OnPuzzleFailed(float Amount = 5.0f);
-
-    // === ZONE FUNCTIONS ===
-
-    UFUNCTION(BlueprintCallable, Category = "Sanity|Zones")
-    void EnterDarkZone();
-
-    UFUNCTION(BlueprintCallable, Category = "Sanity|Zones")
-    void ExitDarkZone();
-
-    UFUNCTION(BlueprintCallable, Category = "Sanity|Zones")
-    void EnterSafeZone();
-
-    UFUNCTION(BlueprintCallable, Category = "Sanity|Zones")
-    void ExitSafeZone();
-
-    // === UTILITY ===
-
-    UFUNCTION(BlueprintCallable, Category = "Sanity")
-    void ResetSanity();
-
-    UFUNCTION(BlueprintCallable, Category = "Sanity")
-    bool IsSanityDepleted() const;
-
-    UFUNCTION(BlueprintCallable, Category = "Sanity")
-    bool IsSanityCritical() const;
-
-private:
+    // --- Internal utilities ---
     void CalculatorSanity(float Amount);
     void UpdateSanity();
     void UpdateSanityLevel();
     void UpdateVisualEffects();
-
-    // Timer cho recovery delay
-    FTimerHandle RecoveryTimerHandle;
     void StartRecovery();
 
-    ESanityLevel PreviousSanityLevel;
-    bool bIsInDarkZone;
-    float CurrentDecayMultiplier;
+    // Camera-related helpers
+    void UpdateCameraEffects();
+    void StartCameraPanicEffect();
+    void StopCameraPanicEffect();
+    void ApplyCameraHeartbeatShake(float DeltaTime);
+    void ApplyCameraDizzyEffect(float DeltaTime);
+    void ApplyPanicPostProcess(float SanityPercent);
+    void ApplyVignetteEffect(float SanityPercent);
+    void ApplyMotionBlur(float SanityPercent);
 };

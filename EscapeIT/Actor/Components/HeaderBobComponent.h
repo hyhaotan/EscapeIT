@@ -8,6 +8,7 @@
 class UCameraComponent;
 class AEscapeITCharacter;
 class USanityComponent;
+class UCameraShakeBase;
 
 UENUM()
 enum class EHeaderBobType : uint8
@@ -29,10 +30,10 @@ public:
 
 	// ==================== CAMERA SHAKE ASSETS ====================
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Shake")
-	TSubclassOf<class UCameraShakeBase> IdleShake;
+	TSubclassOf<UCameraShakeBase> IdleShake;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Shake")
-	TSubclassOf<class UCameraShakeBase> WalkShake;
+	TSubclassOf<UCameraShakeBase> WalkShake;
 
 	// ==================== HEADER BOB SETTINGS ====================
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Header Bob|Walk")
@@ -106,8 +107,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio")
 	bool bEnableHeartbeatAudio = true;
 
+	// You can keep this as a direct pointer (asset reference) or use TSoftObjectPtr<USoundBase> for deferred loading.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio")
-	class USoundBase* HeartbeatSFX;
+	USoundBase* HeartbeatSFX;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio")
 	float HeartbeatVolumeMultiplier = 1.0f;
@@ -126,36 +128,36 @@ public:
 	float ScreenShakeIntensity = 0.5f;
 
 	// ==================== PUBLIC FUNCTIONS ====================
-	// Gọi khi jump scare xảy ra
+	// Called when jumpscare appears
 	UFUNCTION(BlueprintCallable, Category = "Header Bob")
 	void TriggerShockBob();
 
-	// Gọi khi nhân vật hồi phục Sanity
+	// Called when the character recover sanity
 	UFUNCTION(BlueprintCallable, Category = "Header Bob")
 	void OnSanityRecovered();
 
-	// Lấy giá trị Sanity hiện tại (%)
+	// Take current sanity value
 	UFUNCTION(BlueprintCallable, Category = "Header Bob")
 	float GetCurrentSanityPercent() const;
 
-	// Lấy loại bob hiện tại
+	// Take current bob type
 	UFUNCTION(BlueprintCallable, Category = "Header Bob")
 	EHeaderBobType GetCurrentBobType() const { return CurrentBobType; }
 
-	// Kiểm tra xem có entity gần không
+	// Check the entity
 	UFUNCTION(BlueprintCallable, Category = "Header Bob")
 	void UpdateEntityProximity();
 
 private:
 	// ==================== PRIVATE COMPONENTS ====================
 	UPROPERTY()
-	AEscapeITCharacter* OwnerCharacter;
+	TObjectPtr<AEscapeITCharacter> OwnerCharacter;
 
 	UPROPERTY()
-	UCameraComponent* CameraComponent;
+	TObjectPtr<UCameraComponent> CameraComponent;
 
 	UPROPERTY()
-	USanityComponent* SanityComponent;
+	TObjectPtr<USanityComponent> SanityComponent;
 
 	// ==================== PRIVATE VARIABLES ====================
 	EHeaderBobType CurrentBobType;
@@ -174,12 +176,11 @@ private:
 	float ShockElapsedTime;
 	bool bIsInShock;
 
-	// Entity proximity
 	float DistanceToEntity;
 	bool bIsEntityNear;
 
-	// Heartbeat audio
-	class UAudioComponent* HeartbeatAudioComponent;
+	UPROPERTY()
+	TObjectPtr<UAudioComponent> HeartbeatAudioComponent;
 	float HeartbeatTimer;
 
 	// ==================== PRIVATE FUNCTIONS ====================

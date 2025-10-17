@@ -49,10 +49,15 @@ void UInteractionPromptWidget::ShowPrompt(const FText& Action, const FText& Targ
     // Set key icon
     if (KeyIcon)
     {
-        UTexture2D* IconToUse = KeyTexture ? KeyTexture : KeyTexture_E;
+        TObjectPtr<UTexture2D> IconToUse;
         if (IconToUse)
         {
+            IconToUse = KeyTexture;
             KeyIcon->SetBrushFromTexture(IconToUse);
+        }
+        else
+        {
+            IconToUse = KeyTexture_E;
         }
     }
 

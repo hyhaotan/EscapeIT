@@ -33,7 +33,6 @@ public:
     UPROPERTY(meta = (BindWidget))
     UTextBlock* HotkeyText;
 
-    // NEW: Visual feedback widgets
     UPROPERTY(meta = (BindWidgetOptional))
     UProgressBar* DurabilityBar;
 
@@ -62,7 +61,7 @@ public:
     FItemData ItemData;
 
     UPROPERTY()
-    UInventoryWidget* ParentInventoryWidget;
+    TObjectPtr<UInventoryWidget> ParentInventoryWidget;
 
     // ============================================
     // COLORS

@@ -6,6 +6,11 @@
 #include "EscapeIT/Data/ItemData.h"
 #include "QuickbarWidget.generated.h"
 
+class UImage;
+class UTextBlock;
+class UProgressBar;
+class UBorder;
+
 UCLASS()
 class ESCAPEIT_API UQuickbarWidget : public UUserWidget
 {
@@ -31,76 +36,76 @@ public:
     // ============================================
 
     UPROPERTY(meta = (BindWidget))
-    class UImage* Slot1_Icon;
+    UImage* Slot1_Icon;
 
     UPROPERTY(meta = (BindWidget))
-    class UTextBlock* Slot1_Quantity;
+    UTextBlock* Slot1_Quantity;
 
     UPROPERTY(meta = (BindWidget))
-    class UProgressBar* Slot1_Battery;
+    UProgressBar* Slot1_Battery;
 
     UPROPERTY(meta = (BindWidget))
-    class UBorder* Slot1_Border;
+    UBorder* Slot1_Border;
 
     UPROPERTY(meta = (BindWidget))
-    class UTextBlock* Slot1_Hotkey;
+    UTextBlock* Slot1_Hotkey;
 
     // ============================================
     // SLOT WIDGETS - SLOT 2
     // ============================================
 
     UPROPERTY(meta = (BindWidget))
-    class UImage* Slot2_Icon;
+    UImage* Slot2_Icon;
 
     UPROPERTY(meta = (BindWidget))
-    class UTextBlock* Slot2_Quantity;
+    UTextBlock* Slot2_Quantity;
 
     UPROPERTY(meta = (BindWidget))
-    class UProgressBar* Slot2_Cooldown;
+    UProgressBar* Slot2_Cooldown;
 
     UPROPERTY(meta = (BindWidget))
-    class UBorder* Slot2_Border;
+    UBorder* Slot2_Border;
 
     UPROPERTY(meta = (BindWidget))
-    class UTextBlock* Slot2_Hotkey;
+    UTextBlock* Slot2_Hotkey;
 
     // ============================================
     // SLOT WIDGETS - SLOT 3
     // ============================================
 
     UPROPERTY(meta = (BindWidget))
-    class UImage* Slot3_Icon;
+    UImage* Slot3_Icon;
 
     UPROPERTY(meta = (BindWidget))
-    class UTextBlock* Slot3_Quantity;
+    UTextBlock* Slot3_Quantity;
 
     UPROPERTY(meta = (BindWidget))
-    class UProgressBar* Slot3_Cooldown;
+    UProgressBar* Slot3_Cooldown;
 
     UPROPERTY(meta = (BindWidget))
-    class UBorder* Slot3_Border;
+    UBorder* Slot3_Border;
 
     UPROPERTY(meta = (BindWidget))
-    class UTextBlock* Slot3_Hotkey;
+    UTextBlock* Slot3_Hotkey;
 
     // ============================================
     // SLOT WIDGETS - SLOT 4
     // ============================================
 
     UPROPERTY(meta = (BindWidget))
-    class UImage* Slot4_Icon;
+    UImage* Slot4_Icon;
 
     UPROPERTY(meta = (BindWidget))
-    class UTextBlock* Slot4_Quantity;
+    UTextBlock* Slot4_Quantity;
 
     UPROPERTY(meta = (BindWidget))
-    class UProgressBar* Slot4_Cooldown;
+    UProgressBar* Slot4_Cooldown;
 
     UPROPERTY(meta = (BindWidget))
-    class UBorder* Slot4_Border;
+    UBorder* Slot4_Border;
 
     UPROPERTY(meta = (BindWidget))
-    class UTextBlock* Slot4_Hotkey;
+    UTextBlock* Slot4_Hotkey;
 
     // ============================================
     // COLORS
@@ -134,13 +139,13 @@ protected:
     // ============================================
 
     UPROPERTY(BlueprintReadOnly, Category = "Components")
-    class UInventoryComponent* InventoryComponent;
+    TObjectPtr<UInventoryComponent> InventoryComponent;
 
     UPROPERTY(BlueprintReadOnly, Category = "Components")
-    class UFlashlightComponent* FlashlightComponent;
+    TObjectPtr<UFlashlightComponent> FlashlightComponent;
 
     UPROPERTY(BlueprintReadOnly, Category = "Data")
-    class UDataTable* ItemDataTable;
+    TObjectPtr<UDataTable> ItemDataTable;
 
     // ============================================
     // STATE

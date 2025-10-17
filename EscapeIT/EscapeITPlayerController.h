@@ -26,29 +26,29 @@ public:
 protected:
     // ========== Components ==========
     UPROPERTY()
-    UInventoryComponent* InventoryComponent;
+    TObjectPtr<UInventoryComponent> InventoryComponent;
 
     UPROPERTY()
-    UFlashlightComponent* FlashlightComponent;
+    TObjectPtr<UFlashlightComponent> FlashlightComponent;
 
     // ========== UI Widgets ==========
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
     TSubclassOf<UInteractionPromptWidget> InteractionPromptWidgetClass;
 
     UPROPERTY()
-    UInteractionPromptWidget* InteractionPromptWidget;
+    TObjectPtr<UInteractionPromptWidget> InteractionPromptWidget;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
     TSubclassOf<UInventoryWidget> InventoryWidgetClass;
 
     UPROPERTY()
-    UInventoryWidget* InventoryWidget;
+    TObjectPtr<UInventoryWidget> InventoryWidget;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
     TSubclassOf<UQuickbarWidget> QuickbarWidgetClass;
 
     UPROPERTY()
-    UQuickbarWidget* QuickbarWidget;
+    TObjectPtr<UQuickbarWidget> QuickbarWidget;
 
     // ========== Input Mapping ==========
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
@@ -56,31 +56,31 @@ protected:
 
     // Input Actions
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-    UInputAction* Quickbar1;
+    TObjectPtr<UInputAction> Quickbar1;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-    UInputAction* Quickbar2;
+    TObjectPtr<UInputAction> Quickbar2;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-    UInputAction* Quickbar3;
+    TObjectPtr<UInputAction> Quickbar3;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-    UInputAction* Quickbar4;
+    TObjectPtr<UInputAction> Quickbar4;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-    UInputAction* ToggleInventory;
+    TObjectPtr<UInputAction> ToggleInventory;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-    UInputAction* Interact;
+    TObjectPtr<UInputAction> Interact;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-    UInputAction* UseEquippedItem;
+    TObjectPtr<UInputAction> UseEquippedItem;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-    UInputAction* DropItem;
+    TObjectPtr<UInputAction> DropItem;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-    UInputAction* ToggleFlashlight;
+    TObjectPtr<UInputAction> ToggleFlashlight;
 
     // ========== Interaction System ==========
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
@@ -90,7 +90,7 @@ protected:
     bool bShowDebugTrace = false;
 
     UPROPERTY()
-    AActor* CurrentInteractable;
+    TObjectPtr<AActor> CurrentInteractable;
 
     // ========== Equipped Item Tracking ==========
     UPROPERTY()

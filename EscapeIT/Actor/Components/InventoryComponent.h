@@ -181,10 +181,10 @@ private:
     // PRIVATE PROPERTIES
     // ============================================
     UPROPERTY()
-    UStaticMeshComponent* EquippedItemMesh;
+    TObjectPtr<UStaticMeshComponent> EquippedItemMesh;
 
     UPROPERTY()
-    USkeletalMeshComponent* CharacterMesh;
+    TObjectPtr<USkeletalMeshComponent> CharacterMesh;
 
     // ============================================
     // PRIVATE FUNCTIONS

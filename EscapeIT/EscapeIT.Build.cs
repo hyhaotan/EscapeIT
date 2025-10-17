@@ -8,20 +8,25 @@ public class EscapeIT : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PublicDependencyModuleNames.AddRange(new string[] {
-			"Core",
-			"CoreUObject",
-			"Engine",
-			"InputCore",
-			"EnhancedInput",
-			"AIModule",
-			"StateTreeModule",
-			"GameplayStateTreeModule",
-			"UMG",
-			"Slate"
-		});
+		PublicDependencyModuleNames.AddRange(new string[]
+        {   "Core",
+            "CoreUObject",
+            "Engine",
+            "InputCore",
+            "AIModule",
+            "GameplayTasks",
+            "CommonUI",
+            "NavigationSystem",
+            "Paper2D",
+            "HeadMountedDisplay",
+            "EnhancedInput",
+            "UMG",
+            "SlateCore",
+            "Slate",
+            "Niagara",
+            "GameplayCameras"});
 
-		PrivateDependencyModuleNames.AddRange(new string[] { });
+        PrivateDependencyModuleNames.AddRange(new string[] { });
 
 		PublicIncludePaths.AddRange(new string[] {
 			"EscapeIT",

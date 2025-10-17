@@ -224,22 +224,18 @@ void AEscapeITPlayerController::OnInteract()
         return;
     }
 
-    // Handle item pickup
-    AItemPickupActor* PickupActor = Cast<AItemPickupActor>(CurrentInteractable);
-    if (PickupActor)
+    if (CurrentInteractable->Implements<UInteract>())
     {
-        PickupActor->PickupItem(GetPawn());
-        CurrentInteractable = nullptr;
+        IInteract::Execute_Interact(CurrentInteractable, GetPawn());
 
         if (InteractionPromptWidget)
         {
             InteractionPromptWidget->HidePrompt();
         }
+
+        CurrentInteractable = nullptr;
         return;
     }
-
-    // Handle other interactables
-    // TODO: Add door, puzzle, etc.
 }
 
 void AEscapeITPlayerController::Inventory()

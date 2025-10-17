@@ -16,7 +16,6 @@ class AEscapeITCameraManager : public APlayerCameraManager
 	GENERATED_BODY()
 	
 public:
-
 	/** Constructor */
 	AEscapeITCameraManager();
 };

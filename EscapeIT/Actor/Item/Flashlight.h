@@ -6,6 +6,8 @@
 #include "EscapeIT/Actor/ItemPickupActor.h"
 #include "Flashlight.generated.h"
 
+class USpotLightComponent;
+
 UCLASS()
 class ESCAPEIT_API AFlashlight : public AItemPickupActor
 {
@@ -13,7 +15,7 @@ class ESCAPEIT_API AFlashlight : public AItemPickupActor
 	
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sportlight")
-	class USpotLightComponent* SpotLightComponent;
+	TObjectPtr<USpotLightComponent> SpotLightComponent;
 
 	AFlashlight();
 };

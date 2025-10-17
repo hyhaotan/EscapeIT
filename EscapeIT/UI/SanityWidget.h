@@ -32,7 +32,7 @@ private:
 	UProgressBar* SanityProgress;
 
 	UPROPERTY()
-	USanityComponent* SanityComponent;
+	TObjectPtr<USanityComponent> SanityComponent;
 
 	UFUNCTION()
 	void OnSanityChanged(float NewSanity);

@@ -1,13 +1,21 @@
-﻿// ItemPickupActor.h
+﻿
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "EscapeIT/Data/ItemData.h"
+#include "EscapeIT/Interface/Interact.h"
 #include "ItemPickupActor.generated.h"
 
+class UStaticMeshComponent;
+class USphereComponent;
+class UWidgetComponent;
+class UDataTable;
+class UParticleSystem;
+class USoundBase;
+
 UCLASS()
-class ESCAPEIT_API AItemPickupActor : public AActor
+class ESCAPEIT_API AItemPickupActor : public AActor,public IInteract
 {
     GENERATED_BODY()
 
@@ -25,13 +33,13 @@ public:
     // ============================================
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-    class UStaticMeshComponent* MeshComponent;
+    TObjectPtr<UStaticMeshComponent> MeshComponent;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-    class USphereComponent* InteractionSphere;
+    TObjectPtr<USphereComponent> InteractionSphere;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-    class UWidgetComponent* PromptWidget;
+    TObjectPtr<UWidgetComponent> PromptWidget;
 
     // ============================================
     // ITEM DATA
@@ -41,7 +49,7 @@ public:
     FName ItemID;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
-    class UDataTable* ItemDataTable;
+    TObjectPtr<UDataTable> ItemDataTable;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item", meta = (ClampMin = "1"))
     int32 Quantity = 1;
@@ -64,10 +72,10 @@ public:
     // ============================================
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
-    class UParticleSystem* PickupParticle;
+    TObjectPtr<UParticleSystem> PickupParticle;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
-    class USoundBase* PickupSound;
+    TObjectPtr<USoundBase> PickupSound;
 
     // ============================================
     // FUNCTIONS
@@ -90,6 +98,8 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Visual")
     void ShowPrompt(bool bShow);
+
+    virtual void Interact_Implementation(AActor* Interactor) override;
 
 protected:
     // ============================================
@@ -121,4 +131,8 @@ protected:
 private:
     FVector InitialLocation;
     FText CachedItemName;
+
+    // ============================================ 
+    // PRIVATE FUNCTION
+    // ============================================
 };

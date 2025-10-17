@@ -45,22 +45,22 @@ public:
 
 	// Widget Instances
 	UPROPERTY()
-	USanityWidget* SanityWidget;
+	TObjectPtr<USanityWidget> SanityWidget;
 
 	UPROPERTY()
-	UUserWidget* PauseMenu;
+	TObjectPtr<UUserWidget> PauseMenu;
 
 	UPROPERTY()
-	UUserWidget* MainMenu;
+	TObjectPtr<UUserWidget> MainMenu;
 
 	UPROPERTY()
-	UUserWidget* CrossHair;
+	TObjectPtr<UUserWidget> CrossHair;
 
 	UPROPERTY()
-	UQuickbarWidget* QuickbarWidget;
+	TObjectPtr<UQuickbarWidget> QuickbarWidget;
 
 	UPROPERTY()
-	UInventoryWidget* InventoryWidget;
+	TObjectPtr<UInventoryWidget> InventoryWidget;
 
 	// Initialization
 	UFUNCTION(BlueprintCallable, Category = "Widget Manager")

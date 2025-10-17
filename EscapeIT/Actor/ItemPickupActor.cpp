@@ -78,6 +78,11 @@ void AItemPickupActor::InitializeFromDataTable()
     }
 }
 
+void AItemPickupActor::Interact_Implementation(AActor* Interactor)
+{
+    PickupItem(Interactor);
+}
+
 void AItemPickupActor::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
@@ -120,7 +125,7 @@ void AItemPickupActor::PickupItem(AActor* Collector)
         }
 
         // Play sound
-        USoundBase* SoundToPlay = ItemData.PickupSound ? ItemData.PickupSound : PickupSound;
+        TObjectPtr<USoundBase> SoundToPlay = ItemData.PickupSound ? ItemData.PickupSound : PickupSound;
         if (SoundToPlay)
         {
             UGameplayStatics::PlaySoundAtLocation(

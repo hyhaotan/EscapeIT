@@ -29,7 +29,7 @@ public:
 
     // Light component reference
     UPROPERTY(BlueprintReadWrite, Category = "Flashlight")
-    USpotLightComponent* SpotLight;
+    TObjectPtr<USpotLightComponent> SpotLight;
 
     // Battery system
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Flashlight|Battery")
@@ -63,16 +63,16 @@ public:
 
     // Audio
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Flashlight|Audio")
-    USoundBase* ToggleOnSound;
+    TObjectPtr<USoundBase> ToggleOnSound;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Flashlight|Audio")
-    USoundBase* ToggleOffSound;
+    TObjectPtr<USoundBase> ToggleOffSound;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Flashlight|Audio")
-    USoundBase* BatteryReplaceSound;
+    TObjectPtr<USoundBase> BatteryReplaceSound;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Flashlight|Audio")
-    USoundBase* LowBatterySound;
+    TObjectPtr<USoundBase> LowBatterySound;
 
     // Delegates
     UPROPERTY(BlueprintAssignable, Category = "Flashlight")

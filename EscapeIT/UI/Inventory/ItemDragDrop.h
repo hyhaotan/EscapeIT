@@ -14,7 +14,7 @@ class ESCAPEIT_API UItemDragDrop : public UDragDropOperation
 	GENERATED_BODY()
 public:
 	UPROPERTY()
-	UInventorySlotWidget* SourceSlot;
+	TObjectPtr<UInventorySlotWidget> SourceSlot;
 
 	UPROPERTY()
 	int32 SlotIndex;

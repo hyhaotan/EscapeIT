@@ -44,7 +44,7 @@ struct FItemData : public FTableRowBase
     FText Description;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Basic")
-    UTexture2D* Icon;
+    TObjectPtr<UTexture2D> Icon;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Basic")
     EItemType ItemType;
@@ -78,16 +78,16 @@ struct FItemData : public FTableRowBase
     int32 MaxUses;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World")
-    UStaticMesh* ItemMesh;
+    TObjectPtr<UStaticMesh> ItemMesh;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World")
     TSubclassOf<AItemPickupActor> PickupActorClass;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio")
-    USoundBase* PickupSound;
+    TObjectPtr<USoundBase> PickupSound;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio")
-    USoundBase* UseSound;
+    TObjectPtr<USoundBase> UseSound;
 
     FItemData()
         : ItemID(NAME_None)
