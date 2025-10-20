@@ -125,11 +125,6 @@ void UInteractionPromptWidget::UpdatePromptForActor(AActor* TargetActor)
         ShowPrompt(ActionTexts, TargetTexts, KeyTexture_E);
         return;
     }
-
-    // Generic interact
-    ActionTexts = FText::FromString(TEXT("Press"));
-    TargetTexts = FText::FromString(TEXT("to Interact"));
-    ShowPrompt(ActionTexts, TargetTexts, KeyTexture_E);
 }
 
 bool UInteractionPromptWidget::IsPromptVisible() const

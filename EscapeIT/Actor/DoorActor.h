@@ -5,8 +5,9 @@
 #include "EscapeIT/Interface/Interact.h"
 #include "DoorActor.generated.h"
 
-class UStaticMeshComponent;
 class UTimelineComponent;
+class UStaticMeshComponent;
+class USceneComponent;
 class UCurveFloat;
 
 UCLASS()
@@ -17,44 +18,62 @@ class ESCAPEIT_API ADoorActor : public AActor, public IInteract
 public:
 	ADoorActor();
 
-protected:
 	virtual void BeginPlay() override;
-
-public:
 	virtual void Tick(float DeltaTime) override;
+
+	// Interface function từ IInteractableInterface
 	virtual void Interact_Implementation(AActor* Interactor) override;
 
-	// ======================================== //
-	// ============= PROPERTIES ============= //
-	// ======================================== //
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door")
-	TObjectPtr<UStaticMeshComponent> DoorFrame;
+protected:
+	// Components
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Door")
+	USceneComponent* DoorPivot;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door")
-	TObjectPtr<UStaticMeshComponent> Door;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Door")
+	UStaticMeshComponent* DoorFrame;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door")
-	TObjectPtr<UTimelineComponent> DoorTimeline;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Door")
+	UStaticMeshComponent* Door;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door")
-	TObjectPtr<UCurveFloat> DoorCurve;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Door")
+	UTimelineComponent* DoorTimeline;
 
-private:
-	// ======================================== //
-	// ============= PROPERTIES ============= //
-	// ======================================== //
+	// Curve để điều khiển animation
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door|Animation")
+	UCurveFloat* DoorCurve;
+
+	// Góc mở cửa (độ)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door|Settings")
+	float OpenAngle = 90.0f;
+
+	// Trạng thái cửa
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Door|State")
 	bool bIsOpen;
 
-	// Rotator cuối cùng khi cửa mở hoàn toàn (tính bằng độ)
-	FRotator DoorRot{ 0.0f, 90.0f, 0.0f };
+	// Target rotation cho cửa
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Door|State")
+	FRotator DoorRotationTarget;
 
-	// ======================================== //
-	// ============= FUNCTIONS ============= //
-	// ======================================== //
-	void OpenDoor();
-	void CloseDoor();
+	// Speed của animation (tuỳ chỉnh)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door|Animation")
+	float AnimationDuration = 1.0f;
 
-	// Callback từ Timeline khi update
+private:
+	// Hàm tính toán hướng mở cửa dựa vào vị trí player
+	void CalculateDoorOpenDirection(AActor* Interactor);
+
+	// Hàm callback từ Timeline để cập nhật rotation
 	UFUNCTION()
 	void UpdateDoorRotation(float Value);
+
+	// Hàm mở cửa
+	void OpenDoor();
+
+	// Hàm đóng cửa
+	void CloseDoor();
+
+public:
+	// Getter functions
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Door")
+	bool IsOpen() const { return bIsOpen; }
 };
