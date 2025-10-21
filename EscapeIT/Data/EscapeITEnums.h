@@ -153,7 +153,8 @@ enum class EE_TextureQuality : uint8
 UENUM(BlueprintType)
 enum class EE_AudioOutput : uint8
 {
-	Stereo			UMETA(DisplayName = "Stereo"),
-	Surround		UMETA(DisplayName = "Surround 5.1"),
-	SpatialAudio	UMETA(DisplayName = "Spatial Audio (Object-Based)")
+	Stereo          UMETA(DisplayName = "Stereo"),
+	Surround_5_1    UMETA(DisplayName = "Surround 5.1"),
+	Surround_7_1    UMETA(DisplayName = "Surround 7.1"),
+	Headphones      UMETA(DisplayName = "Headphones")
 };

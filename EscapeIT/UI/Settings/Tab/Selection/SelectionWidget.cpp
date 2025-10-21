@@ -95,7 +95,7 @@ UWidget* USelectionWidget::OnNavigation(EUINavigation InNavigation)
     }
 
     UpdateCurrentSelection();
-    OnSelectionChange.ExecuteIfBound(CurrentSelection);
+    OnSelectionChanged.ExecuteIfBound(CurrentSelection);
     return this;
 }
 
