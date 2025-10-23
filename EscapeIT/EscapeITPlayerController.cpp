@@ -12,6 +12,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/LocalPlayer.h"
+#include "EscapeIT/UI/HUD/WidgetManager.h"
 #include <EnhancedInputSubsystems.h>
 
 void AEscapeITPlayerController::BeginPlay()
@@ -102,6 +103,7 @@ void AEscapeITPlayerController::SetupInputComponent()
             if (ToggleFlashlight) EnhancedInputComponent->BindAction(ToggleFlashlight, ETriggerEvent::Completed, this, &AEscapeITPlayerController::OnFlashlight);
             if (ToggleInventory) EnhancedInputComponent->BindAction(ToggleInventory, ETriggerEvent::Completed, this, &AEscapeITPlayerController::Inventory);
             if (Interact) EnhancedInputComponent->BindAction(Interact, ETriggerEvent::Completed, this, &AEscapeITPlayerController::OnInteract);
+            if (PauseMenu) EnhancedInputComponent->BindAction(PauseMenu, ETriggerEvent::Completed, this, &AEscapeITPlayerController::OnPauseMenu);
 
             // Add right-click to USE equipped item
             if (UseEquippedItem) EnhancedInputComponent->BindAction(UseEquippedItem, ETriggerEvent::Completed, this, &AEscapeITPlayerController::UseCurrentEquippedItem);
@@ -320,6 +322,13 @@ void AEscapeITPlayerController::OnFlashlight()
         UE_LOG(LogTemp, Warning, TEXT("Equipped item is not a flashlight! Current item: %s"),
             *EquippedItem.ItemName.ToString());
     }
+}
+
+void AEscapeITPlayerController::OnPauseMenu()
+{
+    AHUD* HUD = GetHUD();
+    WidgetManagerHUD = Cast<AWidgetManager>(HUD);
+    WidgetManagerHUD->TogglePauseMenu();
 }
 
 void AEscapeITPlayerController::EquipQuickbarSlot1()

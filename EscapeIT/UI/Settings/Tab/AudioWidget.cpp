@@ -5,7 +5,7 @@
 #include "EscapeIT/Subsystem/SettingsSubsystem.h"
 #include "Components/Button.h"
 #include "Components/Slider.h"
-#include "Components/ProgressBar.h"
+#include "Components/TextBlock.h"
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundBase.h"
 
@@ -75,17 +75,6 @@ void UAudioWidget::NativeDestruct()
 	}
 
 	Super::NativeDestruct();
-}
-
-void UAudioWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
-{
-	Super::NativeTick(MyGeometry, InDeltaTime);
-
-	// Update progress bars if they exist
-	if (!bUpdatingSliders)
-	{
-		UpdateProgressBars();
-	}
 }
 
 void UAudioWidget::InitializeSelections()
@@ -246,7 +235,7 @@ void UAudioWidget::LoadCurrentSettings()
 	}
 
 	bUpdatingSliders = false;
-	UpdateProgressBars();
+	UpdateVolumeTexts();
 }
 
 // ===== CALLBACKS =====
@@ -257,6 +246,7 @@ void UAudioWidget::OnMasterVolumeChanged(float Value)
 	{
 		SettingsSubsystem->SetMasterVolume(Value);
 	}
+	UpdateVolumeTexts();
 }
 
 void UAudioWidget::OnSFXVolumeChanged(float Value)
@@ -265,6 +255,7 @@ void UAudioWidget::OnSFXVolumeChanged(float Value)
 	{
 		SettingsSubsystem->SetSFXVolume(Value);
 	}
+	UpdateVolumeTexts();
 }
 
 void UAudioWidget::OnMusicVolumeChanged(float Value)
@@ -273,6 +264,7 @@ void UAudioWidget::OnMusicVolumeChanged(float Value)
 	{
 		SettingsSubsystem->SetMusicVolume(Value);
 	}
+	UpdateVolumeTexts();
 }
 
 void UAudioWidget::OnAmbientVolumeChanged(float Value)
@@ -281,6 +273,7 @@ void UAudioWidget::OnAmbientVolumeChanged(float Value)
 	{
 		SettingsSubsystem->SetAmbientVolume(Value);
 	}
+	UpdateVolumeTexts();
 }
 
 void UAudioWidget::OnDialogueVolumeChanged(float Value)
@@ -289,6 +282,7 @@ void UAudioWidget::OnDialogueVolumeChanged(float Value)
 	{
 		SettingsSubsystem->SetDialogueVolume(Value);
 	}
+	UpdateVolumeTexts();
 }
 
 void UAudioWidget::OnUIVolumeChanged(float Value)
@@ -297,6 +291,7 @@ void UAudioWidget::OnUIVolumeChanged(float Value)
 	{
 		SettingsSubsystem->SetUIVolume(Value);
 	}
+	UpdateVolumeTexts();
 }
 
 void UAudioWidget::OnAudioLanguageChanged(int32 NewIndex)
@@ -369,37 +364,43 @@ void UAudioWidget::AddToggleOptions(USelectionWidget* Selection)
 	}
 }
 
-void UAudioWidget::UpdateProgressBars()
+void UAudioWidget::UpdateVolumeTexts()
 {
-	// Update progress bars to match slider values
-	if (MasterVolumeBar && MasterVolumeSlider)
+	// Update text displays to show volume percentage
+	if (MasterVolumeText && MasterVolumeSlider)
 	{
-		MasterVolumeBar->SetPercent(MasterVolumeSlider->GetValue());
+		float Value = MasterVolumeSlider->GetValue();
+		MasterVolumeText->SetText(FText::AsNumber(Value));
 	}
 
-	if (SFXVolumeBar && SFXVolumeSlider)
+	if (SFXVolumeText && SFXVolumeSlider)
 	{
-		SFXVolumeBar->SetPercent(SFXVolumeSlider->GetValue());
+		float Value = SFXVolumeSlider->GetValue();
+		SFXVolumeText->SetText(FText::AsNumber(Value));
 	}
 
-	if (MusicVolumeBar && MusicVolumeSlider)
+	if (MusicVolumeText && MusicVolumeSlider)
 	{
-		MusicVolumeBar->SetPercent(MusicVolumeSlider->GetValue());
+		float Value = MusicVolumeSlider->GetValue();
+		MusicVolumeText->SetText(FText::AsNumber(Value));
 	}
 
-	if (AmbientVolumeBar && AmbientVolumeSlider)
+	if (AmbientVolumeText && AmbientVolumeSlider)
 	{
-		AmbientVolumeBar->SetPercent(AmbientVolumeSlider->GetValue());
+		float Value = AmbientVolumeSlider->GetValue();
+		AmbientVolumeText->SetText(FText::AsNumber(Value));
 	}
 
-	if (DialogueVolumeBar && DialogueVolumeSlider)
+	if (DialogueVolumeText && DialogueVolumeSlider)
 	{
-		DialogueVolumeBar->SetPercent(DialogueVolumeSlider->GetValue());
+		float Value = DialogueVolumeSlider->GetValue();
+		DialogueVolumeText->SetText(FText::AsNumber(Value));
 	}
 
-	if (UIVolumeBar && UIVolumeSlider)
+	if (UIVolumeText && UIVolumeSlider)
 	{
-		UIVolumeBar->SetPercent(UIVolumeSlider->GetValue());
+		float Value = UIVolumeSlider->GetValue();
+		UIVolumeText->SetText(FText::AsNumber(Value));
 	}
 }
 

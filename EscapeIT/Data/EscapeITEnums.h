@@ -15,6 +15,16 @@ enum class EE_DifficultyLevel : uint8
 	Nightmare	UMETA(DisplayName = "Nightmare")
 };
 
+UENUM(BlueprintType)
+enum class ESettingsCategory : uint8
+{
+	Gameplay = 0,
+	Graphics = 1,
+	Audio = 2,
+	Controls = 3,
+	Accessibility = 4
+};
+
 /**
  * Graphics quality presets
  */
@@ -24,7 +34,8 @@ enum class EE_GraphicsQuality : uint8
 	Low		UMETA(DisplayName = "Low"),
 	Medium	UMETA(DisplayName = "Medium"),
 	High	UMETA(DisplayName = "High"),
-	Epic	UMETA(DisplayName = "Epic")
+	Ultra	UMETA(DisplayName = "Ultra"),
+	Custom UMETA(DisplayName = "Custom")
 };
 
 /**

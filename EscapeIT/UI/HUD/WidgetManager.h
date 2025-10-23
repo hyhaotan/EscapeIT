@@ -10,6 +10,7 @@ class UUserWidget;
 class USanityWidget;
 class USanityComponent;
 class UQuickbarWidget;
+class UPauseMenuWidget;
 class UInventoryWidget;
 
 UCLASS()
@@ -29,7 +30,7 @@ public:
 	TSubclassOf<USanityWidget> SanityWidgetClass;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Widgets")
-	TSubclassOf<UUserWidget> PauseMenuClass;
+	TSubclassOf<UPauseMenuWidget> PauseMenuClass;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Widgets")
 	TSubclassOf<UUserWidget> MainMenuClass;
@@ -48,7 +49,7 @@ public:
 	TObjectPtr<USanityWidget> SanityWidget;
 
 	UPROPERTY()
-	TObjectPtr<UUserWidget> PauseMenu;
+	TObjectPtr<UPauseMenuWidget> PauseMenu;
 
 	UPROPERTY()
 	TObjectPtr<UUserWidget> MainMenu;
@@ -125,10 +126,12 @@ private:
 	template<typename T>
 	T* CreateWidgetInstance(TSubclassOf<UUserWidget> WidgetClass);
 
-	APlayerController* PlayerController;
+	UPROPERTY()
+	TObjectPtr<APlayerController> PlayerController;
 
 	// Helper function để show/hide widget
 	void ShowWidget(UUserWidget* Widget);
 	void HideWidget(UUserWidget* Widget);
 	bool bIsInventoryOpen = false;
 };
+

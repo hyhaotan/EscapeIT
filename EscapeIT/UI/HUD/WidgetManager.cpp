@@ -4,6 +4,7 @@
 #include "EscapeIT/UI/SanityWidget.h"
 #include "EscapeIT/UI/Inventory/InventoryWidget.h"
 #include "EscapeIT/UI/Inventory/QuickbarWidget.h"
+#include "EscapeIT/UI/Settings/PauseMenuWidget.h"
 #include "GameFramework/PlayerController.h"
 #include "Blueprint/UserWidget.h"
 #include "Kismet/GameplayStatics.h"
@@ -38,14 +39,13 @@ void AWidgetManager::InitializeWidgets()
 		if (SanityWidget)
 		{
 			SanityWidget->AddToViewport(0); // Z-Order 0 (nền)
-			UE_LOG(LogTemp, Log, TEXT("Sanity widget created"));
 		}
 	}
 
 	// Tạo Pause Menu (không add vào viewport ngay)
 	if (PauseMenuClass && !PauseMenu)
 	{
-		PauseMenu = CreateWidget<UUserWidget>(GetWorld(), PauseMenuClass);
+		PauseMenu = CreateWidget<UPauseMenuWidget>(GetWorld(), PauseMenuClass);
 		if (PauseMenu)
 		{
 			UE_LOG(LogTemp, Log, TEXT("Pause menu created"));
@@ -78,7 +78,6 @@ void AWidgetManager::InitializeWidgets()
 		if (QuickbarWidget)
 		{
 			QuickbarWidget->AddToViewport(1); // Z-order 1
-			UE_LOG(LogTemp, Log, TEXT("Quickbar widget created"));
 		}
 	}
 
@@ -86,11 +85,6 @@ void AWidgetManager::InitializeWidgets()
 	if (InventoryWidgetClass && !InventoryWidget)
 	{
 		InventoryWidget = CreateWidget<UInventoryWidget>(GetWorld(), InventoryWidgetClass);
-		if (InventoryWidget)
-		{
-			// Không add to viewport ngay
-			UE_LOG(LogTemp, Log, TEXT("Inventory widget created"));
-		}
 	}
 }
 
@@ -118,12 +112,12 @@ void AWidgetManager::ShowPauseMenu()
 	{
 		if (!PauseMenu->IsInViewport())
 		{
-			PauseMenu->AddToViewport(10); // Z-Order 10 (cao hơn)
+			PauseMenu->AddToViewport(10);
+			PauseMenu->WidgetManager = this;
 		}
 		PauseMenu->SetVisibility(ESlateVisibility::Visible);
 
-		// Pause game và hiện con trỏ chuột
-		if (PlayerController)
+		if (PlayerController && IsValid(PlayerController))
 		{
 			UGameplayStatics::SetGamePaused(GetWorld(), true);
 			PlayerController->bShowMouseCursor = true;
@@ -134,10 +128,13 @@ void AWidgetManager::ShowPauseMenu()
 
 void AWidgetManager::HidePauseMenu()
 {
-	HideWidget(PauseMenu);
+	if (PauseMenu)
+	{
+		HideWidget(PauseMenu);
+	}
 
 	// Resume game và ẩn con trỏ chuột
-	if (PlayerController)
+	if (PlayerController && IsValid(PlayerController))
 	{
 		UGameplayStatics::SetGamePaused(GetWorld(), false);
 		PlayerController->bShowMouseCursor = false;
@@ -167,6 +164,17 @@ void AWidgetManager::ShowMainMenu()
 		PlayerController->bShowMouseCursor = true;
 		PlayerController->SetInputMode(FInputModeUIOnly());
 	}
+}
+
+bool AWidgetManager::IsPauseMenuVisible() const
+{
+	// Add null check before calling IsInViewport()
+	if (!PauseMenu || !IsValid(PauseMenu))
+	{
+		return false;
+	}
+
+	return PauseMenu->IsInViewport() && PauseMenu->GetVisibility() == ESlateVisibility::Visible;
 }
 
 void AWidgetManager::HideMainMenu()
@@ -208,11 +216,6 @@ void AWidgetManager::RemoveAllWidgets()
 	{
 		InventoryWidget->RemoveFromParent();
 	}
-}
-
-bool AWidgetManager::IsPauseMenuVisible() const
-{
-	return PauseMenu && PauseMenu->IsInViewport() && PauseMenu->GetVisibility() == ESlateVisibility::Visible;
 }
 
 void AWidgetManager::ShowWidget(UUserWidget* Widget)

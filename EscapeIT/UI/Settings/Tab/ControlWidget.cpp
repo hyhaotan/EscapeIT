@@ -5,7 +5,7 @@
 #include "EscapeIT/Subsystem/SettingsSubsystem.h"
 #include "Components/Button.h"
 #include "Components/Slider.h"
-#include "Components/ProgressBar.h"
+#include "Components/TextBlock.h"
 #include "Kismet/GameplayStatics.h"
 
 UControlWidget::UControlWidget(const FObjectInitializer& ObjectInitializer)
@@ -80,7 +80,7 @@ void UControlWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 	// Update progress bars if they exist
 	if (!bUpdatingSliders)
 	{
-		UpdateProgressBars();
+		UpdateVolumeText();
 	}
 }
 
@@ -246,7 +246,7 @@ void UControlWidget::LoadCurrentSettings()
 	}
 
 	bUpdatingSliders = false;
-	UpdateProgressBars();
+	UpdateVolumeText();
 }
 
 // ===== MOUSE CALLBACKS =====
@@ -388,41 +388,40 @@ void UControlWidget::AddHoldToggleOptions(USelectionWidget* Selection)
 	}
 }
 
-void UControlWidget::UpdateProgressBars()
+void UControlWidget::UpdateVolumeText()
 {
-	// Update progress bars to match slider values
-
-	// Mouse sensitivity (normalize 0.1-3.0 to 0.0-1.0)
-	if (MouseSensitivityBar && MouseSensitivitySlider)
+	if (MouseSensitivityText && MouseSensitivitySlider)
 	{
-		float NormalizedValue = (MouseSensitivitySlider->GetValue() - 0.1f) / 2.9f;
-		MouseSensitivityBar->SetPercent(NormalizedValue);
+		int Percentage = FMath::RoundToInt(MouseSensitivitySlider->GetValue() * 1.0f);
+		MouseSensitivityText->SetText(FText::AsNumber(Percentage));
 	}
 
 	// Camera zoom sensitivity (already 0.0-1.0)
-	if (CameraZoomSensitivityBar && CameraZoomSensitivitySlider)
+	if (CameraZoomSensitivityText && CameraZoomSensitivitySlider)
 	{
-		CameraZoomSensitivityBar->SetPercent(CameraZoomSensitivitySlider->GetValue());
+		int Percentage = FMath::RoundToInt(CameraZoomSensitivitySlider->GetValue() * 1.0f);
+		CameraZoomSensitivityText->SetText(FText::AsNumber(Percentage));
 	}
 
 	// Gamepad sensitivity (normalize 0.1-3.0 to 0.0-1.0)
-	if (GamepadSensitivityBar && GamepadSensitivitySlider)
+	if (GamepadSensitivityText && GamepadSensitivitySlider)
 	{
-		float NormalizedValue = (GamepadSensitivitySlider->GetValue() - 0.1f) / 2.9f;
-		GamepadSensitivityBar->SetPercent(NormalizedValue);
+		int Percentage = FMath::RoundToInt(GamepadSensitivitySlider->GetValue() * 1.0f);
+		GamepadSensitivityText->SetText(FText::AsNumber(Percentage));
 	}
 
 	// Gamepad deadzone (normalize 0.0-0.5 to 0.0-1.0)
-	if (GamepadDeadzoneBar && GamepadDeadzoneSlider)
+	if (GamepadDeadzoneText && GamepadDeadzoneSlider)
 	{
-		float NormalizedValue = GamepadDeadzoneSlider->GetValue() / 0.5f;
-		GamepadDeadzoneBar->SetPercent(NormalizedValue);
+		int Percentage = FMath::RoundToInt(GamepadDeadzoneSlider->GetValue() * 1.0f);
+		GamepadDeadzoneText->SetText(FText::AsNumber(Percentage));
 	}
 
 	// Gamepad vibration intensity (already 0.0-1.0)
-	if (GamepadVibrationIntensityBar && GamepadVibrationIntensitySlider)
+	if (GamepadVibrationIntensityText && GamepadVibrationIntensitySlider)
 	{
-		GamepadVibrationIntensityBar->SetPercent(GamepadVibrationIntensitySlider->GetValue());
+		int Percentage = FMath::RoundToInt(GamepadVibrationIntensitySlider->GetValue() * 1.0f);
+		GamepadVibrationIntensityText->SetText(FText::AsNumber(Percentage));
 	}
 }
 

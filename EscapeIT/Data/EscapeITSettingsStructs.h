@@ -51,6 +51,29 @@ struct FS_GraphicsSettings
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Graphics|PostProcess", meta = (ClampMin = "70.0", ClampMax = "120.0"))
 	float FieldOfView = 90.0f;
+
+	bool operator == (const FS_GraphicsSettings& Other) const
+	{
+		const float FloatTol = 1e-4f;
+
+		return ResolutionX == Other.ResolutionX
+			&& ResolutionY == Other.ResolutionY
+			&& QualityPreset == Other.QualityPreset
+			&& FrameRateCap == Other.FrameRateCap
+			&& bVSyncEnabled == Other.bVSyncEnabled
+			&& bRayTracingEnabled == Other.bRayTracingEnabled
+			&& RayTracingQuality == Other.RayTracingQuality
+			&& ShadowQuality == Other.ShadowQuality
+			&& TextureQuality == Other.TextureQuality
+			&& AntiAliasingMethod == Other.AntiAliasingMethod
+			&& FMath::IsNearlyEqual(MotionBlurAmount, Other.MotionBlurAmount, FloatTol)
+			&& FMath::IsNearlyEqual(FieldOfView, Other.FieldOfView, FloatTol);
+	}
+
+	bool operator != (const FS_GraphicsSettings& Other) const
+	{
+		return !(*this == Other);
+	}
 };
 
 /**
@@ -93,6 +116,27 @@ struct FS_AudioSettings
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio|Accessibility")
 	bool bClosedCaptionsEnabled = false;
+
+	bool operator == (const FS_AudioSettings& Other) const
+	{
+		const float FloatTol = 1e-4f;
+
+		return FMath::IsNearlyEqual(MasterVolume, Other.MasterVolume, FloatTol)
+			&& FMath::IsNearlyEqual(SFXVolume, Other.SFXVolume, FloatTol)
+			&& FMath::IsNearlyEqual(AmbientVolume, Other.AmbientVolume, FloatTol)
+			&& FMath::IsNearlyEqual(UIVolume, Other.UIVolume, FloatTol)
+			&& FMath::IsNearlyEqual(MusicVolume, Other.MusicVolume, FloatTol)
+			&& FMath::IsNearlyEqual(DialogueVolume, Other.DialogueVolume, FloatTol)
+			&& CurrentLanguage == Other.CurrentLanguage
+			&& AudioOutput == Other.AudioOutput
+			&& bSubtitlesEnabled == bSubtitlesEnabled
+			&& bClosedCaptionsEnabled == Other.bClosedCaptionsEnabled;
+	}
+
+	bool operator != (const FS_AudioSettings& Other) const
+	{
+		return !(*this == Other);
+	}
 };
 
 /**
@@ -112,6 +156,9 @@ struct FS_GameplaySettings
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gameplay|Difficulty", meta = (ClampMin = "0.5", ClampMax = "2.0"))
 	float EntityDetectionRangeMultiplier = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gameplay|Sensitivity", meta = (ClampMin = "0.1", ClampMax = "5.0"))
+	float MouseSensitivity = 1.0;
 
 	// Puzzle & Hints
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gameplay|Puzzle")
@@ -139,6 +186,28 @@ struct FS_GameplaySettings
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gameplay|Comfort", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float ScreenBlurAmount = 1.0f;
+
+	bool operator == (const FS_GameplaySettings& Other) const
+	{
+		const float FloatTol = 1e-4f;
+		return DifficultyLevel == Other.DifficultyLevel
+			&& FMath::IsNearlyEqual(SanityDrainMultiplier, Other.SanityDrainMultiplier, FloatTol)
+			&& FMath::IsNearlyEqual(EntityDetectionRangeMultiplier, Other.EntityDetectionRangeMultiplier, FloatTol)
+			&& FMath::IsNearlyEqual(MouseSensitivity, Other.MouseSensitivity, FloatTol)
+			&& bPuzzleHintSystemEnabled == Other.bPuzzleHintSystemEnabled
+			&& FMath::IsNearlyEqual(AutoRevealHintTime, Other.AutoRevealHintTime, FloatTol)
+			&& bAllowSkipPuzzles == Other.bAllowSkipPuzzles
+			&& bShowObjectiveMarkers == Other.bShowObjectiveMarkers
+			&& bShowInteractionIndicators == Other.bShowInteractionIndicators
+			&& bAutoPickupItems == Other.bAutoPickupItems
+			&& FMath::IsNearlyEqual(CameraShakeMagnitude, Other.CameraShakeMagnitude, FloatTol)
+			&& FMath::IsNearlyEqual(ScreenBlurAmount, Other.ScreenBlurAmount, FloatTol);
+	}
+
+	bool operator != (const FS_GameplaySettings& Other) const
+	{
+		return !(*this == Other);
+	}
 };
 
 /**
@@ -185,6 +254,27 @@ struct FS_ControlSettings
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Controls|Haptics", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float GamepadVibrationIntensity = 1.0f;
+
+	bool operator == (const FS_ControlSettings& Other) const
+	{
+		const float FloatTol = 1e-4f;
+		return FMath::IsNearlyEqual(MouseSensitivity, Other.MouseSensitivity, FloatTol)
+			&& bInvertMouseY == Other.bInvertMouseY
+			&& FMath::IsNearlyEqual(CameraZoomSensitivity, Other.CameraZoomSensitivity, FloatTol)
+			&& FMath::IsNearlyEqual(GamepadSensitivity, Other.GamepadSensitivity, FloatTol)
+			&& FMath::IsNearlyEqual(GamepadDeadzone, Other.GamepadDeadzone, FloatTol)
+			&& bInvertGamepadY == Other.bInvertGamepadY
+			&& bAutoSprintEnabled == Other.bAutoSprintEnabled
+			&& bCrouchToggle == Other.bCrouchToggle
+			&& bFlashlightToggle == Other.bFlashlightToggle
+			&& bGamepadVibrationEnabled == Other.bGamepadVibrationEnabled
+			&& FMath::IsNearlyEqual(GamepadVibrationIntensity, Other.GamepadVibrationIntensity, FloatTol);
+	}
+
+	bool operator != (const FS_ControlSettings& Other) const
+	{
+		return !(*this == Other);
+	}
 };
 
 /**
@@ -239,6 +329,29 @@ struct FS_AccessibilitySettings
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Accessibility|Input", meta = (ClampMin = "0.1", ClampMax = "5.0"))
 	float HoldActivationTime = 1.0f;
+
+	bool operator == (const FS_AccessibilitySettings& Other) const
+	{
+		const float FloatTol = 1e-4f;
+		return TextSize == Other.TextSize
+			&& TextContrast == Other.TextContrast
+			&& bDyslexiaFontEnabled == Other.bDyslexiaFontEnabled
+			&& ColorBlindMode == Other.ColorBlindMode
+			&& bHighContrastUIEnabled == Other.bHighContrastUIEnabled
+			&& bReducedMotionEnabled == Other.bReducedMotionEnabled
+			&& PhotosensitivityMode == Other.PhotosensitivityMode
+			&& bScreenReaderEnabled == Other.bScreenReaderEnabled
+			&& bSoundCuesVisualizationEnabled == Other.bSoundCuesVisualizationEnabled
+			&& bHapticFeedbackEnabled == Other.bHapticFeedbackEnabled
+			&& SingleHandedMode == Other.SingleHandedMode
+			&& bEnableHoldToActivate == Other.bEnableHoldToActivate
+			&& FMath::IsNearlyEqual(HoldActivationTime, Other.HoldActivationTime, FloatTol);
+	}
+
+	bool operator != (const FS_AccessibilitySettings& Other) const
+	{
+		return !(*this == Other);
+	}
 };
 
 /**

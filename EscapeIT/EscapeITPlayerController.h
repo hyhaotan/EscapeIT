@@ -12,6 +12,7 @@ class UQuickbarWidget;
 class UInputMappingContext;
 class UInputAction;
 class UFlashlightComponent;
+class AWidgetManager;
 
 UCLASS()
 class ESCAPEIT_API AEscapeITPlayerController : public APlayerController
@@ -35,20 +36,23 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
     TSubclassOf<UInteractionPromptWidget> InteractionPromptWidgetClass;
 
-    UPROPERTY()
-    TObjectPtr<UInteractionPromptWidget> InteractionPromptWidget;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+    TSubclassOf<UQuickbarWidget> QuickbarWidgetClass;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
     TSubclassOf<UInventoryWidget> InventoryWidgetClass;
 
     UPROPERTY()
-    TObjectPtr<UInventoryWidget> InventoryWidget;
+    TObjectPtr<UInteractionPromptWidget> InteractionPromptWidget;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
-    TSubclassOf<UQuickbarWidget> QuickbarWidgetClass;
+    UPROPERTY()
+    TObjectPtr<UInventoryWidget> InventoryWidget;
 
     UPROPERTY()
     TObjectPtr<UQuickbarWidget> QuickbarWidget;
+
+    UPROPERTY()
+    TObjectPtr<AWidgetManager> WidgetManagerHUD;
 
     // ========== Input Mapping ==========
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
@@ -82,6 +86,9 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
     TObjectPtr<UInputAction> ToggleFlashlight;
 
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+    TObjectPtr<UInputAction> PauseMenu;
+
     // ========== Interaction System ==========
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
     float InteractionDistance = 300.0f;
@@ -103,6 +110,7 @@ protected:
     void OnInteract();
     void Inventory();
     void OnFlashlight();
+    void OnPauseMenu();
 
     // Equip functions
     void EquipQuickbarSlot1();

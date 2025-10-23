@@ -17,24 +17,296 @@ void USettingsSubsystem::Deinitialize()
 	Super::Deinitialize();
 }
 
-void USettingsSubsystem::ApplyAllSettings(const FS_AllSettings& NewSettings)
+bool USettingsSubsystem::ApplyAllSettings(const FS_AllSettings& NewSettings)
 {
+	bool bSuccess = true;
+	bool bAnySettingApplied = false;
+
+	// Validate settings first
+	if (!ValidateSettings(NewSettings))
+	{
+		UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Settings validation failed"));
+		return false;
+	}
+
+	// Store old settings for rollback if needed
+	FS_AllSettings OldSettings = AllSettings;
+
+	// Update the settings data
 	AllSettings = NewSettings;
 
-	// Apply all categories
-	ApplyGraphicsSettingsToEngine(AllSettings.GraphicsSettings);
-	ApplyAudioSettingsToEngine(AllSettings.AudioSettings);
-	ApplyGameplaySettingsToEngine(AllSettings.GameplaySettings);
-	ApplyControlSettingsToEngine(AllSettings.ControlSettings);
-	ApplyAccessibilitySettingsToEngine(AllSettings.AccessibilitySettings);
+	// Apply Graphics Settings
+	if (AllSettings.GraphicsSettings != OldSettings.GraphicsSettings)
+	{
+		ApplyGraphicsSettingsToEngine(AllSettings.GraphicsSettings);
+		OnGraphicsSettingsChanged.Broadcast(AllSettings.GraphicsSettings);
+		bAnySettingApplied = true;
+		UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem: Graphics settings applied"));
+	}
 
-	// Broadcast changes
-	OnAllSettingsChanged.Broadcast(AllSettings);
-	OnGraphicsSettingsChanged.Broadcast(AllSettings.GraphicsSettings);
-	OnAudioSettingsChanged.Broadcast(AllSettings.AudioSettings);
-	OnGameplaySettingsChanged.Broadcast(AllSettings.GameplaySettings);
-	OnControlSettingsChanged.Broadcast(AllSettings.ControlSettings);
-	OnAccessibilitySettingsChanged.Broadcast(AllSettings.AccessibilitySettings);
+	// Apply Audio Settings
+	if (AllSettings.AudioSettings != OldSettings.AudioSettings)
+	{
+		ApplyAudioSettingsToEngine(AllSettings.AudioSettings);
+		OnAudioSettingsChanged.Broadcast(AllSettings.AudioSettings);
+		bAnySettingApplied = true;
+		UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem: Audio settings applied"));
+	}
+
+	// Apply Gameplay Settings
+	if (AllSettings.GameplaySettings != OldSettings.GameplaySettings)
+	{
+		ApplyGameplaySettingsToEngine(AllSettings.GameplaySettings);
+		OnGameplaySettingsChanged.Broadcast(AllSettings.GameplaySettings);
+		bAnySettingApplied = true;
+		UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem: Gameplay settings applied"));
+	}
+
+	// Apply Control Settings
+	if (AllSettings.ControlSettings != OldSettings.ControlSettings)
+	{
+		ApplyControlSettingsToEngine(AllSettings.ControlSettings);
+		OnControlSettingsChanged.Broadcast(AllSettings.ControlSettings);
+		bAnySettingApplied = true;
+		UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem: Control settings applied"));
+	}
+
+	// Apply Accessibility Settings
+	if (AllSettings.AccessibilitySettings != OldSettings.AccessibilitySettings)
+	{
+		ApplyAccessibilitySettingsToEngine(AllSettings.AccessibilitySettings);
+		OnAccessibilitySettingsChanged.Broadcast(AllSettings.AccessibilitySettings);
+		bAnySettingApplied = true;
+		UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem: Accessibility settings applied"));
+	}
+
+	// Broadcast all settings changed if any setting was applied
+	if (bAnySettingApplied)
+	{
+		OnAllSettingsChanged.Broadcast(AllSettings);
+		UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem: All settings changes broadcasted"));
+	}
+
+	// Save to disk
+	if (!SaveAllSettings())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SettingsSubsystem: Settings applied but failed to save to disk"));
+		// Don't return false here - settings are applied even if save failed
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem: All settings applied successfully"));
+	return true;
+}
+
+bool USettingsSubsystem::ValidateSettings(const FS_AllSettings& Settings) const
+{
+	bool bValid = true;
+
+	// Validate Graphics Settings
+	if (Settings.GraphicsSettings.ResolutionX < 640 || Settings.GraphicsSettings.ResolutionX > 7680)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Invalid resolution width: %d (must be 640-7680)"),
+			Settings.GraphicsSettings.ResolutionX);
+		bValid = false;
+	}
+
+	if (Settings.GraphicsSettings.ResolutionY < 480 || Settings.GraphicsSettings.ResolutionY > 4320)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Invalid resolution height: %d (must be 480-4320)"),
+			Settings.GraphicsSettings.ResolutionY);
+		bValid = false;
+	}
+
+	if (Settings.GraphicsSettings.FrameRateCap < 30 || Settings.GraphicsSettings.FrameRateCap > 300)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SettingsSubsystem: Unusual frame rate cap: %d"),
+			Settings.GraphicsSettings.FrameRateCap);
+		// Warning only, don't fail validation
+	}
+
+	if (Settings.GraphicsSettings.FieldOfView < 60.0f || Settings.GraphicsSettings.FieldOfView > 120.0f)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Invalid FOV: %.2f (must be 60-120)"),
+			Settings.GraphicsSettings.FieldOfView);
+		bValid = false;
+	}
+
+	if (Settings.GraphicsSettings.MotionBlurAmount < 0.0f || Settings.GraphicsSettings.MotionBlurAmount > 1.0f)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Invalid motion blur: %.2f (must be 0-1)"),
+			Settings.GraphicsSettings.MotionBlurAmount);
+		bValid = false;
+	}
+
+	// Validate Audio Settings
+	if (Settings.AudioSettings.MasterVolume < 0.0f || Settings.AudioSettings.MasterVolume > 1.0f)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Invalid master volume: %.2f (must be 0-1)"),
+			Settings.AudioSettings.MasterVolume);
+		bValid = false;
+	}
+
+	if (Settings.AudioSettings.MusicVolume < 0.0f || Settings.AudioSettings.MusicVolume > 1.0f)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Invalid music volume: %.2f (must be 0-1)"),
+			Settings.AudioSettings.MusicVolume);
+		bValid = false;
+	}
+
+	if (Settings.AudioSettings.SFXVolume < 0.0f || Settings.AudioSettings.SFXVolume > 1.0f)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Invalid SFX volume: %.2f (must be 0-1)"),
+			Settings.AudioSettings.SFXVolume);
+		bValid = false;
+	}
+
+	if (Settings.AudioSettings.AmbientVolume < 0.0f || Settings.AudioSettings.AmbientVolume > 1.0f)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Invalid ambient volume: %.2f (must be 0-1)"),
+			Settings.AudioSettings.AmbientVolume);
+		bValid = false;
+	}
+
+	if (Settings.AudioSettings.UIVolume < 0.0f || Settings.AudioSettings.UIVolume > 1.0f)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Invalid UI volume: %.2f (must be 0-1)"),
+			Settings.AudioSettings.UIVolume);
+		bValid = false;
+	}
+
+	if (Settings.AudioSettings.DialogueVolume < 0.0f || Settings.AudioSettings.DialogueVolume > 1.0f)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Invalid dialogue volume: %.2f (must be 0-1)"),
+			Settings.AudioSettings.DialogueVolume);
+		bValid = false;
+	}
+
+	// Validate Gameplay Settings
+	if (Settings.GameplaySettings.MouseSensitivity <= 0.0f || Settings.GameplaySettings.MouseSensitivity > 5.0f)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Invalid mouse sensitivity: %.2f (must be 0-5)"),
+			Settings.GameplaySettings.MouseSensitivity);
+		bValid = false;
+	}
+
+	if (Settings.GameplaySettings.SanityDrainMultiplier < 0.0f || Settings.GameplaySettings.SanityDrainMultiplier > 3.0f)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Invalid sanity drain multiplier: %.2f (must be 0-3)"),
+			Settings.GameplaySettings.SanityDrainMultiplier);
+		bValid = false;
+	}
+
+	if (Settings.GameplaySettings.EntityDetectionRangeMultiplier < 0.0f || Settings.GameplaySettings.EntityDetectionRangeMultiplier > 3.0f)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Invalid detection range multiplier: %.2f (must be 0-3)"),
+			Settings.GameplaySettings.EntityDetectionRangeMultiplier);
+		bValid = false;
+	}
+
+	if (Settings.GameplaySettings.AutoRevealHintTime < 0.0f || Settings.GameplaySettings.AutoRevealHintTime > 600.0f)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Invalid hint reveal time: %.2f (must be 0-600)"),
+			Settings.GameplaySettings.AutoRevealHintTime);
+		bValid = false;
+	}
+
+	if (Settings.GameplaySettings.CameraShakeMagnitude < 0.0f || Settings.GameplaySettings.CameraShakeMagnitude > 2.0f)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Invalid camera shake: %.2f (must be 0-2)"),
+			Settings.GameplaySettings.CameraShakeMagnitude);
+		bValid = false;
+	}
+
+	if (Settings.GameplaySettings.ScreenBlurAmount < 0.0f || Settings.GameplaySettings.ScreenBlurAmount > 1.0f)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Invalid screen blur: %.2f (must be 0-1)"),
+			Settings.GameplaySettings.ScreenBlurAmount);
+		bValid = false;
+	}
+
+	// Validate Control Settings
+	if (Settings.ControlSettings.MouseSensitivity <= 0.0f || Settings.ControlSettings.MouseSensitivity > 5.0f)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Invalid control mouse sensitivity: %.2f (must be 0-5)"),
+			Settings.ControlSettings.MouseSensitivity);
+		bValid = false;
+	}
+
+	if (Settings.ControlSettings.GamepadSensitivity <= 0.0f || Settings.ControlSettings.GamepadSensitivity > 5.0f)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Invalid gamepad sensitivity: %.2f (must be 0-5)"),
+			Settings.ControlSettings.GamepadSensitivity);
+		bValid = false;
+	}
+
+	if (Settings.ControlSettings.GamepadDeadzone < 0.0f || Settings.ControlSettings.GamepadDeadzone > 0.9f)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Invalid gamepad deadzone: %.2f (must be 0-0.9)"),
+			Settings.ControlSettings.GamepadDeadzone);
+		bValid = false;
+	}
+
+	if (Settings.ControlSettings.CameraZoomSensitivity < 0.0f || Settings.ControlSettings.CameraZoomSensitivity > 2.0f)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Invalid zoom sensitivity: %.2f (must be 0-2)"),
+			Settings.ControlSettings.CameraZoomSensitivity);
+		bValid = false;
+	}
+
+	if (Settings.ControlSettings.GamepadVibrationIntensity < 0.0f || Settings.ControlSettings.GamepadVibrationIntensity > 1.0f)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Invalid vibration intensity: %.2f (must be 0-1)"),
+			Settings.ControlSettings.GamepadVibrationIntensity);
+		bValid = false;
+	}
+
+	// Validate Accessibility Settings
+	if (Settings.AccessibilitySettings.HoldActivationTime < 0.1f || Settings.AccessibilitySettings.HoldActivationTime > 10.0f)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Invalid hold activation time: %.2f (must be 0.1-10)"),
+			Settings.AccessibilitySettings.HoldActivationTime);
+		bValid = false;
+	}
+
+	if (!bValid)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Settings validation failed - see errors above"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem: Settings validation passed"));
+	}
+
+	return bValid;
+}
+
+bool USettingsSubsystem::SaveAllSettings()
+{
+	USettingsSaveGame* Save = Cast<USettingsSaveGame>(
+		UGameplayStatics::CreateSaveGameObject(USettingsSaveGame::StaticClass())
+	);
+
+	if (!Save)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Failed to create save game object"));
+		return false;
+	}
+
+	Save->AllSettings = AllSettings;
+	Save->LastSavedTime = FDateTime::UtcNow();
+
+	bool bSaveSuccess = UGameplayStatics::SaveGameToSlot(Save, SaveSlotName, SaveUserIndex);
+
+	if (bSaveSuccess)
+	{
+		UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem: Settings saved successfully to slot '%s'"), *SaveSlotName);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Failed to save settings to slot '%s'"), *SaveSlotName);
+	}
+
+	return bSaveSuccess;
 }
 
 void USettingsSubsystem::ResetSettingsToDefault()
@@ -51,13 +323,7 @@ void USettingsSubsystem::ResetSettingsToDefault()
 
 void USettingsSubsystem::SaveSettingsToSlot()
 {
-	USettingsSaveGame* Save = Cast<USettingsSaveGame>(UGameplayStatics::CreateSaveGameObject(USettingsSaveGame::StaticClass()));
-	if (Save)
-	{
-		Save->AllSettings = AllSettings;
-		Save->LastSavedTime = FDateTime::UtcNow();
-		UGameplayStatics::SaveGameToSlot(Save, SaveSlotName, SaveUserIndex);
-	}
+	SaveAllSettings();
 }
 
 void USettingsSubsystem::LoadSettingsFromSlot()
@@ -157,12 +423,15 @@ void USettingsSubsystem::SetGraphicsQuality(EE_GraphicsQuality QualityPreset)
 		AllSettings.GraphicsSettings.MotionBlurAmount = 0.5f;
 		break;
 
-	case EE_GraphicsQuality::Epic:
+	case EE_GraphicsQuality::Ultra:
 		AllSettings.GraphicsSettings.bRayTracingEnabled = true;
 		AllSettings.GraphicsSettings.RayTracingQuality = EE_RayTracingQuality::High;
 		AllSettings.GraphicsSettings.ShadowQuality = EE_ShadowQuality::Epic;
 		AllSettings.GraphicsSettings.TextureQuality = EE_TextureQuality::Epic;
 		AllSettings.GraphicsSettings.MotionBlurAmount = 1.0f;
+		break;
+	case EE_GraphicsQuality::Custom:
+
 		break;
 	}
 

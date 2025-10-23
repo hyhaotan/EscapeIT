@@ -26,7 +26,7 @@ public:
 
 	/** Apply all settings at once */
 	UFUNCTION(BlueprintCallable, Category = "Settings")
-	void ApplyAllSettings(const FS_AllSettings& NewSettings);
+	bool ApplyAllSettings(const FS_AllSettings& NewSettings);
 
 	/** Get all current settings */
 	UFUNCTION(BlueprintCallable, Category = "Settings")
@@ -43,6 +43,12 @@ public:
 	/** Load settings from slot */
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void LoadSettingsFromSlot();
+
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	bool ValidateSettings(const FS_AllSettings& Settings) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	bool SaveAllSettings();
 
 	// ===== Graphics Settings =====
 

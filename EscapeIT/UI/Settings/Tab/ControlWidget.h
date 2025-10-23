@@ -10,7 +10,7 @@ class USelectionWidget;
 class USettingsSubsystem;
 class UButton;
 class USlider;
-class UProgressBar;
+class UTextBlock;
 
 /**
  * Widget for Control Settings
@@ -35,7 +35,7 @@ protected:
 	USlider* MouseSensitivitySlider;
 
 	UPROPERTY(meta = (BindWidgetOptional))
-	UProgressBar* MouseSensitivityBar;
+	UTextBlock* MouseSensitivityText;
 
 	UPROPERTY(meta = (BindWidget))
 	USelectionWidget* InvertMouseYSelection;
@@ -44,7 +44,7 @@ protected:
 	USlider* CameraZoomSensitivitySlider;
 
 	UPROPERTY(meta = (BindWidgetOptional))
-	UProgressBar* CameraZoomSensitivityBar;
+	UTextBlock* CameraZoomSensitivityText;
 
 	// === GAMEPAD SETTINGS ===
 
@@ -52,13 +52,13 @@ protected:
 	USlider* GamepadSensitivitySlider;
 
 	UPROPERTY(meta = (BindWidgetOptional))
-	UProgressBar* GamepadSensitivityBar;
+	UTextBlock* GamepadSensitivityText;
 
 	UPROPERTY(meta = (BindWidget))
 	USlider* GamepadDeadzoneSlider;
 
 	UPROPERTY(meta = (BindWidgetOptional))
-	UProgressBar* GamepadDeadzoneBar;
+	UTextBlock* GamepadDeadzoneText;
 
 	UPROPERTY(meta = (BindWidget))
 	USelectionWidget* InvertGamepadYSelection;
@@ -70,7 +70,7 @@ protected:
 	USlider* GamepadVibrationIntensitySlider;
 
 	UPROPERTY(meta = (BindWidgetOptional))
-	UProgressBar* GamepadVibrationIntensityBar;
+	UTextBlock* GamepadVibrationIntensityText;
 
 	// === GAMEPLAY CONTROLS ===
 
@@ -148,7 +148,7 @@ private:
 	void LoadCurrentSettings();
 	void AddToggleOptions(USelectionWidget* Selection);
 	void AddHoldToggleOptions(USelectionWidget* Selection);
-	void UpdateProgressBars();
+	void UpdateVolumeText();
 	void BindSliderEvents();
 	void UnbindSliderEvents();
 };

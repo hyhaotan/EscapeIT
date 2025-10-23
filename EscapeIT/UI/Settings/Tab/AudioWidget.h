@@ -9,7 +9,7 @@
 class USelectionWidget;
 class USettingsSubsystem;
 class UButton;
-class UProgressBar;
+class UTextBlock;
 class USlider;
 
 /**
@@ -26,7 +26,6 @@ public:
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
-	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 	// ===== WIDGET BINDINGS =====
 
@@ -34,49 +33,49 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	USlider* MasterVolumeSlider;
 
-	/** Master Volume Progress Bar (Visual feedback) */
+	/** Master Volume Text (Display value) */
 	UPROPERTY(meta = (BindWidgetOptional))
-	UProgressBar* MasterVolumeBar;
+	UTextBlock* MasterVolumeText;
 
 	/** SFX Volume Slider */
 	UPROPERTY(meta = (BindWidget))
 	USlider* SFXVolumeSlider;
 
-	/** SFX Volume Progress Bar */
+	/** SFX Volume Text */
 	UPROPERTY(meta = (BindWidgetOptional))
-	UProgressBar* SFXVolumeBar;
+	UTextBlock* SFXVolumeText;
 
 	/** Music Volume Slider */
 	UPROPERTY(meta = (BindWidget))
 	USlider* MusicVolumeSlider;
 
-	/** Music Volume Progress Bar */
+	/** Music Volume Text */
 	UPROPERTY(meta = (BindWidgetOptional))
-	UProgressBar* MusicVolumeBar;
+	UTextBlock* MusicVolumeText;
 
 	/** Ambient Volume Slider */
 	UPROPERTY(meta = (BindWidget))
 	USlider* AmbientVolumeSlider;
 
-	/** Ambient Volume Progress Bar */
+	/** Ambient Volume Text */
 	UPROPERTY(meta = (BindWidgetOptional))
-	UProgressBar* AmbientVolumeBar;
+	UTextBlock* AmbientVolumeText;
 
 	/** Dialogue Volume Slider */
 	UPROPERTY(meta = (BindWidget))
 	USlider* DialogueVolumeSlider;
 
-	/** Dialogue Volume Progress Bar */
+	/** Dialogue Volume Text */
 	UPROPERTY(meta = (BindWidgetOptional))
-	UProgressBar* DialogueVolumeBar;
+	UTextBlock* DialogueVolumeText;
 
 	/** UI Volume Slider */
 	UPROPERTY(meta = (BindWidget))
 	USlider* UIVolumeSlider;
 
-	/** UI Volume Progress Bar */
+	/** UI Volume Text */
 	UPROPERTY(meta = (BindWidgetOptional))
-	UProgressBar* UIVolumeBar;
+	UTextBlock* UIVolumeText;
 
 	/** Audio Language Selection */
 	UPROPERTY(meta = (BindWidget))
@@ -164,8 +163,8 @@ private:
 	/** Helper to create toggle options (On/Off) */
 	void AddToggleOptions(USelectionWidget* Selection);
 
-	/** Update progress bars to match sliders */
-	void UpdateProgressBars();
+	/** Update text displays to match sliders */
+	void UpdateVolumeTexts();
 
 	/** Bind slider events */
 	void BindSliderEvents();
