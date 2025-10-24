@@ -18,6 +18,7 @@
 #include "Sound/SoundBase.h"
 #include "TimerManager.h"
 #include "GameFramework/GameUserSettings.h"
+#include "Blueprint/WidgetBlueprintLibrary.h"
 
 UMainMenuSettingWidget::UMainMenuSettingWidget(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -244,6 +245,13 @@ void UMainMenuSettingWidget::OnBackButtonClicked()
 		return;
 	}
 
+	TObjectPtr<APlayerController> PlayerCon = GetOwningPlayer();
+	if (PlayerCon)
+	{
+		PlayerCon->SetInputMode(FInputModeGameOnly());
+		PlayerCon->bShowMouseCursor = false;
+	}
+
 	PlayUISound("ButtonClick");
 	OnBackClicked.Broadcast();
 	RemoveFromParent();
@@ -255,6 +263,9 @@ void UMainMenuSettingWidget::OnApplyAllButtonClicked()
 		return;
 
 	PlayUISound("Apply");
+
+	CollectSettingsFromWidgets();
+
 	AsyncApplySettings();
 }
 
@@ -651,31 +662,52 @@ void UMainMenuSettingWidget::ClearSearch()
 
 bool UMainMenuSettingWidget::ValidateAllSettings()
 {
-	if (!SettingsSubsystem)
-		return false;
+	ValidationErrors.Empty();
 
-	TArray<FString> ValidationErrors;
-
-	// Validate graphics settings
-	UGameUserSettings* GameSettings = UGameUserSettings::GetGameUserSettings();
-	if (GameSettings)
+	// Validate Graphics Settings
+	if (GraphicWidget)
 	{
-		// Check resolution
-		FIntPoint Resolution = GameSettings->GetScreenResolution();
-		if (Resolution.X < 800 || Resolution.Y < 600)
-		{
-			ValidationErrors.Add(TEXT("Resolution too low (minimum 800x600)"));
-		}
+		TArray<FString> GraphicsErrors = GraphicWidget->ValidateSettings();
+		ValidationErrors.Append(GraphicsErrors);
 	}
 
-	// Show errors if any
-	if (ValidationErrors.Num() > 0)
+	// Validate Audio Settings
+	if (AudioWidget)
 	{
-		ShowValidationErrors(ValidationErrors);
-		return false;
+		TArray<FString> AudioErrors = AudioWidget->ValidateSettings();
+		ValidationErrors.Append(AudioErrors);
 	}
 
-	return true;
+	// Validate Gameplay Settings
+	if (GameplayWidget)
+	{
+		TArray<FString> GameplayErrors = GameplayWidget->ValidateSettings();
+		ValidationErrors.Append(GameplayErrors);
+	}
+
+	// Validate Control Settings
+	if (ControlWidget)
+	{
+		TArray<FString> ControlErrors = ControlWidget->ValidateSettings();
+		ValidationErrors.Append(ControlErrors);
+	}
+
+	// Validate Accessibility Settings
+	if (AccessibilityWidget)
+	{
+		TArray<FString> AccessibilityErrors = AccessibilityWidget->ValidateSettings();
+		ValidationErrors.Append(AccessibilityErrors);
+	}
+
+	bool bIsValid = ValidationErrors.Num() == 0;
+
+	if (!bIsValid)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("MainMenuSettingWidget: Validation failed with %d errors"),
+			ValidationErrors.Num());
+	}
+
+	return bIsValid;
 }
 
 void UMainMenuSettingWidget::ValidateSettingsForHardware()
@@ -700,6 +732,32 @@ void UMainMenuSettingWidget::ShowValidationErrors(const TArray<FString>& Errors)
 
 	// Show error dialog or notification
 	// Implementation depends on your UI system
+}
+
+void UMainMenuSettingWidget::ShowSuccessNotification(const FString& Message)
+{
+	// Implement your notification system here
+	// Example: Show a green checkmark with message
+	UE_LOG(LogTemp, Log, TEXT("Success: %s"), *Message);
+
+	// Nếu có notification widget
+	if (NotificationWidget)
+	{
+		NotificationWidget->ShowSuccess(FText::FromString(Message));
+	}
+}
+
+void UMainMenuSettingWidget::ShowErrorNotification(const FString& Message)
+{
+	// Implement your notification system here
+	// Example: Show a red X with message
+	UE_LOG(LogTemp, Error, TEXT("Error: %s"), *Message);
+
+	// Nếu có notification widget
+	if (NotificationWidget)
+	{
+		NotificationWidget->ShowError(FText::FromString(Message));
+	}
 }
 
 // ===== PERFORMANCE ESTIMATION =====
@@ -764,6 +822,50 @@ void UMainMenuSettingWidget::PlayApplySuccessAnimation()
 
 // ===== ASYNC OPERATIONS =====
 
+void UMainMenuSettingWidget::CollectSettingsFromWidgets()
+{
+	if (!SettingsSubsystem)
+		return;
+
+	// Lấy current settings từ subsystem
+	FS_AllSettings CurrentSettings = SettingsSubsystem->GetAllSettings();
+
+	// Collect từ Gameplay Widget
+	if (GameplayWidget)
+	{
+		CurrentSettings.GameplaySettings = GameplayWidget->GetCurrentSettings();
+	}
+
+	// Collect từ Graphics Widget
+	if (GraphicWidget)
+	{
+		CurrentSettings.GraphicsSettings = GraphicWidget->GetCurrentSettings();
+	}
+
+	// Collect từ Audio Widget
+	if (AudioWidget)
+	{
+		CurrentSettings.AudioSettings = AudioWidget->GetCurrentSettings();
+	}
+
+	// Collect từ Control Widget
+	if (ControlWidget)
+	{
+		CurrentSettings.ControlSettings = ControlWidget->GetCurrentSettings();
+	}
+
+	// Collect từ Accessibility Widget
+	if (AccessibilityWidget)
+	{
+		CurrentSettings.AccessibilitySettings = AccessibilityWidget->GetCurrentSettings();
+	}
+
+	// Lưu vào biến tạm để apply
+	PendingSettings = CurrentSettings;
+
+	UE_LOG(LogTemp, Log, TEXT("MainMenuSettingWidget: Collected all settings from widgets"));
+}
+
 void UMainMenuSettingWidget::AsyncApplySettings()
 {
 	if (bIsApplyingSettings)
@@ -771,17 +873,19 @@ void UMainMenuSettingWidget::AsyncApplySettings()
 
 	bIsApplyingSettings = true;
 
-	// Validate before applying
+	// Validate trước khi apply
 	if (!ValidateAllSettings())
 	{
 		bIsApplyingSettings = false;
+		ShowValidationErrors(ValidationErrors);
 		return;
 	}
 
-	// Apply settings through subsystem
+	// Apply settings thông qua subsystem với settings thực tế
 	if (SettingsSubsystem)
 	{
-		bool bSuccess = SettingsSubsystem->ApplyAllSettings(FS_AllSettings());
+		// Apply settings đã collect từ các widget
+		bool bSuccess = SettingsSubsystem->ApplyAllSettings(PendingSettings);
 		OnSettingsApplied_Internal(bSuccess);
 	}
 	else
@@ -796,16 +900,28 @@ void UMainMenuSettingWidget::OnSettingsApplied_Internal(bool bSuccess)
 
 	if (bSuccess)
 	{
+		if (SettingsSubsystem)
+		{
+			// Lưu vào file
+			SettingsSubsystem->SaveAllSettings();
+		}
+
 		ClearUnsavedChanges();
 		PlayApplySuccessAnimation();
 		OnSettingsApplied.Broadcast();
 
-		UE_LOG(LogTemp, Log, TEXT("MainMenuSettingWidget: Settings applied successfully"));
+		UE_LOG(LogTemp, Log, TEXT("MainMenuSettingWidget: Settings applied and saved successfully"));
+
+		// Hiển thị thông báo thành công
+		ShowSuccessNotification(TEXT("Settings saved successfully!"));
 	}
 	else
 	{
 		PlayUISound("Error");
 		UE_LOG(LogTemp, Error, TEXT("MainMenuSettingWidget: Failed to apply settings"));
+
+		// Hiển thị thông báo lỗi
+		ShowErrorNotification(TEXT("Failed to apply settings. Please try again."));
 	}
 }
 
@@ -965,34 +1081,39 @@ void UMainMenuSettingWidget::AnnounceSettingChange(const FString& SettingName, c
 
 void UMainMenuSettingWidget::RefreshAllWidgets()
 {
+	if (!SettingsSubsystem)
+		return;
+
+	FS_AllSettings CurrentSettings = SettingsSubsystem->GetAllSettings();
+
 	if (GameplayWidget)
 	{
-		// Refresh gameplay widget
+		GameplayWidget->LoadSettings(CurrentSettings.GameplaySettings);
 	}
 
 	if (GraphicWidget)
 	{
-		// Refresh graphic widget
+		GraphicWidget->LoadSettings(CurrentSettings.GraphicsSettings);
 	}
 
 	if (AudioWidget)
 	{
-		// Refresh audio widget
+		AudioWidget->LoadSettings(CurrentSettings.AudioSettings);
 	}
 
 	if (ControlWidget)
 	{
-		// Refresh control widget
+		ControlWidget->LoadSettings(CurrentSettings.ControlSettings);
 	}
 
 	if (AccessibilityWidget)
 	{
-		// Refresh accessibility widget
+		AccessibilityWidget->LoadSettings(CurrentSettings.AccessibilitySettings);
 	}
 
 	UpdatePerformanceEstimate();
 
-	UE_LOG(LogTemp, Log, TEXT("MainMenuSettingWidget: All widgets refreshed"));
+	UE_LOG(LogTemp, Log, TEXT("MainMenuSettingWidget: All widgets refreshed with current settings"));
 }
 
 void UMainMenuSettingWidget::ForceApplySettings()

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
@@ -23,6 +23,25 @@ public:
 	virtual void Deinitialize() override;
 
 	// ===== General Settings Management =====
+	// Getter cho All Settings
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	FS_AllSettings GetAllSettings() const { return AllSettings; }
+
+	// Getter cho từng loại settings
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	FS_GraphicsSettings GetGraphicsSettings() const { return AllSettings.GraphicsSettings; }
+
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	FS_AudioSettings GetAudioSettings() const { return AllSettings.AudioSettings; }
+
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	FS_GameplaySettings GetGameplaySettings() const { return AllSettings.GameplaySettings; }
+
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	FS_ControlSettings GetControlSettings() const { return AllSettings.ControlSettings; }
+
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	FS_AccessibilitySettings GetAccessibilitySettings() const { return AllSettings.AccessibilitySettings; }
 
 	/** Apply all settings at once */
 	UFUNCTION(BlueprintCallable, Category = "Settings")

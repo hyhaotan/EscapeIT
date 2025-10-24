@@ -119,7 +119,6 @@ void AWidgetManager::ShowPauseMenu()
 
 		if (PlayerController && IsValid(PlayerController))
 		{
-			UGameplayStatics::SetGamePaused(GetWorld(), true);
 			PlayerController->bShowMouseCursor = true;
 			PlayerController->SetInputMode(FInputModeUIOnly());
 		}
@@ -136,7 +135,6 @@ void AWidgetManager::HidePauseMenu()
 	// Resume game và ẩn con trỏ chuột
 	if (PlayerController && IsValid(PlayerController))
 	{
-		UGameplayStatics::SetGamePaused(GetWorld(), false);
 		PlayerController->bShowMouseCursor = false;
 		PlayerController->SetInputMode(FInputModeGameOnly());
 	}

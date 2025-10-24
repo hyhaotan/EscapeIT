@@ -392,36 +392,36 @@ void UControlWidget::UpdateVolumeText()
 {
 	if (MouseSensitivityText && MouseSensitivitySlider)
 	{
-		int Percentage = FMath::RoundToInt(MouseSensitivitySlider->GetValue() * 1.0f);
-		MouseSensitivityText->SetText(FText::AsNumber(Percentage));
+		float Value = MouseSensitivitySlider->GetValue();
+		MouseSensitivityText->SetText(FText::AsNumber(Value));
 	}
 
 	// Camera zoom sensitivity (already 0.0-1.0)
 	if (CameraZoomSensitivityText && CameraZoomSensitivitySlider)
 	{
-		int Percentage = FMath::RoundToInt(CameraZoomSensitivitySlider->GetValue() * 1.0f);
-		CameraZoomSensitivityText->SetText(FText::AsNumber(Percentage));
+		float Value = CameraZoomSensitivitySlider->GetValue();
+		CameraZoomSensitivityText->SetText(FText::AsNumber(Value));
 	}
 
 	// Gamepad sensitivity (normalize 0.1-3.0 to 0.0-1.0)
 	if (GamepadSensitivityText && GamepadSensitivitySlider)
 	{
-		int Percentage = FMath::RoundToInt(GamepadSensitivitySlider->GetValue() * 1.0f);
-		GamepadSensitivityText->SetText(FText::AsNumber(Percentage));
+		float Value = GamepadSensitivitySlider->GetValue();
+		GamepadSensitivityText->SetText(FText::AsNumber(Value));
 	}
 
 	// Gamepad deadzone (normalize 0.0-0.5 to 0.0-1.0)
 	if (GamepadDeadzoneText && GamepadDeadzoneSlider)
 	{
-		int Percentage = FMath::RoundToInt(GamepadDeadzoneSlider->GetValue() * 1.0f);
-		GamepadDeadzoneText->SetText(FText::AsNumber(Percentage));
+		float Value = GamepadDeadzoneSlider->GetValue();
+		GamepadDeadzoneText->SetText(FText::AsNumber(Value));
 	}
 
 	// Gamepad vibration intensity (already 0.0-1.0)
 	if (GamepadVibrationIntensityText && GamepadVibrationIntensitySlider)
 	{
-		int Percentage = FMath::RoundToInt(GamepadVibrationIntensitySlider->GetValue() * 1.0f);
-		GamepadVibrationIntensityText->SetText(FText::AsNumber(Percentage));
+		float Value = GamepadVibrationIntensitySlider->GetValue();
+		GamepadVibrationIntensityText->SetText(FText::AsNumber(Value));
 	}
 }
 

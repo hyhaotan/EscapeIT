@@ -17,7 +17,6 @@ class ESCAPEIT_API UAccessibilityWidget : public UUserWidget
 
 public:
 	UAccessibilityWidget(const FObjectInitializer& ObjectInitializer);
-
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;

@@ -14,8 +14,8 @@ UCLASS()
 class ESCAPEIT_API UPauseMenuWidget : public UUserWidget
 {
     GENERATED_BODY()
-
 public:
+
     UPROPERTY()
     TObjectPtr<AWidgetManager> WidgetManager;
 
@@ -23,6 +23,7 @@ protected:
     virtual void NativeConstruct() override;
 
 private:
+
     UFUNCTION()
     void OnClickResumeButton();
 

@@ -1,43 +1,43 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// MainMenuSettingWidget.h
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "EscapeIT/Data/EscapeITEnums.h"
 #include "MainMenuSettingWidget.generated.h"
 
-// Forward Declarations
+// Forward declarations
 class UWidgetSwitcher;
 class UButton;
+class UEditableTextBox;
+class UTextBlock;
 class UCommonTextBlock;
+class UImage;
 class UGameplayWidget;
 class UGraphicWidget;
 class UAudioWidget;
 class UControlWidget;
 class UAccessibilityWidget;
 class USettingsSubsystem;
-class UEditableTextBox;
-class UTextBlock;
-class UImage;
-class UWidgetAnimation;
-class UConfirmationDialogWidget;
+class USoundBase;
+class UNotificationWidget;
 
-// Struct to track setting changes
 USTRUCT(BlueprintType)
 struct FSettingChange
 {
 	GENERATED_BODY()
 
-	UPROPERTY(BlueprintReadWrite)
+	UPROPERTY()
 	FString SettingName;
 
-	UPROPERTY(BlueprintReadWrite)
+	UPROPERTY()
 	FString OldValue;
 
-	UPROPERTY(BlueprintReadWrite)
+	UPROPERTY()
 	FString NewValue;
 
-	UPROPERTY(BlueprintReadWrite)
+	UPROPERTY()
 	FDateTime ChangeTime;
 };
 
@@ -53,25 +53,24 @@ class ESCAPEIT_API UMainMenuSettingWidget : public UUserWidget
 public:
 	UMainMenuSettingWidget(const FObjectInitializer& ObjectInitializer);
 
+	// Delegates
+	UPROPERTY(BlueprintAssignable, Category = "Settings")
+	FOnBackClickedSignature OnBackClicked;
+
+	UPROPERTY(BlueprintAssignable, Category = "Settings")
+	FOnSettingsAppliedSignature OnSettingsApplied;
+
+	UPROPERTY(BlueprintAssignable, Category = "Settings")
+	FOnCategoryChangedSignature OnCategoryChanged;
+
+protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 	virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
 
-	// Delegates
-	UPROPERTY(BlueprintAssignable, Category = "Settings|Events")
-	FOnBackClickedSignature OnBackClicked;
+	// ===== WIDGET REFERENCES =====
 
-	UPROPERTY(BlueprintAssignable, Category = "Settings|Events")
-	FOnSettingsAppliedSignature OnSettingsApplied;
-
-	UPROPERTY(BlueprintAssignable, Category = "Settings|Events")
-	FOnCategoryChangedSignature OnCategoryChanged;
-
-protected:
-	// ===== WIDGET COMPONENTS =====
-
-	// Main Switcher
 	UPROPERTY(meta = (BindWidget))
 	UWidgetSwitcher* SettingsSwitcher;
 
@@ -101,94 +100,79 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	UButton* ResetAllButton;
 
-	UPROPERTY(meta = (BindWidgetOptional))
+	UPROPERTY(meta = (BindWidget))
 	UButton* UndoButton;
 
-	UPROPERTY(meta = (BindWidgetOptional))
+	UPROPERTY(meta = (BindWidget))
 	UButton* AutoDetectButton;
 
 	// Text Elements
 	UPROPERTY(meta = (BindWidget))
 	UCommonTextBlock* CategoryTitleText;
 
-	UPROPERTY(meta = (BindWidgetOptional))
+	UPROPERTY(meta = (BindWidget))
 	UTextBlock* UnsavedChangesText;
 
-	UPROPERTY(meta = (BindWidgetOptional))
+	UPROPERTY(meta = (BindWidget))
 	UTextBlock* PerformanceEstimateText;
 
-	// Search Box (Optional)
-	UPROPERTY(meta = (BindWidgetOptional))
+	// Other UI Elements
+	UPROPERTY(meta = (BindWidget))
 	UEditableTextBox* SearchBox;
 
-	// Visual Elements
-	UPROPERTY(meta = (BindWidgetOptional))
-	UImage* CategoryIcon;
-
-	UPROPERTY(meta = (BindWidgetOptional))
+	UPROPERTY(meta = (BindWidget))
 	UImage* UnsavedIndicator;
 
+	UPROPERTY(meta = (BindWidget))
+	UImage* CategoryIcon;
+
 	// Category Widgets
-	UPROPERTY(meta = (BindWidgetOptional))
+	UPROPERTY(meta = (BindWidget))
 	UGameplayWidget* GameplayWidget;
 
-	UPROPERTY(meta = (BindWidgetOptional))
+	UPROPERTY(meta = (BindWidget))
 	UGraphicWidget* GraphicWidget;
 
-	UPROPERTY(meta = (BindWidgetOptional))
+	UPROPERTY(meta = (BindWidget))
 	UAudioWidget* AudioWidget;
 
-	UPROPERTY(meta = (BindWidgetOptional))
+	UPROPERTY(meta = (BindWidget))
 	UControlWidget* ControlWidget;
 
-	UPROPERTY(meta = (BindWidgetOptional))
+	UPROPERTY(meta = (BindWidget))
 	UAccessibilityWidget* AccessibilityWidget;
 
-	// Animations (Optional - bind in Blueprint)
-	UPROPERTY(Transient, meta = (BindWidgetAnimOptional))
+	// Optional Notification Widget
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UUserWidget> NotificationWidget;
+
+	// ===== ANIMATIONS =====
+
+	UPROPERTY(Transient, meta = (BindWidgetAnim))
 	UWidgetAnimation* CategorySwitchAnimation;
 
-	UPROPERTY(Transient, meta = (BindWidgetAnimOptional))
+	UPROPERTY(Transient, meta = (BindWidgetAnim))
 	UWidgetAnimation* UnsavedWarningAnimation;
 
-	UPROPERTY(Transient, meta = (BindWidgetAnimOptional))
+	UPROPERTY(Transient, meta = (BindWidgetAnim))
 	UWidgetAnimation* ApplySuccessAnimation;
 
-	// ===== STATE VARIABLES =====
+	// ===== SOUNDS =====
 
-	UPROPERTY()
-	USettingsSubsystem* SettingsSubsystem;
+	UPROPERTY(EditDefaultsOnly, Category = "Audio")
+	USoundBase* ButtonClickSound;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Settings")
-	int32 CurrentCategoryIndex;
+	UPROPERTY(EditDefaultsOnly, Category = "Audio")
+	USoundBase* CategorySwitchSound;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Settings")
-	bool bHasUnsavedChanges;
+	UPROPERTY(EditDefaultsOnly, Category = "Audio")
+	USoundBase* ApplySound;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Settings")
-	FString CurrentSearchText;
+	UPROPERTY(EditDefaultsOnly, Category = "Audio")
+	USoundBase* ErrorSound;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Settings")
-	TArray<FSettingChange> RecentChanges;
+	// ===== BUTTON CALLBACKS =====
 
-	UPROPERTY(EditDefaultsOnly, Category = "Settings")
-	int32 MaxRecentChanges = 10;
-
-	UPROPERTY(BlueprintReadOnly, Category = "Settings")
-	bool bIsApplyingSettings;
-
-	// Timer for auto-save
-	FTimerHandle AutoSaveTimerHandle;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Settings")
-	float AutoSaveDelay = 3.0f;
-
-	// ===== BUTTON BINDING =====
-
-	void BindButtonEvents();
-	void UnbindButtonEvents();
-
-	// Category Button Callbacks
 	UFUNCTION()
 	void OnGameplayButtonClicked();
 
@@ -204,7 +188,6 @@ protected:
 	UFUNCTION()
 	void OnAccessibilityButtonClicked();
 
-	// Action Button Callbacks
 	UFUNCTION()
 	void OnBackButtonClicked();
 
@@ -220,166 +203,123 @@ protected:
 	UFUNCTION()
 	void OnAutoDetectButtonClicked();
 
-	// Search Callback
 	UFUNCTION()
 	void OnSearchTextChanged(const FText& Text);
 
-	// ===== CATEGORY MANAGEMENT =====
+	// ===== INTERNAL FUNCTIONS =====
 
-	UFUNCTION(BlueprintCallable, Category = "Settings")
+	void BindButtonEvents();
+	void UnbindButtonEvents();
 	void SwitchToCategory(ESettingsCategory Category);
-
-	UFUNCTION(BlueprintCallable, Category = "Settings")
-	void NavigateToNextCategory();
-
-	UFUNCTION(BlueprintCallable, Category = "Settings")
-	void NavigateToPreviousCategory();
-
 	void UpdateCategoryButtons(ESettingsCategory ActiveCategory);
 	void UpdateCategoryTitle(ESettingsCategory Category);
 	void UpdateCategoryIcon(ESettingsCategory Category);
-
-	UFUNCTION(BlueprintPure, Category = "Settings")
+	void SetButtonActive(UButton* Button, bool bActive);
 	FText GetCategoryName(ESettingsCategory Category) const;
 
-	void SetButtonActive(UButton* Button, bool bActive);
+	// Settings Management
+	void CollectSettingsFromWidgets();
+	void AsyncApplySettings();
+	void OnSettingsApplied_Internal(bool bSuccess);
+	bool ValidateAllSettings();
+	void RefreshAllWidgets();
 
-	// ===== UNSAVED CHANGES TRACKING =====
-
-	UFUNCTION(BlueprintCallable, Category = "Settings")
+	// Change Tracking
 	void MarkSettingsChanged();
-
-	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void ClearUnsavedChanges();
-
-	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void CheckForUnsavedChanges();
-
-	void ShowUnsavedChangesDialog();
-	void OnUnsavedChangesDialogResponse(bool bSaveChanges);
-
 	void UpdateUnsavedIndicator();
-
-	// ===== CHANGE TRACKING =====
-
-	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void TrackSettingChange(const FString& SettingName, const FString& OldValue, const FString& NewValue);
-
-	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void UndoLastChange();
-
-	UFUNCTION(BlueprintPure, Category = "Settings")
+	void UpdateUndoButton();
 	bool CanUndo() const { return RecentChanges.Num() > 0; }
 
-	void UpdateUndoButton();
+	// Dialogs
+	void ShowUnsavedChangesDialog();
+	void OnUnsavedChangesDialogResponse(bool bSaveChanges);
+	void ShowValidationErrors(const TArray<FString>& Errors);
+	void ShowSuccessNotification(const FString& Message);
+	void ShowErrorNotification(const FString& Message);
 
-	// ===== GRAPHICS PRESETS =====
+	// Navigation
+	void NavigateToNextCategory();
+	void NavigateToPreviousCategory();
 
-	UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-	void ApplyGraphicsPreset(EE_GraphicsQuality Preset);
-
-	UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-	void AutoDetectOptimalSettings();
-
-	// ===== SEARCH & FILTER =====
-
-	UFUNCTION(BlueprintCallable, Category = "Settings|Search")
+	// Search & Filter
 	void FilterSettingsBySearch(const FString& SearchText);
-
-	UFUNCTION(BlueprintCallable, Category = "Settings|Search")
 	void ClearSearch();
 
-	// ===== VALIDATION =====
+	// Graphics Presets
+	void ApplyGraphicsPreset(EE_GraphicsQuality Preset);
+	void AutoDetectOptimalSettings();
 
-	UFUNCTION(BlueprintCallable, Category = "Settings|Validation")
-	bool ValidateAllSettings();
-
-	UFUNCTION(BlueprintCallable, Category = "Settings|Validation")
+	// Performance
+	void UpdatePerformanceEstimate();
+	FText GetPerformanceImpactText() const;
 	void ValidateSettingsForHardware();
 
-	void ShowValidationErrors(const TArray<FString>& Errors);
-
-	// ===== PERFORMANCE ESTIMATION =====
-
-	UFUNCTION(BlueprintCallable, Category = "Settings|Performance")
-	void UpdatePerformanceEstimate();
-
-	UFUNCTION(BlueprintPure, Category = "Settings|Performance")
-	FText GetPerformanceImpactText() const;
-
-	// ===== ANIMATIONS =====
-
+	// Animations
 	void PlayCategorySwitchAnimation();
 	void PlayUnsavedWarningAnimation();
 	void PlayApplySuccessAnimation();
 
-	// ===== ASYNC OPERATIONS =====
-
-	void AsyncApplySettings();
-	void OnSettingsApplied_Internal(bool bSuccess);
-
-	// ===== AUTO-SAVE =====
-
+	// Auto-save
 	void StartAutoSaveTimer();
 	void StopAutoSaveTimer();
 	void OnAutoSaveTimerElapsed();
 
-	// ===== TOOLTIPS & HELP =====
-
-	UFUNCTION(BlueprintCallable, Category = "Settings|Help")
-	void ShowSettingsHelp(ESettingsCategory Category);
-
-	UFUNCTION(BlueprintCallable, Category = "Settings|Help")
-	FText GetSettingTooltip(const FString& SettingName) const;
-
-	// ===== PROFILES (Optional for future) =====
-
-	UFUNCTION(BlueprintCallable, Category = "Settings|Profiles")
-	void SaveCustomProfile(const FString& ProfileName);
-
-	UFUNCTION(BlueprintCallable, Category = "Settings|Profiles")
-	void LoadCustomProfile(const FString& ProfileName);
-
-	// ===== SOUND EFFECTS =====
-
-	UFUNCTION(BlueprintCallable, Category = "Settings|Audio")
+	// Audio
 	void PlayUISound(const FString& SoundName);
 
-	UPROPERTY(EditDefaultsOnly, Category = "Settings|Audio")
-	class USoundBase* ButtonClickSound;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Settings|Audio")
-	class USoundBase* CategorySwitchSound;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Settings|Audio")
-	class USoundBase* ApplySound;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Settings|Audio")
-	class USoundBase* ErrorSound;
-
-	// ===== ACCESSIBILITY =====
-
-	UFUNCTION(BlueprintCallable, Category = "Settings|Accessibility")
+	// Accessibility
 	void AnnounceCurrentCategory();
-
-	UFUNCTION(BlueprintCallable, Category = "Settings|Accessibility")
 	void AnnounceSettingChange(const FString& SettingName, const FString& NewValue);
 
+	// Tooltips & Help
+	void ShowSettingsHelp(ESettingsCategory Category);
+	FText GetSettingTooltip(const FString& SettingName) const;
+
+	// Profiles
+	void SaveCustomProfile(const FString& ProfileName);
+	void LoadCustomProfile(const FString& ProfileName);
+
+	// ===== PROPERTIES =====
+
+	UPROPERTY()
+	USettingsSubsystem* SettingsSubsystem;
+
+	UPROPERTY()
+	int32 CurrentCategoryIndex;
+
+	UPROPERTY()
+	bool bHasUnsavedChanges;
+
+	UPROPERTY()
+	bool bIsApplyingSettings;
+
+	UPROPERTY()
+	FString CurrentSearchText;
+
+	UPROPERTY()
+	TArray<FSettingChange> RecentChanges;
+
+	UPROPERTY()
+	TArray<FString> ValidationErrors;
+
+	// Pending settings to apply
+	UPROPERTY()
+	FS_AllSettings PendingSettings;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Settings")
+	int32 MaxRecentChanges = 10;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Settings")
+	float AutoSaveDelay = 30.0f;
+
+	FTimerHandle AutoSaveTimerHandle;
+
 public:
-	// Public Blueprint-callable functions
-
-	UFUNCTION(BlueprintCallable, Category = "Settings")
-	void RefreshAllWidgets();
-
+	// Public API
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void ForceApplySettings();
-
-	UFUNCTION(BlueprintPure, Category = "Settings")
-	bool HasUnsavedChanges() const { return bHasUnsavedChanges; }
-
-	UFUNCTION(BlueprintPure, Category = "Settings")
-	ESettingsCategory GetCurrentCategory() const
-	{
-		return static_cast<ESettingsCategory>(CurrentCategoryIndex);
-	}
 };

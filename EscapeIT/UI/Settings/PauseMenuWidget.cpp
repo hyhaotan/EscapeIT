@@ -28,9 +28,6 @@ void UPauseMenuWidget::OnClickResumeButton()
     }
     else
     {
-        // Fallback nếu không có WidgetManager
-        UGameplayStatics::SetGamePaused(GetWorld(), false);
-
         APlayerController* PC = GetOwningPlayer();
         if (PC)
         {
@@ -44,7 +41,7 @@ void UPauseMenuWidget::OnClickResumeButton()
 
 void UPauseMenuWidget::OnClickSettingButton()
 {
-    APlayerController* PC = GetOwningPlayer(); // ✅ Lấy PlayerController an toàn
+    TObjectPtr<APlayerController> PC = GetOwningPlayer();
     if (!PC) return;
 
     if (MainMenuSettingWidgetClass)
@@ -63,9 +60,6 @@ void UPauseMenuWidget::OnClickSettingButton()
 
 void UPauseMenuWidget::OnClickBackButton()
 {
-    // ✅ Unpause trước khi load level
-    UGameplayStatics::SetGamePaused(GetWorld(), false);
-
     this->RemoveFromParent();
     UGameplayStatics::OpenLevel(GetWorld(), TEXT("Lobby"));
 }

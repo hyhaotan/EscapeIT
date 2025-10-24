@@ -29,75 +29,57 @@ protected:
 
 	// ===== WIDGET BINDINGS =====
 
-	/** Master Volume Slider */
 	UPROPERTY(meta = (BindWidget))
 	USlider* MasterVolumeSlider;
 
-	/** Master Volume Text (Display value) */
-	UPROPERTY(meta = (BindWidgetOptional))
+	UPROPERTY(meta = (BindWidget))
 	UTextBlock* MasterVolumeText;
 
-	/** SFX Volume Slider */
 	UPROPERTY(meta = (BindWidget))
 	USlider* SFXVolumeSlider;
 
-	/** SFX Volume Text */
-	UPROPERTY(meta = (BindWidgetOptional))
+	UPROPERTY(meta = (BindWidget))
 	UTextBlock* SFXVolumeText;
 
-	/** Music Volume Slider */
 	UPROPERTY(meta = (BindWidget))
 	USlider* MusicVolumeSlider;
 
-	/** Music Volume Text */
-	UPROPERTY(meta = (BindWidgetOptional))
+	UPROPERTY(meta = (BindWidget))
 	UTextBlock* MusicVolumeText;
 
-	/** Ambient Volume Slider */
 	UPROPERTY(meta = (BindWidget))
 	USlider* AmbientVolumeSlider;
 
-	/** Ambient Volume Text */
-	UPROPERTY(meta = (BindWidgetOptional))
+	UPROPERTY(meta = (BindWidget))
 	UTextBlock* AmbientVolumeText;
 
-	/** Dialogue Volume Slider */
 	UPROPERTY(meta = (BindWidget))
 	USlider* DialogueVolumeSlider;
 
-	/** Dialogue Volume Text */
-	UPROPERTY(meta = (BindWidgetOptional))
+	UPROPERTY(meta = (BindWidget))
 	UTextBlock* DialogueVolumeText;
 
-	/** UI Volume Slider */
 	UPROPERTY(meta = (BindWidget))
 	USlider* UIVolumeSlider;
 
-	/** UI Volume Text */
-	UPROPERTY(meta = (BindWidgetOptional))
+	UPROPERTY(meta = (BindWidget))
 	UTextBlock* UIVolumeText;
 
-	/** Audio Language Selection */
 	UPROPERTY(meta = (BindWidget))
 	USelectionWidget* AudioLanguageSelection;
 
-	/** Audio Output Selection */
 	UPROPERTY(meta = (BindWidget))
 	USelectionWidget* AudioOutputSelection;
 
-	/** Closed Captions Toggle */
 	UPROPERTY(meta = (BindWidget))
 	USelectionWidget* ClosedCaptionsSelection;
 
-	/** Subtitles Toggle */
 	UPROPERTY(meta = (BindWidget))
 	USelectionWidget* SubtitlesSelection;
 
-	/** Test Audio Button */
 	UPROPERTY(meta = (BindWidgetOptional))
 	UButton* TestAudioButton;
 
-	/** Reset to Default Button */
 	UPROPERTY(meta = (BindWidget))
 	UButton* ResetButton;
 
