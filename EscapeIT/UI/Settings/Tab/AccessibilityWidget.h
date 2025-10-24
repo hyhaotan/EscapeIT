@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "EscapeIT/Data/EscapeITSettingsStructs.h"
 #include "AccessibilityWidget.generated.h"
 
 class USelectionWidget;
@@ -17,6 +18,15 @@ class ESCAPEIT_API UAccessibilityWidget : public UUserWidget
 
 public:
 	UAccessibilityWidget(const FObjectInitializer& ObjectInitializer);
+
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	TArray<FString> ValidateSettings() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	FS_AccessibilitySettings GetCurrentSettings() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	void LoadSettings(const FS_AccessibilitySettings& Settings);
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
@@ -110,9 +120,14 @@ protected:
 	void OnResetButtonClicked();
 
 private:
-	/** Reference to Settings Subsystem */
 	UPROPERTY()
-	USettingsSubsystem* SettingsSubsystem;
+	TObjectPtr<USettingsSubsystem> SettingsSubsystem;
+
+	UPROPERTY()
+	FS_AccessibilitySettings CurrentSettings;
+
+	UPROPERTY()
+	bool bIsLoadingSettings = false;
 
 	void InitializeSelections();
 	void LoadCurrentSettings();

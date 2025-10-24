@@ -1,5 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
+// AudioWidget.cpp
 #include "AudioWidget.h"
 #include "EscapeIT/UI/Settings/Tab/Selection/SelectionWidget.h"
 #include "EscapeIT/Subsystem/SettingsSubsystem.h"
@@ -12,6 +11,9 @@
 UAudioWidget::UAudioWidget(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, bUpdatingSliders(false)
+	, bIsLoadingSettings(false)
+	, SettingsSubsystem(nullptr)
+	, TestSound(nullptr)
 {
 }
 
@@ -19,7 +21,7 @@ void UAudioWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 
-	// Get Settings Subsystem
+	// Get Settings Subsystem (optional)
 	UGameInstance* GameInstance = GetGameInstance();
 	if (GameInstance)
 	{
@@ -28,21 +30,24 @@ void UAudioWidget::NativeConstruct()
 
 	if (!SettingsSubsystem)
 	{
-		UE_LOG(LogTemp, Error, TEXT("AudioWidget: Failed to get SettingsSubsystem"));
-		return;
+		UE_LOG(LogTemp, Warning, TEXT("AudioWidget: SettingsSubsystem not found; widget will still work locally"));
 	}
 
-	// Initialize all selections
+	// Initialize UI
 	InitializeSelections();
-
-	// Initialize sliders
 	InitializeSliders();
-
-	// Bind slider events
 	BindSliderEvents();
 
-	// Load current settings
-	LoadCurrentSettings();
+	// Load current settings from subsystem if available, otherwise defaults
+	if (SettingsSubsystem)
+	{
+		LoadSettings(SettingsSubsystem->GetAllSettings().AudioSettings);
+	}
+	else
+	{
+		FS_AudioSettings DefaultSettings;
+		LoadSettings(DefaultSettings);
+	}
 
 	// Bind buttons
 	if (TestAudioButton)
@@ -55,7 +60,7 @@ void UAudioWidget::NativeConstruct()
 		ResetButton->OnClicked.AddDynamic(this, &UAudioWidget::OnResetButtonClicked);
 	}
 
-	// Load test sound (you should set this path to your actual test sound)
+	// Load test sound (adjust path to your actual test sound asset)
 	TestSound = LoadObject<USoundBase>(nullptr, TEXT("/Game/Audio/UI/TestSound"));
 }
 
@@ -168,14 +173,11 @@ void UAudioWidget::InitializeSliders()
 	}
 }
 
-void UAudioWidget::LoadCurrentSettings()
+void UAudioWidget::LoadSettings(const FS_AudioSettings& Settings)
 {
-	if (!SettingsSubsystem)
-		return;
-
-	bUpdatingSliders = true; // Prevent feedback loop
-
-	FS_AudioSettings CurrentSettings = SettingsSubsystem->GetAllSettings().AudioSettings;
+	// Prevent callbacks while we populate UI
+	bIsLoadingSettings = true;
+	CurrentSettings = Settings;
 
 	// Set slider values
 	if (MasterVolumeSlider)
@@ -208,124 +210,157 @@ void UAudioWidget::LoadCurrentSettings()
 		UIVolumeSlider->SetValue(CurrentSettings.UIVolume);
 	}
 
-	// Audio Language
+	// Selections
 	if (AudioLanguageSelection)
 	{
 		int32 Index = static_cast<int32>(CurrentSettings.CurrentLanguage);
 		AudioLanguageSelection->SetCurrentSelection(Index);
 	}
 
-	// Audio Output
 	if (AudioOutputSelection)
 	{
 		int32 Index = static_cast<int32>(CurrentSettings.AudioOutput);
 		AudioOutputSelection->SetCurrentSelection(Index);
 	}
 
-	// Closed Captions
 	if (ClosedCaptionsSelection)
 	{
 		ClosedCaptionsSelection->SetCurrentSelection(CurrentSettings.bClosedCaptionsEnabled ? 1 : 0);
 	}
 
-	// Subtitles
 	if (SubtitlesSelection)
 	{
 		SubtitlesSelection->SetCurrentSelection(CurrentSettings.bSubtitlesEnabled ? 1 : 0);
 	}
 
-	bUpdatingSliders = false;
+	bIsLoadingSettings = false;
 	UpdateVolumeTexts();
+
+	UE_LOG(LogTemp, Log, TEXT("AudioWidget: Settings loaded into UI (local only)"));
 }
 
-// ===== CALLBACKS =====
+FS_AudioSettings UAudioWidget::GetCurrentSettings() const
+{
+	return CurrentSettings;
+}
+
+TArray<FString> UAudioWidget::ValidateSettings() const
+{
+	TArray<FString> Errors;
+	// Validate ranges
+	if (CurrentSettings.MasterVolume < 0.0f || CurrentSettings.MasterVolume > 1.0f)
+	{
+		Errors.Add(TEXT("Master volume out of range (0.0 - 1.0)"));
+	}
+	if (CurrentSettings.SFXVolume < 0.0f || CurrentSettings.SFXVolume > 1.0f)
+	{
+		Errors.Add(TEXT("SFX volume out of range (0.0 - 1.0)"));
+	}
+	// Add more checks as needed
+
+	if (Errors.Num() > 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("AudioWidget: Validation found %d errors"), Errors.Num());
+	}
+	return Errors;
+}
+
+// ===== CALLBACKS (update CurrentSettings only) =====
 
 void UAudioWidget::OnMasterVolumeChanged(float Value)
 {
-	if (SettingsSubsystem && !bUpdatingSliders)
-	{
-		SettingsSubsystem->SetMasterVolume(Value);
-	}
+	if (bIsLoadingSettings || bUpdatingSliders)
+		return;
+
+	CurrentSettings.MasterVolume = FMath::Clamp(Value, 0.0f, 1.0f);
 	UpdateVolumeTexts();
+	UE_LOG(LogTemp, Log, TEXT("AudioWidget: MasterVolume changed to %.3f (local, not saved)"), CurrentSettings.MasterVolume);
 }
 
 void UAudioWidget::OnSFXVolumeChanged(float Value)
 {
-	if (SettingsSubsystem && !bUpdatingSliders)
-	{
-		SettingsSubsystem->SetSFXVolume(Value);
-	}
+	if (bIsLoadingSettings || bUpdatingSliders)
+		return;
+
+	CurrentSettings.SFXVolume = FMath::Clamp(Value, 0.0f, 1.0f);
 	UpdateVolumeTexts();
+	UE_LOG(LogTemp, Log, TEXT("AudioWidget: SFXVolume changed to %.3f (local, not saved)"), CurrentSettings.SFXVolume);
 }
 
 void UAudioWidget::OnMusicVolumeChanged(float Value)
 {
-	if (SettingsSubsystem && !bUpdatingSliders)
-	{
-		SettingsSubsystem->SetMusicVolume(Value);
-	}
+	if (bIsLoadingSettings || bUpdatingSliders)
+		return;
+
+	CurrentSettings.MusicVolume = FMath::Clamp(Value, 0.0f, 1.0f);
 	UpdateVolumeTexts();
+	UE_LOG(LogTemp, Log, TEXT("AudioWidget: MusicVolume changed to %.3f (local, not saved)"), CurrentSettings.MusicVolume);
 }
 
 void UAudioWidget::OnAmbientVolumeChanged(float Value)
 {
-	if (SettingsSubsystem && !bUpdatingSliders)
-	{
-		SettingsSubsystem->SetAmbientVolume(Value);
-	}
+	if (bIsLoadingSettings || bUpdatingSliders)
+		return;
+
+	CurrentSettings.AmbientVolume = FMath::Clamp(Value, 0.0f, 1.0f);
 	UpdateVolumeTexts();
+	UE_LOG(LogTemp, Log, TEXT("AudioWidget: AmbientVolume changed to %.3f (local, not saved)"), CurrentSettings.AmbientVolume);
 }
 
 void UAudioWidget::OnDialogueVolumeChanged(float Value)
 {
-	if (SettingsSubsystem && !bUpdatingSliders)
-	{
-		SettingsSubsystem->SetDialogueVolume(Value);
-	}
+	if (bIsLoadingSettings || bUpdatingSliders)
+		return;
+
+	CurrentSettings.DialogueVolume = FMath::Clamp(Value, 0.0f, 1.0f);
 	UpdateVolumeTexts();
+	UE_LOG(LogTemp, Log, TEXT("AudioWidget: DialogueVolume changed to %.3f (local, not saved)"), CurrentSettings.DialogueVolume);
 }
 
 void UAudioWidget::OnUIVolumeChanged(float Value)
 {
-	if (SettingsSubsystem && !bUpdatingSliders)
-	{
-		SettingsSubsystem->SetUIVolume(Value);
-	}
+	if (bIsLoadingSettings || bUpdatingSliders)
+		return;
+
+	CurrentSettings.UIVolume = FMath::Clamp(Value, 0.0f, 1.0f);
 	UpdateVolumeTexts();
+	UE_LOG(LogTemp, Log, TEXT("AudioWidget: UIVolume changed to %.3f (local, not saved)"), CurrentSettings.UIVolume);
 }
 
 void UAudioWidget::OnAudioLanguageChanged(int32 NewIndex)
 {
-	if (SettingsSubsystem)
-	{
-		EE_AudioLanguage Language = static_cast<EE_AudioLanguage>(NewIndex);
-		SettingsSubsystem->SetAudioLanguage(Language);
-	}
+	if (bIsLoadingSettings)
+		return;
+
+	CurrentSettings.CurrentLanguage = static_cast<EE_AudioLanguage>(NewIndex);
+	UE_LOG(LogTemp, Log, TEXT("AudioWidget: AudioLanguage changed to index %d (local)"), NewIndex);
 }
 
 void UAudioWidget::OnAudioOutputChanged(int32 NewIndex)
 {
-	if (SettingsSubsystem)
-	{
-		EE_AudioOutput Output = static_cast<EE_AudioOutput>(NewIndex);
-		SettingsSubsystem->SetAudioOutput(Output);
-	}
+	if (bIsLoadingSettings)
+		return;
+
+	CurrentSettings.AudioOutput = static_cast<EE_AudioOutput>(NewIndex);
+	UE_LOG(LogTemp, Log, TEXT("AudioWidget: AudioOutput changed to index %d (local)"), NewIndex);
 }
 
 void UAudioWidget::OnClosedCaptionsChanged(int32 NewIndex)
 {
-	if (SettingsSubsystem)
-	{
-		SettingsSubsystem->SetClosedCaptionsEnabled(NewIndex == 1);
-	}
+	if (bIsLoadingSettings)
+		return;
+
+	CurrentSettings.bClosedCaptionsEnabled = (NewIndex == 1);
+	UE_LOG(LogTemp, Log, TEXT("AudioWidget: ClosedCaptions changed to %s (local)"), CurrentSettings.bClosedCaptionsEnabled ? TEXT("true") : TEXT("false"));
 }
 
 void UAudioWidget::OnSubtitlesChanged(int32 NewIndex)
 {
-	if (SettingsSubsystem)
-	{
-		SettingsSubsystem->SetSubtitlesEnabled(NewIndex == 1);
-	}
+	if (bIsLoadingSettings)
+		return;
+
+	CurrentSettings.bSubtitlesEnabled = (NewIndex == 1);
+	UE_LOG(LogTemp, Log, TEXT("AudioWidget: Subtitles changed to %s (local)"), CurrentSettings.bSubtitlesEnabled ? TEXT("true") : TEXT("false"));
 }
 
 void UAudioWidget::OnTestAudioButtonClicked()
@@ -342,18 +377,14 @@ void UAudioWidget::OnTestAudioButtonClicked()
 
 void UAudioWidget::OnResetButtonClicked()
 {
-	if (SettingsSubsystem)
-	{
-		// Reset only audio settings to default
-		FS_AudioSettings DefaultSettings;
-		SettingsSubsystem->ApplyAudioSettings(DefaultSettings);
+	// Reset locally to defaults (do NOT automatically apply to subsystem)
+	FS_AudioSettings DefaultSettings;
+	LoadSettings(DefaultSettings);
 
-		// Reload UI
-		LoadCurrentSettings();
-	}
+	UE_LOG(LogTemp, Log, TEXT("AudioWidget: Reset to default settings (local, not saved)"));
 }
 
-// ===== HELPER FUNCTIONS =====
+// ===== HELPERS =====
 
 void UAudioWidget::AddToggleOptions(USelectionWidget* Selection)
 {
@@ -366,7 +397,7 @@ void UAudioWidget::AddToggleOptions(USelectionWidget* Selection)
 
 void UAudioWidget::UpdateVolumeTexts()
 {
-	// Update text displays to show volume percentage
+	// Show numeric values (0.0 - 1.0). If you prefer percentage, multiply by 100.
 	if (MasterVolumeText && MasterVolumeSlider)
 	{
 		float Value = MasterVolumeSlider->GetValue();

@@ -1,5 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
+// ControlWidget.cpp
 #include "ControlWidget.h"
 #include "EscapeIT/UI/Settings/Tab/Selection/SelectionWidget.h"
 #include "EscapeIT/Subsystem/SettingsSubsystem.h"
@@ -11,6 +10,8 @@
 UControlWidget::UControlWidget(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, bUpdatingSliders(false)
+	, bIsLoadingSettings(false)
+	, SettingsSubsystem(nullptr)
 {
 }
 
@@ -18,7 +19,7 @@ void UControlWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 
-	// Get Settings Subsystem
+	// Get Settings Subsystem (optional)
 	UGameInstance* GameInstance = GetGameInstance();
 	if (GameInstance)
 	{
@@ -27,21 +28,24 @@ void UControlWidget::NativeConstruct()
 
 	if (!SettingsSubsystem)
 	{
-		UE_LOG(LogTemp, Error, TEXT("ControlWidget: Failed to get SettingsSubsystem"));
-		return;
+		UE_LOG(LogTemp, Warning, TEXT("ControlWidget: SettingsSubsystem not found; widget will still work locally"));
 	}
 
-	// Initialize all selections
+	// Initialize UI elements
 	InitializeSelections();
-
-	// Initialize sliders
 	InitializeSliders();
-
-	// Bind slider events
 	BindSliderEvents();
 
-	// Load current settings
-	LoadCurrentSettings();
+	// Load current settings either from subsystem (if available) or from defaults
+	if (SettingsSubsystem)
+	{
+		LoadSettings(SettingsSubsystem->GetAllSettings().ControlSettings);
+	}
+	else
+	{
+		FS_ControlSettings DefaultSettings;
+		LoadSettings(DefaultSettings);
+	}
 
 	// Bind buttons
 	if (RebindKeysButton)
@@ -57,7 +61,6 @@ void UControlWidget::NativeConstruct()
 
 void UControlWidget::NativeDestruct()
 {
-	// Unbind all events
 	UnbindSliderEvents();
 
 	if (RebindKeysButton)
@@ -77,8 +80,7 @@ void UControlWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
 
-	// Update progress bars if they exist
-	if (!bUpdatingSliders)
+	if (!bUpdatingSliders && !bIsLoadingSettings)
 	{
 		UpdateVolumeText();
 	}
@@ -178,197 +180,204 @@ void UControlWidget::InitializeSliders()
 	}
 }
 
-void UControlWidget::LoadCurrentSettings()
+void UControlWidget::LoadSettings(const FS_ControlSettings& Settings)
 {
-	if (!SettingsSubsystem)
-		return;
-
-	bUpdatingSliders = true; // Prevent feedback loop
-
-	FS_ControlSettings CurrentSettings = SettingsSubsystem->GetAllSettings().ControlSettings;
+	// Use a loading flag to prevent callbacks from firing while setting UI values
+	bIsLoadingSettings = true;
+	CurrentSettings = Settings;
 
 	// Mouse Settings
 	if (MouseSensitivitySlider)
-	{
 		MouseSensitivitySlider->SetValue(CurrentSettings.MouseSensitivity);
-	}
 
 	if (InvertMouseYSelection)
-	{
 		InvertMouseYSelection->SetCurrentSelection(CurrentSettings.bInvertMouseY ? 1 : 0);
-	}
 
 	if (CameraZoomSensitivitySlider)
-	{
 		CameraZoomSensitivitySlider->SetValue(CurrentSettings.CameraZoomSensitivity);
-	}
 
 	// Gamepad Settings
 	if (GamepadSensitivitySlider)
-	{
 		GamepadSensitivitySlider->SetValue(CurrentSettings.GamepadSensitivity);
-	}
 
 	if (GamepadDeadzoneSlider)
-	{
 		GamepadDeadzoneSlider->SetValue(CurrentSettings.GamepadDeadzone);
-	}
 
 	if (InvertGamepadYSelection)
-	{
 		InvertGamepadYSelection->SetCurrentSelection(CurrentSettings.bInvertGamepadY ? 1 : 0);
-	}
 
 	if (GamepadVibrationSelection)
-	{
 		GamepadVibrationSelection->SetCurrentSelection(CurrentSettings.bGamepadVibrationEnabled ? 1 : 0);
-	}
 
 	if (GamepadVibrationIntensitySlider)
-	{
 		GamepadVibrationIntensitySlider->SetValue(CurrentSettings.GamepadVibrationIntensity);
-	}
 
 	// Gameplay Controls
 	if (AutoSprintSelection)
-	{
 		AutoSprintSelection->SetCurrentSelection(CurrentSettings.bAutoSprintEnabled ? 1 : 0);
-	}
 
 	if (CrouchToggleSelection)
-	{
 		CrouchToggleSelection->SetCurrentSelection(CurrentSettings.bCrouchToggle ? 1 : 0);
-	}
 
 	if (FlashlightToggleSelection)
-	{
 		FlashlightToggleSelection->SetCurrentSelection(CurrentSettings.bFlashlightToggle ? 1 : 0);
+
+	bIsLoadingSettings = false;
+
+	// Update texts after loading
+	UpdateVolumeText();
+
+	UE_LOG(LogTemp, Log, TEXT("ControlWidget: Settings loaded into UI (local only)"));
+}
+
+FS_ControlSettings UControlWidget::GetCurrentSettings() const
+{
+	return CurrentSettings;
+}
+
+TArray<FString> UControlWidget::ValidateSettings() const
+{
+	TArray<FString> Errors;
+	// Example: Validate ranges (add rules as needed)
+	if (CurrentSettings.MouseSensitivity < 0.1f || CurrentSettings.MouseSensitivity > 3.0f)
+	{
+		Errors.Add(TEXT("Mouse sensitivity out of range (0.1 - 3.0)"));
+	}
+	if (CurrentSettings.GamepadDeadzone < 0.0f || CurrentSettings.GamepadDeadzone > 0.5f)
+	{
+		Errors.Add(TEXT("Gamepad deadzone out of range (0.0 - 0.5)"));
 	}
 
-	bUpdatingSliders = false;
-	UpdateVolumeText();
+	if (Errors.Num() > 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ControlWidget: Validation found %d errors"), Errors.Num());
+	}
+	return Errors;
 }
 
 // ===== MOUSE CALLBACKS =====
 
 void UControlWidget::OnMouseSensitivityChanged(float Value)
 {
-	if (SettingsSubsystem && !bUpdatingSliders)
-	{
-		SettingsSubsystem->SetMouseSensitivity(Value);
-	}
-}
+	if (bIsLoadingSettings || bUpdatingSliders)
+		return;
 
-void UControlWidget::OnInvertMouseYChanged(int32 NewIndex)
-{
-	if (SettingsSubsystem)
-	{
-		SettingsSubsystem->SetInvertMouseY(NewIndex == 1);
-	}
+	CurrentSettings.MouseSensitivity = Value;
+	UE_LOG(LogTemp, Log, TEXT("ControlWidget: Mouse sensitivity changed to %.3f (local, not saved)"), Value);
 }
 
 void UControlWidget::OnCameraZoomSensitivityChanged(float Value)
 {
-	if (SettingsSubsystem && !bUpdatingSliders)
-	{
-		SettingsSubsystem->SetCameraZoomSensitivity(Value);
-	}
+	if (bIsLoadingSettings || bUpdatingSliders)
+		return;
+
+	CurrentSettings.CameraZoomSensitivity = Value;
+	UE_LOG(LogTemp, Log, TEXT("ControlWidget: Camera zoom sensitivity changed to %.3f (local, not saved)"), Value);
 }
 
 // ===== GAMEPAD CALLBACKS =====
 
 void UControlWidget::OnGamepadSensitivityChanged(float Value)
 {
-	if (SettingsSubsystem && !bUpdatingSliders)
-	{
-		SettingsSubsystem->SetGamepadSensitivity(Value);
-	}
+	if (bIsLoadingSettings || bUpdatingSliders)
+		return;
+
+	CurrentSettings.GamepadSensitivity = Value;
+	UE_LOG(LogTemp, Log, TEXT("ControlWidget: Gamepad sensitivity changed to %.3f (local, not saved)"), Value);
 }
 
 void UControlWidget::OnGamepadDeadzoneChanged(float Value)
 {
-	if (SettingsSubsystem && !bUpdatingSliders)
-	{
-		SettingsSubsystem->SetGamepadDeadzone(Value);
-	}
-}
+	if (bIsLoadingSettings || bUpdatingSliders)
+		return;
 
-void UControlWidget::OnInvertGamepadYChanged(int32 NewIndex)
-{
-	if (SettingsSubsystem)
-	{
-		SettingsSubsystem->SetInvertGamepadY(NewIndex == 1);
-	}
-}
-
-void UControlWidget::OnGamepadVibrationChanged(int32 NewIndex)
-{
-	if (SettingsSubsystem)
-	{
-		SettingsSubsystem->SetGamepadVibrationEnabled(NewIndex == 1);
-	}
+	CurrentSettings.GamepadDeadzone = Value;
+	UE_LOG(LogTemp, Log, TEXT("ControlWidget: Gamepad deadzone changed to %.3f (local, not saved)"), Value);
 }
 
 void UControlWidget::OnGamepadVibrationIntensityChanged(float Value)
 {
-	if (SettingsSubsystem && !bUpdatingSliders)
-	{
-		SettingsSubsystem->SetGamepadVibrationIntensity(Value);
-	}
+	if (bIsLoadingSettings || bUpdatingSliders)
+		return;
+
+	CurrentSettings.GamepadVibrationIntensity = Value;
+	UE_LOG(LogTemp, Log, TEXT("ControlWidget: Gamepad vibration intensity changed to %.3f (local, not saved)"), Value);
 }
 
-// ===== GAMEPLAY CONTROLS CALLBACKS =====
+// ===== SELECTION CALLBACKS =====
+
+void UControlWidget::OnInvertMouseYChanged(int32 NewIndex)
+{
+	if (bIsLoadingSettings)
+		return;
+
+	CurrentSettings.bInvertMouseY = (NewIndex == 1);
+	UE_LOG(LogTemp, Log, TEXT("ControlWidget: InvertMouseY changed to %s (local)"), CurrentSettings.bInvertMouseY ? TEXT("true") : TEXT("false"));
+}
+
+void UControlWidget::OnInvertGamepadYChanged(int32 NewIndex)
+{
+	if (bIsLoadingSettings)
+		return;
+
+	CurrentSettings.bInvertGamepadY = (NewIndex == 1);
+	UE_LOG(LogTemp, Log, TEXT("ControlWidget: InvertGamepadY changed to %s (local)"), CurrentSettings.bInvertGamepadY ? TEXT("true") : TEXT("false"));
+}
+
+void UControlWidget::OnGamepadVibrationChanged(int32 NewIndex)
+{
+	if (bIsLoadingSettings)
+		return;
+
+	CurrentSettings.bGamepadVibrationEnabled = (NewIndex == 1);
+	UE_LOG(LogTemp, Log, TEXT("ControlWidget: GamepadVibration changed to %s (local)"), CurrentSettings.bGamepadVibrationEnabled ? TEXT("true") : TEXT("false"));
+}
 
 void UControlWidget::OnAutoSprintChanged(int32 NewIndex)
 {
-	if (SettingsSubsystem)
-	{
-		SettingsSubsystem->SetAutoSprintEnabled(NewIndex == 1);
-	}
+	if (bIsLoadingSettings)
+		return;
+
+	CurrentSettings.bAutoSprintEnabled = (NewIndex == 1);
+	UE_LOG(LogTemp, Log, TEXT("ControlWidget: AutoSprint changed to %s (local)"), CurrentSettings.bAutoSprintEnabled ? TEXT("true") : TEXT("false"));
 }
 
 void UControlWidget::OnCrouchToggleChanged(int32 NewIndex)
 {
-	if (SettingsSubsystem)
-	{
-		SettingsSubsystem->SetCrouchToggle(NewIndex == 1);
-	}
+	if (bIsLoadingSettings)
+		return;
+
+	CurrentSettings.bCrouchToggle = (NewIndex == 1);
+	UE_LOG(LogTemp, Log, TEXT("ControlWidget: CrouchToggle changed to %s (local)"), CurrentSettings.bCrouchToggle ? TEXT("true") : TEXT("false"));
 }
 
 void UControlWidget::OnFlashlightToggleChanged(int32 NewIndex)
 {
-	if (SettingsSubsystem)
-	{
-		SettingsSubsystem->SetFlashlightToggle(NewIndex == 1);
-	}
+	if (bIsLoadingSettings)
+		return;
+
+	CurrentSettings.bFlashlightToggle = (NewIndex == 1);
+	UE_LOG(LogTemp, Log, TEXT("ControlWidget: FlashlightToggle changed to %s (local)"), CurrentSettings.bFlashlightToggle ? TEXT("true") : TEXT("false"));
 }
 
 // ===== BUTTON CALLBACKS =====
 
 void UControlWidget::OnRebindKeysButtonClicked()
 {
-	// TODO: Open key binding UI
-	// This would typically open another widget for rebinding keys
-	UE_LOG(LogTemp, Log, TEXT("ControlWidget: Rebind Keys clicked - Implement key binding UI"));
-
-	// Example: You could broadcast an event or open a new widget
-	// OnOpenKeyBindingWidget.Broadcast();
+	UE_LOG(LogTemp, Log, TEXT("ControlWidget: Rebind Keys clicked - open key binding UI (not implemented here)"));
+	// No subsystem call here — this should open a rebind widget / broadcast an event
 }
 
 void UControlWidget::OnResetButtonClicked()
 {
-	if (SettingsSubsystem)
-	{
-		// Reset only control settings to default
-		FS_ControlSettings DefaultSettings;
-		SettingsSubsystem->ApplyControlSettings(DefaultSettings);
+	// Reset to default settings locally (do not apply to subsystem automatically)
+	FS_ControlSettings DefaultSettings;
+	LoadSettings(DefaultSettings);
 
-		// Reload UI
-		LoadCurrentSettings();
-	}
+	UE_LOG(LogTemp, Log, TEXT("ControlWidget: Reset to default settings (local, not saved)"));
 }
 
-// ===== HELPER FUNCTIONS =====
+// ===== HELPERS =====
 
 void UControlWidget::AddToggleOptions(USelectionWidget* Selection)
 {
@@ -396,28 +405,24 @@ void UControlWidget::UpdateVolumeText()
 		MouseSensitivityText->SetText(FText::AsNumber(Value));
 	}
 
-	// Camera zoom sensitivity (already 0.0-1.0)
 	if (CameraZoomSensitivityText && CameraZoomSensitivitySlider)
 	{
 		float Value = CameraZoomSensitivitySlider->GetValue();
 		CameraZoomSensitivityText->SetText(FText::AsNumber(Value));
 	}
 
-	// Gamepad sensitivity (normalize 0.1-3.0 to 0.0-1.0)
 	if (GamepadSensitivityText && GamepadSensitivitySlider)
 	{
 		float Value = GamepadSensitivitySlider->GetValue();
 		GamepadSensitivityText->SetText(FText::AsNumber(Value));
 	}
 
-	// Gamepad deadzone (normalize 0.0-0.5 to 0.0-1.0)
 	if (GamepadDeadzoneText && GamepadDeadzoneSlider)
 	{
 		float Value = GamepadDeadzoneSlider->GetValue();
 		GamepadDeadzoneText->SetText(FText::AsNumber(Value));
 	}
 
-	// Gamepad vibration intensity (already 0.0-1.0)
 	if (GamepadVibrationIntensityText && GamepadVibrationIntensitySlider)
 	{
 		float Value = GamepadVibrationIntensitySlider->GetValue();

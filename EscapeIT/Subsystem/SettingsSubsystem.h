@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "EscapeIT/Data/EscapeITSettingsStructs.h"
+#include "EscapeIT/Data/EscapeITEnums.h"
 #include "SettingsSubsystem.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnAllSettingsChanged, const FS_AllSettings&, NewSettings);
@@ -23,25 +24,6 @@ public:
 	virtual void Deinitialize() override;
 
 	// ===== General Settings Management =====
-	// Getter cho All Settings
-	UFUNCTION(BlueprintCallable, Category = "Settings")
-	FS_AllSettings GetAllSettings() const { return AllSettings; }
-
-	// Getter cho từng loại settings
-	UFUNCTION(BlueprintCallable, Category = "Settings")
-	FS_GraphicsSettings GetGraphicsSettings() const { return AllSettings.GraphicsSettings; }
-
-	UFUNCTION(BlueprintCallable, Category = "Settings")
-	FS_AudioSettings GetAudioSettings() const { return AllSettings.AudioSettings; }
-
-	UFUNCTION(BlueprintCallable, Category = "Settings")
-	FS_GameplaySettings GetGameplaySettings() const { return AllSettings.GameplaySettings; }
-
-	UFUNCTION(BlueprintCallable, Category = "Settings")
-	FS_ControlSettings GetControlSettings() const { return AllSettings.ControlSettings; }
-
-	UFUNCTION(BlueprintCallable, Category = "Settings")
-	FS_AccessibilitySettings GetAccessibilitySettings() const { return AllSettings.AccessibilitySettings; }
 
 	/** Apply all settings at once */
 	UFUNCTION(BlueprintCallable, Category = "Settings")
@@ -71,8 +53,12 @@ public:
 
 	// ===== Graphics Settings =====
 
+	void InitGraphicSettings();
+
 	UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
 	void ApplyGraphicsSettings(const FS_GraphicsSettings& NewSettings);
+
+	FS_GraphicsSettings GetGraphicsPreset(EE_GraphicsQuality GraphicsQuality) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
 	FS_GraphicsSettings GetGraphicsSettings() const { return AllSettings.GraphicsSettings; }
@@ -283,7 +269,6 @@ public:
 	FS_DifficultyMultiplier GetDifficultyMultiplier(EE_DifficultyLevel Difficulty);
 
 	// ===== Delegates =====
-
 	UPROPERTY(BlueprintAssignable, Category = "Settings")
 	FOnAllSettingsChanged OnAllSettingsChanged;
 
@@ -330,4 +315,6 @@ protected:
 
 	UPROPERTY()
 	uint32 SaveUserIndex = 0;
+
+	TMap<EE_GraphicsQuality, FS_GraphicsSettings> GraphicsPresets;
 };

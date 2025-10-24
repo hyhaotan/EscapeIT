@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "AccessibilityWidget.h"
 #include "EscapeIT/UI/Settings/Tab/Selection/SelectionWidget.h"
@@ -31,7 +31,7 @@ void UAccessibilityWidget::NativeConstruct()
 	// Initialize all selections
 	InitializeSelections();
 
-	// Load current settings
+	// Load current settings from subsystem
 	LoadCurrentSettings();
 
 	// Bind Reset Button
@@ -181,216 +181,290 @@ void UAccessibilityWidget::LoadCurrentSettings()
 	if (!SettingsSubsystem)
 		return;
 
-	FS_AccessibilitySettings CurrentSettings = SettingsSubsystem->GetAllSettings().AccessibilitySettings;
+	// Lấy settings từ subsystem và lưu vào CurrentSettings
+	CurrentSettings = SettingsSubsystem->GetAllSettings().AccessibilitySettings;
+
+	// Load settings vào UI
+	LoadSettings(CurrentSettings);
+
+	UE_LOG(LogTemp, Log, TEXT("AccessibilityWidget: Loaded current settings from subsystem"));
+}
+
+// ===== PUBLIC API =====
+
+void UAccessibilityWidget::LoadSettings(const FS_AccessibilitySettings& Settings)
+{
+	// Lưu vào CurrentSettings
+	CurrentSettings = Settings;
+
+	// Load vào UI (không trigger callbacks)
+	bIsLoadingSettings = true;
 
 	// Text Size
 	if (TextSizeSelection)
 	{
-		int32 Index = static_cast<int32>(CurrentSettings.TextSize);
-		TextSizeSelection->SetCurrentSelection(Index);
+		int32 TextSizeIndex = static_cast<int32>(Settings.TextSize);
+		TextSizeSelection->SetCurrentSelection(TextSizeIndex);
 	}
 
 	// Text Contrast
 	if (TextContrastSelection)
 	{
-		int32 Index = static_cast<int32>(CurrentSettings.TextContrast);
+		int32 Index = static_cast<int32>(Settings.TextContrast);
 		TextContrastSelection->SetCurrentSelection(Index);
 	}
 
 	// Dyslexia Font
 	if (DyslexiaFontSelection)
 	{
-		DyslexiaFontSelection->SetCurrentSelection(CurrentSettings.bDyslexiaFontEnabled ? 1 : 0);
+		DyslexiaFontSelection->SetCurrentSelection(Settings.bDyslexiaFontEnabled ? 1 : 0);
 	}
 
 	// Color Blind Mode
 	if (ColorBlindModeSelection)
 	{
-		int32 Index = static_cast<int32>(CurrentSettings.ColorBlindMode);
+		int32 Index = static_cast<int32>(Settings.ColorBlindMode);
 		ColorBlindModeSelection->SetCurrentSelection(Index);
 	}
 
 	// High Contrast UI
 	if (HighContrastUISelection)
 	{
-		HighContrastUISelection->SetCurrentSelection(CurrentSettings.bHighContrastUIEnabled ? 1 : 0);
+		HighContrastUISelection->SetCurrentSelection(Settings.bHighContrastUIEnabled ? 1 : 0);
 	}
 
 	// Reduced Motion
 	if (ReducedMotionSelection)
 	{
-		ReducedMotionSelection->SetCurrentSelection(CurrentSettings.bReducedMotionEnabled ? 1 : 0);
+		ReducedMotionSelection->SetCurrentSelection(Settings.bReducedMotionEnabled ? 1 : 0);
 	}
 
 	// Photosensitivity Mode
 	if (PhotosensitivityModeSelection)
 	{
-		int32 Index = static_cast<int32>(CurrentSettings.PhotosensitivityMode);
+		int32 Index = static_cast<int32>(Settings.PhotosensitivityMode);
 		PhotosensitivityModeSelection->SetCurrentSelection(Index);
 	}
 
 	// Screen Reader
 	if (ScreenReaderSelection)
 	{
-		ScreenReaderSelection->SetCurrentSelection(CurrentSettings.bScreenReaderEnabled ? 1 : 0);
+		ScreenReaderSelection->SetCurrentSelection(Settings.bScreenReaderEnabled ? 1 : 0);
 	}
 
 	// Sound Cues Visualization
 	if (SoundCuesVisualizationSelection)
 	{
-		SoundCuesVisualizationSelection->SetCurrentSelection(CurrentSettings.bSoundCuesVisualizationEnabled ? 1 : 0);
+		SoundCuesVisualizationSelection->SetCurrentSelection(Settings.bSoundCuesVisualizationEnabled ? 1 : 0);
 	}
 
 	// Haptic Feedback
 	if (HapticFeedbackSelection)
 	{
-		HapticFeedbackSelection->SetCurrentSelection(CurrentSettings.bHapticFeedbackEnabled ? 1 : 0);
+		HapticFeedbackSelection->SetCurrentSelection(Settings.bHapticFeedbackEnabled ? 1 : 0);
 	}
 
 	// Single Handed Mode
 	if (SingleHandedModeSelection)
 	{
-		int32 Index = static_cast<int32>(CurrentSettings.SingleHandedMode);
+		int32 Index = static_cast<int32>(Settings.SingleHandedMode);
 		SingleHandedModeSelection->SetCurrentSelection(Index);
 	}
 
 	// Hold to Activate
 	if (HoldToActivateSelection)
 	{
-		HoldToActivateSelection->SetCurrentSelection(CurrentSettings.bEnableHoldToActivate ? 1 : 0);
+		HoldToActivateSelection->SetCurrentSelection(Settings.bEnableHoldToActivate ? 1 : 0);
 	}
 
 	// Hold Activation Time
 	if (HoldActivationTimeSelection)
 	{
-		int32 Index = ActivationTimeToIndex(CurrentSettings.HoldActivationTime);
+		int32 Index = ActivationTimeToIndex(Settings.HoldActivationTime);
 		HoldActivationTimeSelection->SetCurrentSelection(Index);
 	}
+
+	bIsLoadingSettings = false;
+
+	UE_LOG(LogTemp, Log, TEXT("AccessibilityWidget: Settings loaded into UI"));
+}
+
+FS_AccessibilitySettings UAccessibilityWidget::GetCurrentSettings() const
+{
+	return CurrentSettings;
+}
+
+TArray<FString> UAccessibilityWidget::ValidateSettings() const
+{
+	TArray<FString> Errors;
+
+	// Validate Hold Activation Time
+	if (CurrentSettings.HoldActivationTime < 0.0f || CurrentSettings.HoldActivationTime > 5.0f)
+	{
+		Errors.Add(TEXT("Hold Activation Time must be between 0.0 and 5.0 seconds"));
+	}
+
+	if (Errors.Num() > 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("AccessibilityWidget: Validation found %d errors"), Errors.Num());
+	}
+
+	return Errors;
 }
 
 // ===== CALLBACKS =====
+// CHỈ cập nhật CurrentSettings, KHÔNG gọi subsystem
 
 void UAccessibilityWidget::OnTextSizeChanged(int32 NewIndex)
 {
-	if (SettingsSubsystem)
-	{
-		EE_TextSize Size = static_cast<EE_TextSize>(NewIndex);
-		SettingsSubsystem->SetTextSize(Size);
-	}
+	if (bIsLoadingSettings)
+		return;
+
+	EE_TextSize Size = static_cast<EE_TextSize>(NewIndex);
+	CurrentSettings.TextSize = Size;
+
+	UE_LOG(LogTemp, Log, TEXT("AccessibilityWidget: Text size changed to index %d (not saved yet)"), NewIndex);
 }
 
 void UAccessibilityWidget::OnTextContrastChanged(int32 NewIndex)
 {
-	if (SettingsSubsystem)
-	{
-		EE_TextContrast Contrast = static_cast<EE_TextContrast>(NewIndex);
-		SettingsSubsystem->SetTextContrast(Contrast);
-	}
+	if (bIsLoadingSettings)
+		return;
+
+	EE_TextContrast Contrast = static_cast<EE_TextContrast>(NewIndex);
+	CurrentSettings.TextContrast = Contrast;
+
+	UE_LOG(LogTemp, Log, TEXT("AccessibilityWidget: Text contrast changed to index %d (not saved yet)"), NewIndex);
 }
 
 void UAccessibilityWidget::OnDyslexiaFontChanged(int32 NewIndex)
 {
-	if (SettingsSubsystem)
-	{
-		SettingsSubsystem->SetDyslexiaFontEnabled(NewIndex == 1);
-	}
+	if (bIsLoadingSettings)
+		return;
+
+	CurrentSettings.bDyslexiaFontEnabled = (NewIndex == 1);
+
+	UE_LOG(LogTemp, Log, TEXT("AccessibilityWidget: Dyslexia font %s (not saved yet)"),
+		CurrentSettings.bDyslexiaFontEnabled ? TEXT("enabled") : TEXT("disabled"));
 }
 
 void UAccessibilityWidget::OnColorBlindModeChanged(int32 NewIndex)
 {
-	if (SettingsSubsystem)
-	{
-		EE_ColorBlindMode Mode = static_cast<EE_ColorBlindMode>(NewIndex);
-		SettingsSubsystem->SetColorBlindMode(Mode);
-	}
+	if (bIsLoadingSettings)
+		return;
+
+	EE_ColorBlindMode Mode = static_cast<EE_ColorBlindMode>(NewIndex);
+	CurrentSettings.ColorBlindMode = Mode;
+
+	UE_LOG(LogTemp, Log, TEXT("AccessibilityWidget: Color blind mode changed to index %d (not saved yet)"), NewIndex);
 }
 
 void UAccessibilityWidget::OnHighContrastUIChanged(int32 NewIndex)
 {
-	if (SettingsSubsystem)
-	{
-		SettingsSubsystem->SetHighContrastUIEnabled(NewIndex == 1);
-	}
+	if (bIsLoadingSettings)
+		return;
+
+	CurrentSettings.bHighContrastUIEnabled = (NewIndex == 1);
+
+	UE_LOG(LogTemp, Log, TEXT("AccessibilityWidget: High contrast UI %s (not saved yet)"),
+		CurrentSettings.bHighContrastUIEnabled ? TEXT("enabled") : TEXT("disabled"));
 }
 
 void UAccessibilityWidget::OnReducedMotionChanged(int32 NewIndex)
 {
-	if (SettingsSubsystem)
-	{
-		SettingsSubsystem->SetReducedMotionEnabled(NewIndex == 1);
-	}
+	if (bIsLoadingSettings)
+		return;
+
+	CurrentSettings.bReducedMotionEnabled = (NewIndex == 1);
+
+	UE_LOG(LogTemp, Log, TEXT("AccessibilityWidget: Reduced motion %s (not saved yet)"),
+		CurrentSettings.bReducedMotionEnabled ? TEXT("enabled") : TEXT("disabled"));
 }
 
 void UAccessibilityWidget::OnPhotosensitivityModeChanged(int32 NewIndex)
 {
-	if (SettingsSubsystem)
-	{
-		EE_PhotosensitivityMode Mode = static_cast<EE_PhotosensitivityMode>(NewIndex);
-		SettingsSubsystem->SetPhotosensitivityMode(Mode);
-	}
+	if (bIsLoadingSettings)
+		return;
+
+	EE_PhotosensitivityMode Mode = static_cast<EE_PhotosensitivityMode>(NewIndex);
+	CurrentSettings.PhotosensitivityMode = Mode;
+
+	UE_LOG(LogTemp, Log, TEXT("AccessibilityWidget: Photosensitivity mode changed to index %d (not saved yet)"), NewIndex);
 }
 
 void UAccessibilityWidget::OnScreenReaderChanged(int32 NewIndex)
 {
-	if (SettingsSubsystem)
-	{
-		SettingsSubsystem->SetScreenReaderEnabled(NewIndex == 1);
-	}
+	if (bIsLoadingSettings)
+		return;
+
+	CurrentSettings.bScreenReaderEnabled = (NewIndex == 1);
+
+	UE_LOG(LogTemp, Log, TEXT("AccessibilityWidget: Screen reader %s (not saved yet)"),
+		CurrentSettings.bScreenReaderEnabled ? TEXT("enabled") : TEXT("disabled"));
 }
 
 void UAccessibilityWidget::OnSoundCuesVisualizationChanged(int32 NewIndex)
 {
-	if (SettingsSubsystem)
-	{
-		SettingsSubsystem->SetSoundCuesVisualizationEnabled(NewIndex == 1);
-	}
+	if (bIsLoadingSettings)
+		return;
+
+	CurrentSettings.bSoundCuesVisualizationEnabled = (NewIndex == 1);
+
+	UE_LOG(LogTemp, Log, TEXT("AccessibilityWidget: Sound cues visualization %s (not saved yet)"),
+		CurrentSettings.bSoundCuesVisualizationEnabled ? TEXT("enabled") : TEXT("disabled"));
 }
 
 void UAccessibilityWidget::OnHapticFeedbackChanged(int32 NewIndex)
 {
-	if (SettingsSubsystem)
-	{
-		SettingsSubsystem->SetHapticFeedbackEnabled(NewIndex == 1);
-	}
+	if (bIsLoadingSettings)
+		return;
+
+	CurrentSettings.bHapticFeedbackEnabled = (NewIndex == 1);
+
+	UE_LOG(LogTemp, Log, TEXT("AccessibilityWidget: Haptic feedback %s (not saved yet)"),
+		CurrentSettings.bHapticFeedbackEnabled ? TEXT("enabled") : TEXT("disabled"));
 }
 
 void UAccessibilityWidget::OnSingleHandedModeChanged(int32 NewIndex)
 {
-	if (SettingsSubsystem)
-	{
-		EE_SingleHandedMode Mode = static_cast<EE_SingleHandedMode>(NewIndex);
-		SettingsSubsystem->SetSingleHandedMode(Mode);
-	}
+	if (bIsLoadingSettings)
+		return;
+
+	EE_SingleHandedMode Mode = static_cast<EE_SingleHandedMode>(NewIndex);
+	CurrentSettings.SingleHandedMode = Mode;
+
+	UE_LOG(LogTemp, Log, TEXT("AccessibilityWidget: Single handed mode changed to index %d (not saved yet)"), NewIndex);
 }
 
 void UAccessibilityWidget::OnHoldToActivateChanged(int32 NewIndex)
 {
-	if (SettingsSubsystem)
-	{
-		SettingsSubsystem->SetEnableHoldToActivate(NewIndex == 1);
-	}
+	if (bIsLoadingSettings)
+		return;
+
+	CurrentSettings.bEnableHoldToActivate = (NewIndex == 1);
+
+	UE_LOG(LogTemp, Log, TEXT("AccessibilityWidget: Hold to activate %s (not saved yet)"),
+		CurrentSettings.bEnableHoldToActivate ? TEXT("enabled") : TEXT("disabled"));
 }
 
 void UAccessibilityWidget::OnHoldActivationTimeChanged(int32 NewIndex)
 {
-	if (SettingsSubsystem)
-	{
-		float Time = IndexToActivationTime(NewIndex);
-		SettingsSubsystem->SetHoldActivationTime(Time);
-	}
+	if (bIsLoadingSettings)
+		return;
+
+	float Time = IndexToActivationTime(NewIndex);
+	CurrentSettings.HoldActivationTime = Time;
+
+	UE_LOG(LogTemp, Log, TEXT("AccessibilityWidget: Hold activation time changed to %.1fs (not saved yet)"), Time);
 }
 
 void UAccessibilityWidget::OnResetButtonClicked()
 {
-	if (SettingsSubsystem)
-	{
-		// Reset only accessibility settings to default
-		FS_AccessibilitySettings DefaultSettings;
-		SettingsSubsystem->ApplyAccessibilitySettings(DefaultSettings);
+	// Reset về default settings
+	FS_AccessibilitySettings DefaultSettings;
+	LoadSettings(DefaultSettings);
 
-		// Reload UI
-		LoadCurrentSettings();
-	}
+	UE_LOG(LogTemp, Log, TEXT("AccessibilityWidget: Reset to default settings (not saved yet)"));
 }
 
 // ===== HELPER FUNCTIONS =====

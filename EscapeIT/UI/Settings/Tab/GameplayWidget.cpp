@@ -3,6 +3,7 @@
 #include "EscapeIT/Subsystem/SettingsSubsystem.h"
 #include "Components/Button.h"
 #include "Kismet/GameplayStatics.h"
+#include "AccessibilityWidget.h"
 
 UGameplayWidget::UGameplayWidget(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)

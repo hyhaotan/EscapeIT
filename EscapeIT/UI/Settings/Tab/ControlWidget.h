@@ -1,20 +1,16 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
+// ControlWidget.h
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "EscapeIT/Data/EscapeITSettingsStructs.h"
 #include "ControlWidget.generated.h"
 
 class USelectionWidget;
-class USettingsSubsystem;
-class UButton;
 class USlider;
 class UTextBlock;
+class UButton;
 
-/**
- * Widget for Control Settings
- */
 UCLASS()
 class ESCAPEIT_API UControlWidget : public UUserWidget
 {
@@ -23,87 +19,101 @@ class ESCAPEIT_API UControlWidget : public UUserWidget
 public:
 	UControlWidget(const FObjectInitializer& ObjectInitializer);
 
-protected:
+	// UUserWidget
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
-	// ===== WIDGET BINDINGS =====
+	// Public API
+	void LoadSettings(const FS_ControlSettings& Settings);
+	FS_ControlSettings GetCurrentSettings() const;
+	TArray<FString> ValidateSettings() const;
 
-	// === MOUSE SETTINGS ===
-	UPROPERTY(meta = (BindWidget))
+protected:
+	// UI refs (bind in UMG)
+	UPROPERTY(meta = (BindWidgetOptional))
+	USelectionWidget* InvertMouseYSelection;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	USelectionWidget* InvertGamepadYSelection;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	USelectionWidget* GamepadVibrationSelection;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	USelectionWidget* AutoSprintSelection;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	USelectionWidget* CrouchToggleSelection;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	USelectionWidget* FlashlightToggleSelection;
+
+	UPROPERTY(meta = (BindWidgetOptional))
 	USlider* MouseSensitivitySlider;
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	UTextBlock* MouseSensitivityText;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* InvertMouseYSelection;
-
-	UPROPERTY(meta = (BindWidget))
+	UPROPERTY(meta = (BindWidgetOptional))
 	USlider* CameraZoomSensitivitySlider;
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	UTextBlock* CameraZoomSensitivityText;
 
-	// === GAMEPAD SETTINGS ===
-
-	UPROPERTY(meta = (BindWidget))
+	UPROPERTY(meta = (BindWidgetOptional))
 	USlider* GamepadSensitivitySlider;
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	UTextBlock* GamepadSensitivityText;
 
-	UPROPERTY(meta = (BindWidget))
+	UPROPERTY(meta = (BindWidgetOptional))
 	USlider* GamepadDeadzoneSlider;
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	UTextBlock* GamepadDeadzoneText;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* InvertGamepadYSelection;
-
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* GamepadVibrationSelection;
-
-	UPROPERTY(meta = (BindWidget))
+	UPROPERTY(meta = (BindWidgetOptional))
 	USlider* GamepadVibrationIntensitySlider;
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	UTextBlock* GamepadVibrationIntensityText;
 
-	// === GAMEPLAY CONTROLS ===
-
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* AutoSprintSelection;
-
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* CrouchToggleSelection;
-
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* FlashlightToggleSelection;
-
-	// === KEY BINDINGS (Optional) ===
-
 	UPROPERTY(meta = (BindWidgetOptional))
 	UButton* RebindKeysButton;
 
-	UPROPERTY(meta = (BindWidget))
+	UPROPERTY(meta = (BindWidgetOptional))
 	UButton* ResetButton;
 
-	// ===== CALLBACKS =====
+	// Internal
+	UPROPERTY()
+	class USettingsSubsystem* SettingsSubsystem;
 
-	// Mouse callbacks
+	// Flags to avoid feedback loops
+	bool bUpdatingSliders;
+	bool bIsLoadingSettings;
+
+	// Current local settings (widget-level, not yet saved to subsystem)
+	FS_ControlSettings CurrentSettings;
+
+	// Initialization
+	void InitializeSelections();
+	void InitializeSliders();
+	void BindSliderEvents();
+	void UnbindSliderEvents();
+
+	// Helpers
+	void AddToggleOptions(USelectionWidget* Selection);
+	void AddHoldToggleOptions(USelectionWidget* Selection);
+	void UpdateVolumeText();
+
+	// Slider callbacks (now update CurrentSettings only)
 	UFUNCTION()
 	void OnMouseSensitivityChanged(float Value);
 
 	UFUNCTION()
-	void OnInvertMouseYChanged(int32 NewIndex);
-
-	UFUNCTION()
 	void OnCameraZoomSensitivityChanged(float Value);
 
-	// Gamepad callbacks
 	UFUNCTION()
 	void OnGamepadSensitivityChanged(float Value);
 
@@ -111,15 +121,18 @@ protected:
 	void OnGamepadDeadzoneChanged(float Value);
 
 	UFUNCTION()
+	void OnGamepadVibrationIntensityChanged(float Value);
+
+	// Selection callbacks (update CurrentSettings only)
+	UFUNCTION()
+	void OnInvertMouseYChanged(int32 NewIndex);
+
+	UFUNCTION()
 	void OnInvertGamepadYChanged(int32 NewIndex);
 
 	UFUNCTION()
 	void OnGamepadVibrationChanged(int32 NewIndex);
 
-	UFUNCTION()
-	void OnGamepadVibrationIntensityChanged(float Value);
-
-	// Gameplay controls callbacks
 	UFUNCTION()
 	void OnAutoSprintChanged(int32 NewIndex);
 
@@ -129,26 +142,10 @@ protected:
 	UFUNCTION()
 	void OnFlashlightToggleChanged(int32 NewIndex);
 
-	// Button callbacks
+	// Buttons
 	UFUNCTION()
 	void OnRebindKeysButtonClicked();
 
 	UFUNCTION()
 	void OnResetButtonClicked();
-
-private:
-	/** Reference to Settings Subsystem */
-	UPROPERTY()
-	USettingsSubsystem* SettingsSubsystem;
-
-	bool bUpdatingSliders;
-
-	void InitializeSelections();
-	void InitializeSliders();
-	void LoadCurrentSettings();
-	void AddToggleOptions(USelectionWidget* Selection);
-	void AddHoldToggleOptions(USelectionWidget* Selection);
-	void UpdateVolumeText();
-	void BindSliderEvents();
-	void UnbindSliderEvents();
 };

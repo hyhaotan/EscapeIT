@@ -18,6 +18,7 @@
 #include "Sound/SoundBase.h"
 #include "TimerManager.h"
 #include "GameFramework/GameUserSettings.h"
+#include "EscapeIT/UI/NotificationWidget.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
 
 UMainMenuSettingWidget::UMainMenuSettingWidget(const FObjectInitializer& ObjectInitializer)

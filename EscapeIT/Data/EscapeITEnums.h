@@ -128,10 +128,13 @@ enum class EE_RayTracingQuality : uint8
 UENUM(BlueprintType)
 enum class EE_AntiAliasingMethod : uint8
 {
+	None UMETA(DisplayName = "None"),
 	FXAA	UMETA(DisplayName = "FXAA"),
 	TSR		UMETA(DisplayName = "Temporal Super Resolution"),
 	DLSS	UMETA(DisplayName = "NVIDIA DLSS"),
-	Native	UMETA(DisplayName = "Native")
+	Native	UMETA(DisplayName = "Native"),
+	MSAA_4x UMETA(DisplayName = "MSAA_4x"),
+	TAA UMETA(DisplayName = "TAA")
 };
 
 /**

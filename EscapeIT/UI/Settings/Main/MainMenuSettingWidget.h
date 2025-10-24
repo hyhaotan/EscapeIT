@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "EscapeIT/Data/EscapeITEnums.h"
+#include "EscapeIT/Data/EscapeITSettingsStructs.h"
 #include "MainMenuSettingWidget.generated.h"
 
 // Forward declarations
@@ -100,30 +100,30 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	UButton* ResetAllButton;
 
-	UPROPERTY(meta = (BindWidget))
+	UPROPERTY(meta = (BindWidgetOptional))
 	UButton* UndoButton;
 
-	UPROPERTY(meta = (BindWidget))
+	UPROPERTY(meta = (BindWBindWidgetOptionalidget))
 	UButton* AutoDetectButton;
 
 	// Text Elements
-	UPROPERTY(meta = (BindWidget))
+	UPROPERTY(meta = (BindWidgetOptional))
 	UCommonTextBlock* CategoryTitleText;
 
-	UPROPERTY(meta = (BindWidget))
+	UPROPERTY(meta = (BindWidgetOptional))
 	UTextBlock* UnsavedChangesText;
 
-	UPROPERTY(meta = (BindWidget))
+	UPROPERTY(meta = (BindWidgetOptional))
 	UTextBlock* PerformanceEstimateText;
 
 	// Other UI Elements
-	UPROPERTY(meta = (BindWidget))
+	UPROPERTY(meta = (BindWidgetOptional))
 	UEditableTextBox* SearchBox;
 
-	UPROPERTY(meta = (BindWidget))
+	UPROPERTY(meta = (BindWidgetOptional))
 	UImage* UnsavedIndicator;
 
-	UPROPERTY(meta = (BindWidget))
+	UPROPERTY(meta = (BindWidgetOptional))
 	UImage* CategoryIcon;
 
 	// Category Widgets
@@ -144,17 +144,17 @@ protected:
 
 	// Optional Notification Widget
 	UPROPERTY(meta = (BindWidgetOptional))
-	TObjectPtr<UUserWidget> NotificationWidget;
+	TObjectPtr<UNotificationWidget> NotificationWidget;
 
 	// ===== ANIMATIONS =====
 
-	UPROPERTY(Transient, meta = (BindWidgetAnim))
+	UPROPERTY(Transient, meta = (BindWidgetOptional))
 	UWidgetAnimation* CategorySwitchAnimation;
 
-	UPROPERTY(Transient, meta = (BindWidgetAnim))
+	UPROPERTY(Transient, meta = (BindWidgetOptional))
 	UWidgetAnimation* UnsavedWarningAnimation;
 
-	UPROPERTY(Transient, meta = (BindWidgetAnim))
+	UPROPERTY(Transient, meta = (BindWidgetOptional))
 	UWidgetAnimation* ApplySuccessAnimation;
 
 	// ===== SOUNDS =====

@@ -1,20 +1,17 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
+// AudioWidget.h
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "EscapeIT/Data/EscapeITSettingsStructs.h"
 #include "AudioWidget.generated.h"
 
 class USelectionWidget;
-class USettingsSubsystem;
-class UButton;
-class UTextBlock;
 class USlider;
+class UTextBlock;
+class UButton;
+class USoundBase;
 
-/**
- * Widget for Audio Settings
- */
 UCLASS()
 class ESCAPEIT_API UAudioWidget : public UUserWidget
 {
@@ -23,68 +20,97 @@ class ESCAPEIT_API UAudioWidget : public UUserWidget
 public:
 	UAudioWidget(const FObjectInitializer& ObjectInitializer);
 
-protected:
+	// UUserWidget
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
 
-	// ===== WIDGET BINDINGS =====
+	// Public API
+	void LoadSettings(const FS_AudioSettings& Settings);
+	FS_AudioSettings GetCurrentSettings() const;
+	TArray<FString> ValidateSettings() const;
 
-	UPROPERTY(meta = (BindWidget))
-	USlider* MasterVolumeSlider;
-
-	UPROPERTY(meta = (BindWidget))
-	UTextBlock* MasterVolumeText;
-
-	UPROPERTY(meta = (BindWidget))
-	USlider* SFXVolumeSlider;
-
-	UPROPERTY(meta = (BindWidget))
-	UTextBlock* SFXVolumeText;
-
-	UPROPERTY(meta = (BindWidget))
-	USlider* MusicVolumeSlider;
-
-	UPROPERTY(meta = (BindWidget))
-	UTextBlock* MusicVolumeText;
-
-	UPROPERTY(meta = (BindWidget))
-	USlider* AmbientVolumeSlider;
-
-	UPROPERTY(meta = (BindWidget))
-	UTextBlock* AmbientVolumeText;
-
-	UPROPERTY(meta = (BindWidget))
-	USlider* DialogueVolumeSlider;
-
-	UPROPERTY(meta = (BindWidget))
-	UTextBlock* DialogueVolumeText;
-
-	UPROPERTY(meta = (BindWidget))
-	USlider* UIVolumeSlider;
-
-	UPROPERTY(meta = (BindWidget))
-	UTextBlock* UIVolumeText;
-
-	UPROPERTY(meta = (BindWidget))
+protected:
+	// UI refs (bind in UMG)
+	UPROPERTY(meta = (BindWidgetOptional))
 	USelectionWidget* AudioLanguageSelection;
 
-	UPROPERTY(meta = (BindWidget))
+	UPROPERTY(meta = (BindWidgetOptional))
 	USelectionWidget* AudioOutputSelection;
 
-	UPROPERTY(meta = (BindWidget))
+	UPROPERTY(meta = (BindWidgetOptional))
 	USelectionWidget* ClosedCaptionsSelection;
 
-	UPROPERTY(meta = (BindWidget))
+	UPROPERTY(meta = (BindWidgetOptional))
 	USelectionWidget* SubtitlesSelection;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	USlider* MasterVolumeSlider;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	UTextBlock* MasterVolumeText;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	USlider* SFXVolumeSlider;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	UTextBlock* SFXVolumeText;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	USlider* MusicVolumeSlider;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	UTextBlock* MusicVolumeText;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	USlider* AmbientVolumeSlider;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	UTextBlock* AmbientVolumeText;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	USlider* DialogueVolumeSlider;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	UTextBlock* DialogueVolumeText;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	USlider* UIVolumeSlider;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	UTextBlock* UIVolumeText;
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	UButton* TestAudioButton;
 
-	UPROPERTY(meta = (BindWidget))
+	UPROPERTY(meta = (BindWidgetOptional))
 	UButton* ResetButton;
 
-	// ===== CALLBACKS =====
+	// Internal
+	UPROPERTY()
+	class USettingsSubsystem* SettingsSubsystem;
 
+	// Test sound (optional)
+	UPROPERTY()
+	USoundBase* TestSound;
+
+	// Flags to avoid feedback loops
+	bool bUpdatingSliders;
+	bool bIsLoadingSettings;
+
+	// Current local settings (widget-level, not yet saved to subsystem)
+	FS_AudioSettings CurrentSettings;
+
+	// Initialization helpers
+	void InitializeSelections();
+	void InitializeSliders();
+	void BindSliderEvents();
+	void UnbindSliderEvents();
+
+	// UI helpers
+	void AddToggleOptions(USelectionWidget* Selection);
+	void UpdateVolumeTexts();
+
+	// Callbacks (update CurrentSettings only; do NOT call subsystem here)
 	UFUNCTION()
 	void OnMasterVolumeChanged(float Value);
 
@@ -115,42 +141,10 @@ protected:
 	UFUNCTION()
 	void OnSubtitlesChanged(int32 NewIndex);
 
+	// Buttons
 	UFUNCTION()
 	void OnTestAudioButtonClicked();
 
 	UFUNCTION()
 	void OnResetButtonClicked();
-
-private:
-	/** Reference to Settings Subsystem */
-	UPROPERTY()
-	USettingsSubsystem* SettingsSubsystem;
-
-	/** Test sound to play */
-	UPROPERTY()
-	class USoundBase* TestSound;
-
-	/** Track if we're currently updating sliders (prevent feedback loop) */
-	bool bUpdatingSliders;
-
-	/** Initialize all selection widgets with options */
-	void InitializeSelections();
-
-	/** Initialize all sliders */
-	void InitializeSliders();
-
-	/** Load current settings from subsystem */
-	void LoadCurrentSettings();
-
-	/** Helper to create toggle options (On/Off) */
-	void AddToggleOptions(USelectionWidget* Selection);
-
-	/** Update text displays to match sliders */
-	void UpdateVolumeTexts();
-
-	/** Bind slider events */
-	void BindSliderEvents();
-
-	/** Unbind slider events */
-	void UnbindSliderEvents();
 };

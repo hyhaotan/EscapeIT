@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "EscapeIT/Data/EscapeITSettingsStructs.h"
 #include "GraphicWidget.generated.h"
 
 class USelectionWidget;
@@ -22,6 +23,11 @@ class ESCAPEIT_API UGraphicWidget : public UUserWidget
 public:
 	UGraphicWidget(const FObjectInitializer& ObjectInitializer);
 
+	void LoadSettings(const FS_GraphicsSettings& Settings);
+
+	FS_GraphicsSettings GetCurrentSettings() const;
+
+	TArray<FString> ValidateSettings() const;
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
@@ -61,12 +67,6 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	USelectionWidget* FieldOfViewSelection;
 
-	UPROPERTY(meta = (BindWidget))
-	UButton* ApplyButton;
-
-	UPROPERTY(meta = (BindWidget))
-	UButton* ResetButton;
-
 	UPROPERTY(meta = (BindWidgetOptional))
 	UCommonTextBlock* FPSText;
 
@@ -105,16 +105,14 @@ protected:
 	UFUNCTION()
 	void OnFieldOfViewChanged(int32 NewIndex);
 
-	UFUNCTION()
-	void OnApplyButtonClicked();
-
-	UFUNCTION()
-	void OnResetButtonClicked();
-
 private:
 	/** Reference to Settings Subsystem */
 	UPROPERTY()
 	USettingsSubsystem* SettingsSubsystem;
+
+	FS_GraphicsSettings CurrentSettings;
+
+	bool bIsLoadingSettings = false;
 
 	bool bSettingsChanged;
 	FTimerHandle FPSTimerHandle;
@@ -134,6 +132,8 @@ private:
 	int32 FrameRateCapToIndex(int32 Value);
 	float IndexToFOV(int32 Index);
 	int32 FOVToIndex(float Value);
-	void MarkSettingsChanged();
-	void UpdateApplyButtonState();
+	void MarkAsCustomPreset();
+
+	float IndexToPercentage(int32 Index);
+	int32 PercentageToIndex(float Value);
 };
