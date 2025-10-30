@@ -13,17 +13,19 @@
 #include "EscapeIT/UI/Settings/Tab/AudioWidget.h"
 #include "EscapeIT/UI/Settings/Tab/ControlWidget.h"
 #include "EscapeIT/UI/Settings/Tab/AccessibilityWidget.h"
-#include "EscapeIT/Subsystem/SettingsSubsystem.h"
+#include "EscapeIT/Settings/Core/SettingsSubsystem.h"
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundBase.h"
 #include "TimerManager.h"
 #include "GameFramework/GameUserSettings.h"
 #include "EscapeIT/UI/NotificationWidget.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
+#include "EscapeIT/UI/Settings/LoadingScreenWidget.h"
+#include "EscapeIT/UI/Settings/ConfirmationDialogWidget.h"
 
 UMainMenuSettingWidget::UMainMenuSettingWidget(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
-	, CurrentCategoryIndex(0)
+	, CurrentCategoryIndex(1)
 	, bHasUnsavedChanges(false)
 	, bIsApplyingSettings(false)
 {
@@ -48,6 +50,12 @@ void UMainMenuSettingWidget::NativeConstruct()
 	// Bind all button events
 	BindButtonEvents();
 
+	// Bind subsystem delegates
+	BindSubsystemDelegates();
+
+	// Bind child widget events
+	BindChildWidgetEvents();
+
 	// Initialize UI state
 	bHasUnsavedChanges = false;
 	UpdateUnsavedIndicator();
@@ -61,12 +69,27 @@ void UMainMenuSettingWidget::NativeConstruct()
 	{
 		SearchBox->SetHintText(FText::FromString(TEXT("Search settings...")));
 	}
+
+	RefreshAllWidgets();
 }
 
 void UMainMenuSettingWidget::NativeDestruct()
 {
 	// Stop auto-save timer
 	StopAutoSaveTimer();
+
+	// Stop confirmation timer if active
+	UWorld* World = GetWorld();
+	if (World && ConfirmationCountdownHandle.IsValid())
+	{
+		World->GetTimerManager().ClearTimer(ConfirmationCountdownHandle);
+	}
+
+	// Unbind subsystem delegates
+	UnbindSubsystemDelegates();
+
+	// Unbind child widget events
+	UnbindChildWidgetEvents();
 
 	// Unbind all button events
 	UnbindButtonEvents();
@@ -329,11 +352,11 @@ void UMainMenuSettingWidget::SwitchToCategory(ESettingsCategory Category)
 	PlayUISound("CategorySwitch");
 
 	// Switch to the appropriate widget
-	int32 CategoryIndex = static_cast<int32>(Category);
+	int32 CategoryIndex = static_cast<int32>(Category) -1;
 	SettingsSwitcher->SetActiveWidgetIndex(CategoryIndex);
 	CurrentCategoryIndex = CategoryIndex;
 
-	// Update UI
+	// Update UIg
 	UpdateCategoryButtons(Category);
 	UpdateCategoryTitle(Category);
 	UpdateCategoryIcon(Category);
@@ -350,14 +373,15 @@ void UMainMenuSettingWidget::SwitchToCategory(ESettingsCategory Category)
 
 void UMainMenuSettingWidget::NavigateToNextCategory()
 {
-	int32 NextIndex = (CurrentCategoryIndex + 1) % 5;
-	SwitchToCategory(static_cast<ESettingsCategory>(NextIndex));
+	int32 NextEnumValue = ((static_cast<int32>(GetCurrentCategory()) % 5) + 1);
+	SwitchToCategory(static_cast<ESettingsCategory>(NextEnumValue));
 }
 
 void UMainMenuSettingWidget::NavigateToPreviousCategory()
 {
-	int32 PrevIndex = (CurrentCategoryIndex - 1 + 5) % 5;
-	SwitchToCategory(static_cast<ESettingsCategory>(PrevIndex));
+	int32 CurrentEnumValue = static_cast<int32>(GetCurrentCategory());
+	int32 PrevEnumValue = (CurrentEnumValue == 1) ? 5 : (CurrentEnumValue - 1);
+	SwitchToCategory(static_cast<ESettingsCategory>(PrevEnumValue));
 }
 
 void UMainMenuSettingWidget::UpdateCategoryButtons(ESettingsCategory ActiveCategory)
@@ -826,71 +850,93 @@ void UMainMenuSettingWidget::PlayApplySuccessAnimation()
 void UMainMenuSettingWidget::CollectSettingsFromWidgets()
 {
 	if (!SettingsSubsystem)
+	{
+		UE_LOG(LogTemp, Error, TEXT("MainMenuSettingWidget: Cannot collect settings - SettingsSubsystem is null"));
 		return;
+	}
 
-	// Lấy current settings từ subsystem
-	FS_AllSettings CurrentSettings = SettingsSubsystem->GetAllSettings();
+	// Lấy current settings từ subsystem làm base
+	PendingSettings = SettingsSubsystem->GetAllSettings();
 
-	// Collect từ Gameplay Widget
+	UE_LOG(LogTemp, Log, TEXT("MainMenuSettingWidget: Collecting settings from all widgets..."));
+
+	// Collect từ từng widget nếu có thay đổi
 	if (GameplayWidget)
 	{
-		CurrentSettings.GameplaySettings = GameplayWidget->GetCurrentSettings();
+		FS_GameplaySettings NewGameplaySettings = GameplayWidget->GetCurrentSettings();
+		PendingSettings.GameplaySettings = NewGameplaySettings;
+		UE_LOG(LogTemp, Log, TEXT("  - Collected Gameplay settings"));
 	}
 
-	// Collect từ Graphics Widget
 	if (GraphicWidget)
 	{
-		CurrentSettings.GraphicsSettings = GraphicWidget->GetCurrentSettings();
+		FS_GraphicsSettings NewGraphicsSettings = GraphicWidget->GetCurrentSettings();
+		PendingSettings.GraphicsSettings = NewGraphicsSettings;
+		UE_LOG(LogTemp, Log, TEXT("  - Collected Graphics settings"));
 	}
 
-	// Collect từ Audio Widget
 	if (AudioWidget)
 	{
-		CurrentSettings.AudioSettings = AudioWidget->GetCurrentSettings();
+		FS_AudioSettings NewAudioSettings = AudioWidget->GetCurrentSettings();
+		PendingSettings.AudioSettings = NewAudioSettings;
+		UE_LOG(LogTemp, Log, TEXT("  - Collected Audio settings"));
 	}
 
-	// Collect từ Control Widget
 	if (ControlWidget)
 	{
-		CurrentSettings.ControlSettings = ControlWidget->GetCurrentSettings();
+		FS_ControlSettings NewControlSettings = ControlWidget->GetCurrentSettings();
+		PendingSettings.ControlSettings = NewControlSettings;
+		UE_LOG(LogTemp, Log, TEXT("  - Collected Control settings"));
 	}
 
-	// Collect từ Accessibility Widget
 	if (AccessibilityWidget)
 	{
-		CurrentSettings.AccessibilitySettings = AccessibilityWidget->GetCurrentSettings();
+		FS_AccessibilitySettings NewAccessibilitySettings = AccessibilityWidget->GetCurrentSettings();
+		PendingSettings.AccessibilitySettings = NewAccessibilitySettings;
+		UE_LOG(LogTemp, Log, TEXT("  - Collected Accessibility settings"));
 	}
 
-	// Lưu vào biến tạm để apply
-	PendingSettings = CurrentSettings;
-
-	UE_LOG(LogTemp, Log, TEXT("MainMenuSettingWidget: Collected all settings from widgets"));
+	UE_LOG(LogTemp, Log, TEXT("MainMenuSettingWidget: Finished collecting settings from all widgets"));
 }
 
 void UMainMenuSettingWidget::AsyncApplySettings()
 {
 	if (bIsApplyingSettings)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("MainMenuSettingWidget: Already applying settings"));
 		return;
+	}
 
 	bIsApplyingSettings = true;
+
+	// Show loading screen
+	ShowLoadingScreen();
 
 	// Validate trước khi apply
 	if (!ValidateAllSettings())
 	{
 		bIsApplyingSettings = false;
+		HideLoadingScreen();
 		ShowValidationErrors(ValidationErrors);
+		PlayUISound("Error");
 		return;
 	}
 
-	// Apply settings thông qua subsystem với settings thực tế
+	UE_LOG(LogTemp, Log, TEXT("MainMenuSettingWidget: Applying settings..."));
+
+	// Apply settings thông qua subsystem
 	if (SettingsSubsystem)
 	{
-		// Apply settings đã collect từ các widget
 		bool bSuccess = SettingsSubsystem->ApplyAllSettings(PendingSettings);
+
+		// Hide loading screen sau khi hoàn thành
+		HideLoadingScreen();
+
 		OnSettingsApplied_Internal(bSuccess);
 	}
 	else
 	{
+		HideLoadingScreen();
 		OnSettingsApplied_Internal(false);
 	}
 }
@@ -1021,6 +1067,265 @@ void UMainMenuSettingWidget::LoadCustomProfile(const FString& ProfileName)
 	RefreshAllWidgets();
 }
 
+void UMainMenuSettingWidget::BindSubsystemDelegates()
+{
+	if (SettingsSubsystem)
+	{
+		SettingsSubsystem->OnGraphicsSettingsChanged.AddDynamic(
+			this, &UMainMenuSettingWidget::OnGraphicsSettingsChanged_Internal);
+		SettingsSubsystem->OnAudioSettingsChanged.AddDynamic(
+			this, &UMainMenuSettingWidget::OnAudioSettingsChanged_Internal);
+		SettingsSubsystem->OnGameplaySettingsChanged.AddDynamic(
+			this, &UMainMenuSettingWidget::OnGameplaySettingsChanged_Internal);
+		SettingsSubsystem->OnControlSettingsChanged.AddDynamic(
+			this, &UMainMenuSettingWidget::OnControlSettingsChanged_Internal);
+		SettingsSubsystem->OnAccessibilitySettingsChanged.AddDynamic(
+			this, &UMainMenuSettingWidget::OnAccessibilitySettingsChanged_Internal);
+
+		SettingsSubsystem->OnSettingsApplyFailed.AddDynamic(
+			this, &UMainMenuSettingWidget::OnSettingsApplyFailed_Internal);
+		SettingsSubsystem->OnSettingsConfirmationRequired.AddDynamic(
+			this, &UMainMenuSettingWidget::OnSettingsConfirmationRequired_Internal);
+		SettingsSubsystem->OnSettingsConfirmed.AddDynamic(
+			this, &UMainMenuSettingWidget::OnSettingsConfirmed_Internal);
+		SettingsSubsystem->OnSettingsReverted.AddDynamic(
+			this, &UMainMenuSettingWidget::OnSettingsReverted_Internal);
+
+		UE_LOG(LogTemp, Log, TEXT("MainMenuSettingWidget: Bound subsystem delegates"));
+	}
+}
+
+void UMainMenuSettingWidget::UnbindSubsystemDelegates()
+{
+	if (SettingsSubsystem)
+	{
+		SettingsSubsystem->OnGraphicsSettingsChanged.RemoveDynamic(
+			this, &UMainMenuSettingWidget::OnGraphicsSettingsChanged_Internal);
+		SettingsSubsystem->OnAudioSettingsChanged.RemoveDynamic(
+			this, &UMainMenuSettingWidget::OnAudioSettingsChanged_Internal);
+		SettingsSubsystem->OnGameplaySettingsChanged.RemoveDynamic(
+			this, &UMainMenuSettingWidget::OnGameplaySettingsChanged_Internal);
+		SettingsSubsystem->OnControlSettingsChanged.RemoveDynamic(
+			this, &UMainMenuSettingWidget::OnControlSettingsChanged_Internal);
+		SettingsSubsystem->OnAccessibilitySettingsChanged.RemoveDynamic(
+			this, &UMainMenuSettingWidget::OnAccessibilitySettingsChanged_Internal);
+
+		SettingsSubsystem->OnSettingsApplyFailed.RemoveDynamic(
+			this, &UMainMenuSettingWidget::OnSettingsApplyFailed_Internal);
+		SettingsSubsystem->OnSettingsConfirmationRequired.RemoveDynamic(
+			this, &UMainMenuSettingWidget::OnSettingsConfirmationRequired_Internal);
+		SettingsSubsystem->OnSettingsConfirmed.RemoveDynamic(
+			this, &UMainMenuSettingWidget::OnSettingsConfirmed_Internal);
+		SettingsSubsystem->OnSettingsReverted.RemoveDynamic(
+			this, &UMainMenuSettingWidget::OnSettingsReverted_Internal);
+
+		UE_LOG(LogTemp, Log, TEXT("MainMenuSettingWidget: Unbound subsystem delegates"));
+	}
+}
+
+void UMainMenuSettingWidget::BindChildWidgetEvents()
+{
+	// Bind với các widget con để track changes
+	/*if (GameplayWidget)
+	{
+		GameplayWidget->OnSettingChanged.AddDynamic(this, &UMainMenuSettingWidget::OnChildWidgetSettingChanged);
+		UE_LOG(LogTemp, Log, TEXT("MainMenuSettingWidget: Bound to GameplayWidget events"));
+	}
+
+	if (GraphicWidget)
+	{
+		GraphicWidget->OnSettingChanged.AddDynamic(this, &UMainMenuSettingWidget::OnChildWidgetSettingChanged);
+		UE_LOG(LogTemp, Log, TEXT("MainMenuSettingWidget: Bound to GraphicWidget events"));
+	}
+
+	if (AudioWidget)
+	{
+		AudioWidget->OnSettingChanged.AddDynamic(this, &UMainMenuSettingWidget::OnChildWidgetSettingChanged);
+		UE_LOG(LogTemp, Log, TEXT("MainMenuSettingWidget: Bound to AudioWidget events"));
+	}
+
+	if (ControlWidget)
+	{
+		ControlWidget->OnSettingChanged.AddDynamic(this, &UMainMenuSettingWidget::OnChildWidgetSettingChanged);
+		UE_LOG(LogTemp, Log, TEXT("MainMenuSettingWidget: Bound to ControlWidget events"));
+	}
+
+	if (AccessibilityWidget)
+	{
+		AccessibilityWidget->OnSettingChanged.AddDynamic(this, &UMainMenuSettingWidget::OnChildWidgetSettingChanged);
+		UE_LOG(LogTemp, Log, TEXT("MainMenuSettingWidget: Bound to AccessibilityWidget events"));
+	}*/
+}
+
+void UMainMenuSettingWidget::UnbindChildWidgetEvents()
+{
+	//if (GameplayWidget)
+	//{
+	//	GameplayWidget->OnSettingChanged.RemoveDynamic(this, &UMainMenuSettingWidget::OnChildWidgetSettingChanged);
+	//}
+
+	//if (GraphicWidget)
+	//{
+	//	GraphicWidget->OnSettingChanged.RemoveDynamic(this, &UMainMenuSettingWidget::OnChildWidgetSettingChanged);
+	//}
+
+	//if (AudioWidget)
+	//{
+	//	AudioWidget->OnSettingChanged.RemoveDynamic(this, &UMainMenuSettingWidget::OnChildWidgetSettingChanged);
+	//}
+
+	//if (ControlWidget)
+	//{
+	//	ControlWidget->OnSettingChanged.RemoveDynamic(this, &UMainMenuSettingWidget::OnChildWidgetSettingChanged);
+	//}
+
+	//if (AccessibilityWidget)
+	//{
+	//	AccessibilityWidget->OnSettingChanged.RemoveDynamic(this, &UMainMenuSettingWidget::OnChildWidgetSettingChanged);
+	//}
+}
+
+void UMainMenuSettingWidget::OnChildWidgetSettingChanged()
+{
+	MarkSettingsChanged();
+	UE_LOG(LogTemp, Log, TEXT("MainMenuSettingWidget: Child widget setting changed"));
+}
+
+// ===== CONFIRMATION DIALOG SYSTEM =====
+
+void UMainMenuSettingWidget::ShowConfirmationDialog(float CountdownTime)
+{
+	if (!ConfirmationDialogClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("MainMenuSettingWidget: ConfirmationDialogClass not set"));
+		return;
+	}
+
+	RemainingConfirmationTime = CountdownTime;
+
+	// Tạo và hiển thị dialog
+	if (ActiveConfirmationDialog)
+	{
+		ActiveConfirmationDialog->RemoveFromParent();
+	}
+
+	ActiveConfirmationDialog = CreateWidget<UConfirmationDialogWidget>(this, ConfirmationDialogClass);
+	if (ActiveConfirmationDialog)
+	{
+		ActiveConfirmationDialog->AddToViewport(999); // High Z-order
+
+		// Start countdown timer
+		UWorld* World = GetWorld();
+		if (World)
+		{
+			World->GetTimerManager().SetTimer(
+				ConfirmationCountdownHandle,
+				this,
+				&UMainMenuSettingWidget::UpdateConfirmationCountdown,
+				1.0f,
+				true
+			);
+		}
+
+		UE_LOG(LogTemp, Log, TEXT("MainMenuSettingWidget: Showing confirmation dialog (%.1fs)"), CountdownTime);
+	}
+}
+
+void UMainMenuSettingWidget::UpdateConfirmationCountdown()
+{
+	RemainingConfirmationTime -= 1.0f;
+
+	// TODO: Update UI với remaining time
+	// Implement theo UI của bạn
+	// Example: UpdateCountdownText(RemainingConfirmationTime);
+
+	if (RemainingConfirmationTime <= 0.0f)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("MainMenuSettingWidget: Confirmation timeout, reverting"));
+		OnConfirmationDeclined();
+	}
+}
+
+void UMainMenuSettingWidget::OnConfirmationAccepted()
+{
+	if (SettingsSubsystem)
+	{
+		//SettingsSubsystem->ConfirmPendingSettings();
+	}
+
+	if (ActiveConfirmationDialog)
+	{
+		ActiveConfirmationDialog->RemoveFromParent();
+		ActiveConfirmationDialog = nullptr;
+	}
+
+	UWorld* World = GetWorld();
+	if (World && ConfirmationCountdownHandle.IsValid())
+	{
+		World->GetTimerManager().ClearTimer(ConfirmationCountdownHandle);
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("MainMenuSettingWidget: Settings confirmed by user"));
+}
+
+void UMainMenuSettingWidget::OnConfirmationDeclined()
+{
+	if (SettingsSubsystem)
+	{
+		//SettingsSubsystem->RevertPendingSettings();
+	}
+
+	if (ActiveConfirmationDialog)
+	{
+		ActiveConfirmationDialog->RemoveFromParent();
+		ActiveConfirmationDialog = nullptr;
+	}
+
+	UWorld* World = GetWorld();
+	if (World && ConfirmationCountdownHandle.IsValid())
+	{
+		World->GetTimerManager().ClearTimer(ConfirmationCountdownHandle);
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("MainMenuSettingWidget: Settings reverted (declined/timeout)"));
+}
+
+// ===== LOADING SCREEN =====
+
+void UMainMenuSettingWidget::ShowLoadingScreen()
+{
+	if (!LoadingScreenClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("MainMenuSettingWidget: LoadingScreenClass not set"));
+		return;
+	}
+
+	if (ActiveLoadingScreen)
+	{
+		ActiveLoadingScreen->RemoveFromParent();
+	}
+
+	APlayerController* PC = GetOwningPlayer();
+	if (PC && LoadingScreenClass)
+	{
+		ActiveLoadingScreen = CreateWidget<ULoadingScreenWidget>(PC, LoadingScreenClass);
+		if (ActiveLoadingScreen)
+		{
+			ActiveLoadingScreen->AddToPlayerScreen(1000);
+		}
+	}
+}
+
+void UMainMenuSettingWidget::HideLoadingScreen()
+{
+	if (ActiveLoadingScreen)
+	{
+		ActiveLoadingScreen->RemoveFromParent();
+		ActiveLoadingScreen = nullptr;
+		UE_LOG(LogTemp, Log, TEXT("MainMenuSettingWidget: Hiding loading screen"));
+	}
+}
+
 // ===== SOUND EFFECTS =====
 
 void UMainMenuSettingWidget::PlayUISound(const FString& SoundName)
@@ -1123,4 +1428,72 @@ void UMainMenuSettingWidget::ForceApplySettings()
 	{
 		AsyncApplySettings();
 	}
+}
+
+void UMainMenuSettingWidget::OnGraphicsSettingsChanged_Internal(const FS_GraphicsSettings& NewSettings)
+{
+	if (GraphicWidget)
+	{
+		GraphicWidget->LoadSettings(NewSettings);
+	}
+	UpdatePerformanceEstimate();
+}
+
+void UMainMenuSettingWidget::OnAudioSettingsChanged_Internal(const FS_AudioSettings& NewSettings)
+{
+	if (AudioWidget)
+	{
+		AudioWidget->LoadSettings(NewSettings);
+	}
+}
+
+void UMainMenuSettingWidget::OnGameplaySettingsChanged_Internal(const FS_GameplaySettings& NewSettings)
+{
+	if (GameplayWidget)
+	{
+		GameplayWidget->LoadSettings(NewSettings);
+	}
+}
+
+void UMainMenuSettingWidget::OnControlSettingsChanged_Internal(const FS_ControlSettings& NewSettings)
+{
+	if (ControlWidget)
+	{
+		ControlWidget->LoadSettings(NewSettings);
+	}
+}
+
+void UMainMenuSettingWidget::OnAccessibilitySettingsChanged_Internal(const FS_AccessibilitySettings& NewSettings)
+{
+	if (AccessibilityWidget)
+	{
+		AccessibilityWidget->LoadSettings(NewSettings);
+	}
+}
+
+void UMainMenuSettingWidget::OnSettingsApplyFailed_Internal(const FString& FailureReason)
+{
+	bIsApplyingSettings = false;
+	ShowErrorNotification(FString::Printf(TEXT("Failed to apply settings: %s"), *FailureReason));
+	PlayUISound("Error");
+}
+
+void UMainMenuSettingWidget::OnSettingsConfirmationRequired_Internal(float ConfirmationTime)
+{
+	// Hiển thị dialog xác nhận
+	ShowConfirmationDialog(ConfirmationTime);
+}
+
+void UMainMenuSettingWidget::OnSettingsConfirmed_Internal()
+{
+	ClearUnsavedChanges();
+	ShowSuccessNotification(TEXT("Settings confirmed and saved!"));
+	PlayApplySuccessAnimation();
+}
+
+void UMainMenuSettingWidget::OnSettingsReverted_Internal()
+{
+	RefreshAllWidgets();
+	ShowErrorNotification(TEXT("Settings reverted to previous values"));
+	PlayUISound("Error");
 }

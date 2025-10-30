@@ -24,7 +24,12 @@ public class EscapeIT : ModuleRules
             "SlateCore",
             "Slate",
             "Niagara",
-            "GameplayCameras"});
+            "GameplayCameras",
+            "Json",
+            "JsonUtilities",
+            "RHI",
+            "RenderCore",
+            "ApplicationCore"});
 
         PrivateDependencyModuleNames.AddRange(new string[] { });
 

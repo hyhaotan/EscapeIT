@@ -2,7 +2,7 @@
 
 #include "GraphicWidget.h"
 #include "EscapeIT/UI/Settings/Tab/Selection/SelectionWidget.h"
-#include "EscapeIT/Subsystem/SettingsSubsystem.h"
+#include "EscapeIT/Settings/Core/SettingsSubsystem.h"
 #include "Components/Button.h"
 #include "CommonTextBlock.h"
 #include "Kismet/GameplayStatics.h"

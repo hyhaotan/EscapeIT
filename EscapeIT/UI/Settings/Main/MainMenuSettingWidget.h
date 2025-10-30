@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "EscapeIT/Data/EscapeITSettingsStructs.h"
+#include "EscapeIT/Data/SettingsTypes.h"
 #include "MainMenuSettingWidget.generated.h"
 
 // Forward declarations
@@ -22,6 +22,8 @@ class UAccessibilityWidget;
 class USettingsSubsystem;
 class USoundBase;
 class UNotificationWidget;
+class UConfirmationDialogWidget;
+class ULoadingScreenWidget;
 
 USTRUCT(BlueprintType)
 struct FSettingChange
@@ -103,7 +105,7 @@ protected:
 	UPROPERTY(meta = (BindWidgetOptional))
 	UButton* UndoButton;
 
-	UPROPERTY(meta = (BindWBindWidgetOptionalidget))
+	UPROPERTY(meta = (BindWidgetOptional))
 	UButton* AutoDetectButton;
 
 	// Text Elements
@@ -171,6 +173,25 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Audio")
 	USoundBase* ErrorSound;
 
+	// ===== CONFIRMATION DIALOG =====
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings|UI")
+	TSubclassOf<UConfirmationDialogWidget> ConfirmationDialogClass;
+
+	UPROPERTY()
+	TObjectPtr<UConfirmationDialogWidget> ActiveConfirmationDialog;
+
+	FTimerHandle ConfirmationCountdownHandle;
+	float RemainingConfirmationTime;
+
+	// ===== LOADING SCREEN =====
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings|UI")
+	TSubclassOf<ULoadingScreenWidget> LoadingScreenClass;
+
+	UPROPERTY()
+	TObjectPtr<ULoadingScreenWidget> ActiveLoadingScreen;
+
 	// ===== BUTTON CALLBACKS =====
 
 	UFUNCTION()
@@ -206,6 +227,47 @@ protected:
 	UFUNCTION()
 	void OnSearchTextChanged(const FText& Text);
 
+	// ===== SUBSYSTEM EVENT HANDLERS =====
+
+	UFUNCTION()
+	void OnGraphicsSettingsChanged_Internal(const FS_GraphicsSettings& NewSettings);
+
+	UFUNCTION()
+	void OnAudioSettingsChanged_Internal(const FS_AudioSettings& NewSettings);
+
+	UFUNCTION()
+	void OnGameplaySettingsChanged_Internal(const FS_GameplaySettings& NewSettings);
+
+	UFUNCTION()
+	void OnControlSettingsChanged_Internal(const FS_ControlSettings& NewSettings);
+
+	UFUNCTION()
+	void OnAccessibilitySettingsChanged_Internal(const FS_AccessibilitySettings& NewSettings);
+
+	UFUNCTION()
+	void OnSettingsApplyFailed_Internal(const FString& FailureReason);
+
+	UFUNCTION()
+	void OnSettingsConfirmationRequired_Internal(float ConfirmationTime);
+
+	UFUNCTION()
+	void OnSettingsConfirmed_Internal();
+
+	UFUNCTION()
+	void OnSettingsReverted_Internal();
+
+	// ===== CHILD WIDGET EVENT HANDLERS =====
+
+	UFUNCTION()
+	void OnChildWidgetSettingChanged();
+
+	// ===== DELEGATE BINDING =====
+
+	void BindSubsystemDelegates();
+	void UnbindSubsystemDelegates();
+	void BindChildWidgetEvents();
+	void UnbindChildWidgetEvents();
+
 	// ===== INTERNAL FUNCTIONS =====
 
 	void BindButtonEvents();
@@ -240,6 +302,16 @@ protected:
 	void ShowValidationErrors(const TArray<FString>& Errors);
 	void ShowSuccessNotification(const FString& Message);
 	void ShowErrorNotification(const FString& Message);
+
+	// Confirmation Dialog
+	void ShowConfirmationDialog(float CountdownTime);
+	void UpdateConfirmationCountdown();
+	void OnConfirmationAccepted();
+	void OnConfirmationDeclined();
+
+	// Loading Screen
+	void ShowLoadingScreen();
+	void HideLoadingScreen();
 
 	// Navigation
 	void NavigateToNextCategory();
@@ -322,4 +394,13 @@ public:
 	// Public API
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void ForceApplySettings();
+
+	UFUNCTION(BlueprintPure, Category = "Settings")
+	bool HasUnsavedChanges() const { return bHasUnsavedChanges; }
+
+	UFUNCTION(BlueprintPure, Category = "Settings")
+	ESettingsCategory GetCurrentCategory() const
+	{
+		return static_cast<ESettingsCategory>(CurrentCategoryIndex + 1);
+	}
 };

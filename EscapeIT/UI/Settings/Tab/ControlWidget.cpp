@@ -1,7 +1,7 @@
 // ControlWidget.cpp
 #include "ControlWidget.h"
 #include "EscapeIT/UI/Settings/Tab/Selection/SelectionWidget.h"
-#include "EscapeIT/Subsystem/SettingsSubsystem.h"
+#include "EscapeIT/Settings/Core/SettingsSubsystem.h"
 #include "Components/Button.h"
 #include "Components/Slider.h"
 #include "Components/TextBlock.h"

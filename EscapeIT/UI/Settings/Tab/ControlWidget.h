@@ -3,7 +3,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "EscapeIT/Data/EscapeITSettingsStructs.h"
+#include "EscapeIT/Data/SettingsTypes.h"
 #include "ControlWidget.generated.h"
 
 class USelectionWidget;

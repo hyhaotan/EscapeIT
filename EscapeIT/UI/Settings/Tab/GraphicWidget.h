@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "EscapeIT/Data/EscapeITSettingsStructs.h"
+#include "EscapeIT/Data/SettingsTypes.h"
 #include "GraphicWidget.generated.h"
 
 class USelectionWidget;
@@ -12,9 +12,6 @@ class USettingsSubsystem;
 class UButton;
 class UCommonTextBlock;
 
-/**
- * Widget for Graphics Settings
- */
 UCLASS()
 class ESCAPEIT_API UGraphicWidget : public UUserWidget
 {

@@ -41,21 +41,23 @@ void UPauseMenuWidget::OnClickResumeButton()
 
 void UPauseMenuWidget::OnClickSettingButton()
 {
-    TObjectPtr<APlayerController> PC = GetOwningPlayer();
-    if (!PC) return;
-
-    if (MainMenuSettingWidgetClass)
+    APlayerController* PC = GetOwningPlayer();
+    if (PC && MainMenuSettingWidgetClass)
     {
-        UMainMenuSettingWidget* SettingWidget = CreateWidget<UMainMenuSettingWidget>(GetWorld(), MainMenuSettingWidgetClass);
+        UMainMenuSettingWidget* SettingWidget = CreateWidget<UMainMenuSettingWidget>(PC, MainMenuSettingWidgetClass);
         if (SettingWidget)
         {
-            SettingWidget->AddToViewport(999);
+            SettingWidget->AddToPlayerScreen(999); // an toàn hơn AddToViewport
             PC->bShowMouseCursor = true;
-            PC->SetInputMode(FInputModeUIOnly());
 
-            this->RemoveFromParent();
+            // set input mode and focus widget:
+            FInputModeUIOnly InputMode;
+            InputMode.SetWidgetToFocus(SettingWidget->TakeWidget());
+            InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+            PC->SetInputMode(InputMode);
         }
     }
+    this->RemoveFromParent();
 }
 
 void UPauseMenuWidget::OnClickBackButton()
