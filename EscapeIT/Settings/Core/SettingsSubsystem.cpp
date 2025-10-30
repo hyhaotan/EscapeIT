@@ -10,6 +10,11 @@
 #include "Async/Async.h"
 #include "RendererInterface.h"
 #include "EscapeIT/Settings/Validators/SettingsValidator.h"
+#include "EscapeIT/Settings/Handlers/GraphicsSettingsHandler.h"
+#include "EscapeIT/Settings/Handlers/AudioSettingsHandler.h"
+#include "EscapeIT/Settings/Handlers/GameplaySettingsHandler.h"
+#include "EscapeIT/Settings/Handlers/AccessibilitySettingsHandler.h"
+#include "EscapeIT/Settings/Handlers/ControlSettingsHandler.h"
 
 void USettingsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -474,8 +479,8 @@ void USettingsSubsystem::DetectGPU()
     HardwareInfo.GPU.bSupportsRayTracing = GRHISupportsRayTracing;
     HardwareInfo.GPU.bSupportsDXR = GRHISupportsRayTracing;
 
-    // Rough performance scoring based on GPU vendor and features
-    int32 Score = 50; // Base score
+    // Performance scoring
+    int32 Score = 50;
 
     if (HardwareInfo.GPU.bSupportsRayTracing)
         Score += 20;
@@ -486,21 +491,16 @@ void USettingsSubsystem::DetectGPU()
         Score += 10;
 
     // Vendor-specific heuristics
-    if (HardwareInfo.GPU.Vendor == TEXT("NVIDIA") &&
-        HardwareInfo.GPU.Name.Contains(TEXT("RTX")))
+    if (HardwareInfo.GPU.Vendor == TEXT("NVIDIA"))
     {
-        if (HardwareInfo.GPU.Name.Contains(TEXT("4090")) ||
-            HardwareInfo.GPU.Name.Contains(TEXT("4080")))
+        if (HardwareInfo.GPU.Name.Contains(TEXT("RTX 40")))
             Score = 95;
-        else if (HardwareInfo.GPU.Name.Contains(TEXT("4070")))
-            Score = 85;
-        else if (HardwareInfo.GPU.Name.Contains(TEXT("3090")) ||
-            HardwareInfo.GPU.Name.Contains(TEXT("3080")))
+        else if (HardwareInfo.GPU.Name.Contains(TEXT("RTX 30")))
             Score = 80;
-        else if (HardwareInfo.GPU.Name.Contains(TEXT("3070")))
-            Score = 75;
-        else
+        else if (HardwareInfo.GPU.Name.Contains(TEXT("RTX 20")))
             Score = 70;
+        else if (HardwareInfo.GPU.Name.Contains(TEXT("GTX 16")))
+            Score = 60;
     }
 
     HardwareInfo.GPU.PerformanceScore = FMath::Clamp(Score, 0, 100);
@@ -599,53 +599,30 @@ FS_AllSettings USettingsSubsystem::GetRecommendedSettings() const
 
     if (!bHardwareDetected)
     {
-        UE_LOG(LogTemp, Warning, TEXT("SettingsSubsystem: Hardware not detected, using default settings"));
+        UE_LOG(LogTemp, Warning, TEXT("SettingsSubsystem: Hardware not detected, using defaults"));
+        Recommended.GraphicsSettings = GetGraphicsPreset(EE_GraphicsQuality::Medium);
         return Recommended;
     }
 
-    // Determine quality level based on performance score
-    EE_GraphicsQuality RecommendedQuality = EE_GraphicsQuality::Medium;
+    // Use handler's auto-detect
+    Recommended.GraphicsSettings = FGraphicsSettingsHandler::AutoDetectSettings();
 
-    if (HardwareInfo.OverallPerformanceScore >= 85)
-        RecommendedQuality = EE_GraphicsQuality::Ultra;
-    else if (HardwareInfo.OverallPerformanceScore >= 70)
-        RecommendedQuality = EE_GraphicsQuality::High;
-    else if (HardwareInfo.OverallPerformanceScore >= 50)
-        RecommendedQuality = EE_GraphicsQuality::Medium;
-    else
-        RecommendedQuality = EE_GraphicsQuality::Low;
-
-    // Get preset for recommended quality
-    Recommended.GraphicsSettings = GetGraphicsPreset(RecommendedQuality);
-
-    // Adjust based on hardware specifics
+    // Apply hardware-specific adjustments
     if (HardwareInfo.Displays.Num() > 0)
     {
+        // Use native display resolution
         Recommended.GraphicsSettings.ResolutionX = HardwareInfo.Displays[0].Resolution.X;
         Recommended.GraphicsSettings.ResolutionY = HardwareInfo.Displays[0].Resolution.Y;
     }
 
-    // Disable ray tracing if not supported
-    if (!HardwareInfo.GPU.bSupportsRayTracing)
-    {
-        Recommended.GraphicsSettings.bRayTracingEnabled = false;
-    }
-
-    // Adjust frame rate based on display
-    if (HardwareInfo.Displays.Num() > 0 && HardwareInfo.Displays[0].RefreshRate > 60)
-    {
-        Recommended.GraphicsSettings.FrameRateCap = HardwareInfo.Displays[0].RefreshRate;
-    }
-
-    UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem: Recommended quality level: %d"),
-        static_cast<int32>(RecommendedQuality));
+    UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem: Recommended settings generated"));
 
     return Recommended;
 }
 
 FS_GraphicsSettings USettingsSubsystem::AutoDetectGraphicsSettings()
 {
-    return GetRecommendedSettings().GraphicsSettings;
+    return FGraphicsSettingsHandler::AutoDetectSettings();
 }
 
 // ===== COMPARISON =====
@@ -1498,6 +1475,11 @@ FS_PerformanceMetrics USettingsSubsystem::GetPerformanceMetrics() const
 
 // ===== DIAGNOSTICS =====
 
+FS_DifficultyMultiplier USettingsSubsystem::GetDifficultyMultiplier(EE_DifficultyLevel DifficultyLevel) const
+{
+    return FS_DifficultyMultiplier();
+}
+
 FString USettingsSubsystem::RunDiagnostics()
 {
     UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem: Running diagnostics..."));
@@ -1717,170 +1699,6 @@ bool USettingsSubsystem::ApplySettingsCategory(ESettingsCategory Category, bool 
 
 // ===== IMPROVED APPLY METHODS (with error handling) =====
 
-bool USettingsSubsystem::ApplyGraphicsSettingsToEngine(const FS_GraphicsSettings& Settings)
-{
-    UGameUserSettings* UserSettings = UGameUserSettings::GetGameUserSettings();
-    if (!UserSettings)
-    {
-        UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Failed to get GameUserSettings"));
-        return false;
-    }
-
-    try
-    {
-        UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem: Applying graphics settings"));
-
-        // Resolution
-        FIntPoint NewResolution(Settings.ResolutionX, Settings.ResolutionY);
-        UserSettings->SetScreenResolution(NewResolution);
-
-        // VSync
-        UserSettings->SetVSyncEnabled(Settings.bVSyncEnabled);
-
-        // Frame rate limit
-        float FrameLimit = (Settings.FrameRateCap == 0) ? 0.0f : static_cast<float>(Settings.FrameRateCap);
-        UserSettings->SetFrameRateLimit(FrameLimit);
-
-        // Quality settings
-        if (Settings.QualityPreset != EE_GraphicsQuality::Custom)
-        {
-            int32 QualityLevel = static_cast<int32>(Settings.QualityPreset);
-            UserSettings->SetOverallScalabilityLevel(QualityLevel);
-        }
-        else
-        {
-            // Custom quality - apply individual settings
-            UserSettings->SetShadowQuality(static_cast<int32>(Settings.ShadowQuality));
-            UserSettings->SetTextureQuality(static_cast<int32>(Settings.TextureQuality));
-            UserSettings->SetAntiAliasingQuality(static_cast<int32>(Settings.AntiAliasingMethod));
-            UserSettings->SetPostProcessingQuality(Settings.MotionBlurAmount > 0.5f ? 3 : 1);
-        }
-
-        // Ray tracing
-        if (GEngine)
-        {
-            if (Settings.bRayTracingEnabled && IsRayTracingSupported())
-            {
-                GEngine->Exec(GetWorld(), TEXT("r.RayTracing.GlobalIllumination 1"));
-                GEngine->Exec(GetWorld(), TEXT("r.RayTracing.Reflections 1"));
-            }
-            else
-            {
-                GEngine->Exec(GetWorld(), TEXT("r.RayTracing.GlobalIllumination 0"));
-                GEngine->Exec(GetWorld(), TEXT("r.RayTracing.Reflections 0"));
-            }
-
-            // FOV
-            FString FOVCmd = FString::Printf(TEXT("fov %.1f"), Settings.FieldOfView);
-            GEngine->Exec(GetWorld(), *FOVCmd);
-        }
-
-        // Apply settings
-        UserSettings->ApplySettings(false);
-
-        UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem: Graphics settings applied successfully"));
-        return true;
-    }
-    catch (...)
-    {
-        UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Exception while applying graphics settings"));
-        return false;
-    }
-}
-
-FS_DifficultyMultiplier USettingsSubsystem::GetDifficultyMultiplier(EE_DifficultyLevel DifficultyLevel) const
-{
-    return FS_DifficultyMultiplier();
-}
-
-void USettingsSubsystem::SetGraphicsQuality(EE_GraphicsQuality QualityPreset)
-{
-    // Ensure presets are initialized
-    if (GraphicsPresets.Num() == 0)
-    {
-        InitGraphicSettings();
-    }
-
-    // Get the preset
-    const FS_GraphicsSettings* PresetPtr = GraphicsPresets.Find(QualityPreset);
-    if (!PresetPtr)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("SettingsSubsystem: Quality preset %d not found"),
-            static_cast<int32>(QualityPreset));
-        return;
-    }
-
-    // Copy preset to current settings
-    AllSettings.GraphicsSettings = *PresetPtr;
-
-    // Apply to engine
-    ApplyGraphicsSettings(AllSettings.GraphicsSettings);
-
-    UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem: Graphics quality set to preset %d"),
-        static_cast<int32>(QualityPreset));
-}
-
-void USettingsSubsystem::SetFrameRateCap(int32 FrameRate)
-{
-    AllSettings.GraphicsSettings.FrameRateCap = FrameRate;
-    ApplyGraphicsSettings(AllSettings.GraphicsSettings);
-}
-
-void USettingsSubsystem::SetRayTracingEnabled(bool bEnabled)
-{
-    AllSettings.GraphicsSettings.bRayTracingEnabled = bEnabled;
-    ApplyGraphicsSettings(AllSettings.GraphicsSettings);
-}
-
-void USettingsSubsystem::SetRayTracingQuality(EE_RayTracingQuality Quality)
-{
-    AllSettings.GraphicsSettings.RayTracingQuality = Quality;
-    ApplyGraphicsSettings(AllSettings.GraphicsSettings);
-}
-
-void USettingsSubsystem::SetShadowQuality(EE_ShadowQuality Quality)
-{
-    AllSettings.GraphicsSettings.ShadowQuality = Quality;
-    ApplyGraphicsSettings(AllSettings.GraphicsSettings);
-}
-
-void USettingsSubsystem::SetTextureQuality(EE_TextureQuality Quality)
-{
-    AllSettings.GraphicsSettings.TextureQuality = Quality;
-    ApplyGraphicsSettings(AllSettings.GraphicsSettings);
-}
-
-void USettingsSubsystem::SetAntiAliasingMethod(EE_AntiAliasingMethod Method)
-{
-    AllSettings.GraphicsSettings.AntiAliasingMethod = Method;
-    ApplyGraphicsSettings(AllSettings.GraphicsSettings);
-}
-
-void USettingsSubsystem::SetMotionBlurAmount(float Amount)
-{
-    AllSettings.GraphicsSettings.MotionBlurAmount = FMath::Clamp(Amount, 0.0f, 1.0f);
-    ApplyGraphicsSettings(AllSettings.GraphicsSettings);
-}
-
-void USettingsSubsystem::SetResolution(int32 X, int32 Y)
-{
-    AllSettings.GraphicsSettings.ResolutionX = X;
-    AllSettings.GraphicsSettings.ResolutionY = Y;
-    ApplyGraphicsSettings(AllSettings.GraphicsSettings);
-}
-
-void USettingsSubsystem::SetVSyncEnabled(bool bEnabled)
-{
-    AllSettings.GraphicsSettings.bVSyncEnabled = bEnabled;
-    ApplyGraphicsSettings(AllSettings.GraphicsSettings);
-}
-
-void USettingsSubsystem::SetFieldOfView(float FOV)
-{
-    AllSettings.GraphicsSettings.FieldOfView = FMath::Clamp(FOV, 70.0f, 120.0f);
-    ApplyGraphicsSettings(AllSettings.GraphicsSettings);
-}
-
 FS_GraphicsSettings USettingsSubsystem::GetGraphicsPreset(EE_GraphicsQuality Quality) const
 {
     FS_GraphicsSettings Preset;
@@ -1959,7 +1777,6 @@ void USettingsSubsystem::InitGraphicSettings()
 
 bool USettingsSubsystem::ApplyGraphicsSettings(const FS_GraphicsSettings& Settings)
 {
-    // wrapper used by ResetSettingsToDefault etc.
     const bool bResult = ApplyGraphicsSettingsToEngine(Settings);
     if (bResult)
     {
@@ -2018,50 +1835,74 @@ bool USettingsSubsystem::ApplyAccessibilitySettings(const FS_AccessibilitySettin
     return bResult;
 }
 
-// Simple implementations that update internal state and broadcast.
-// These are conservative (do not call uncertain engine APIs).
+bool USettingsSubsystem::ApplyGraphicsSettingsToEngine(const FS_GraphicsSettings& Settings)
+{
+    try
+    {
+        FGraphicsSettingsHandler::ApplyToEngine(Settings, GetWorld());
+        return true;
+    }
+    catch (...)
+    {
+        UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Exception while applying graphics settings"));
+        return false;
+    }
+}
+
 bool USettingsSubsystem::ApplyAudioSettingsToEngine(const FS_AudioSettings& Settings)
 {
-    UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem: Applying audio settings (Master %.2f, Music %.2f, SFX %.2f)"),
-        Settings.MasterVolume, Settings.MusicVolume, Settings.SFXVolume);
-
-    // Store settings locally (actual engine audio API integration can be added here)
-    // Example: integrate with AudioMixer / SoundClasses to set volumes if desired.
-    // For now, we accept the settings and broadcast them elsewhere.
-    // Note: do not mark as saved here; caller wrapper will mark dirty flag.
-
-    return true;
+    try
+    {
+        FAudioSettingsHandler::Initialize(GetWorld());
+        FAudioSettingsHandler::ApplyToEngine(Settings, GetWorld());
+        return true;
+    }
+    catch (...)
+    {
+        UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Exception while applying audio settings"));
+        return false;
+    }
 }
 
 bool USettingsSubsystem::ApplyGameplaySettingsToEngine(const FS_GameplaySettings& Settings)
 {
-    UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem: Applying gameplay settings (Difficulty %d, MouseSensitivity %.3f)"),
-        static_cast<int32>(Settings.DifficultyLevel), Settings.MouseSensitivity);
-
-    // Apply gameplay-affecting settings:
-    // - e.g., change difficulty manager, adjust input sensitivity proxies, etc.
-    // Implementation depends on your game's systems. Here we accept and return true.
-
-    return true;
+    try
+    {
+        FGameplaySettingsHandler::ApplyToEngine(Settings, GetWorld());
+        return true;
+    }
+    catch (...)
+    {
+        UE_LOG(LogTemp, Error, TEXT("SettingsSubsystem: Exception while applying gameplay settings"));
+        return false;
+    }
 }
 
 bool USettingsSubsystem::ApplyControlSettingsToEngine(const FS_ControlSettings& Settings)
 {
-    UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem: Applying control settings"));
-
-    // If you use Enhanced Input or custom input mapping, update mappings here.
-    // For safety, we just accept the control settings and return true.
-
-    return true;
+    try
+    {
+        FControlSettingsHandler::ApplyToEngine(Settings, GetWorld());
+        return true;
+    }
+    catch (...)
+    {
+        UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem: Exception while applying control settings"));
+        return false;
+    }
 }
 
 bool USettingsSubsystem::ApplyAccessibilitySettingsToEngine(const FS_AccessibilitySettings& Settings)
 {
-    UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem: Applying accessibility settings (HoldActivationTime %.2f)"),
-        Settings.HoldActivationTime);
-
-    // Apply subtitles, colorblind filters, hold-to-activate thresholds, etc.
-    // Specific engine/game code goes here. For now we accept and return true.
-
-    return true;
+    try
+    {
+        FAccessibilitySettingsHandler::Initialize(GetWorld());
+        FAccessibilitySettingsHandler::ApplyToEngine(Settings,GetWorld());
+        return true;
+    }
+    catch (...)
+    {
+        UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem:Exception while applying Accessibility settings"));
+        return false;
+    }
 }

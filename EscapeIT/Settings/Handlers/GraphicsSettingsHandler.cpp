@@ -1,413 +1,439 @@
-﻿
-#include "GraphicsSettingsHandler.h"
-#include "Engine/Engine.h"
+﻿#include "EscapeIT/Settings/Handlers/GraphicsSettingsHandler.h"
 #include "GameFramework/GameUserSettings.h"
+#include "Engine/Engine.h"
+#include "RHI.h"
+#include "GenericPlatform/GenericPlatformMisc.h"
+#include "HAL/PlatformMemory.h"
 #include "Kismet/GameplayStatics.h"
-#include "Engine/World.h"
-#include "Misc/CommandLine.h"
-#include "Misc/ConfigCacheIni.h"
-#include "GameFramework/PlayerController.h"
 
-UClass* DummyForInclude = nullptr; // tránh unused-warning nếu cần
+static int32 GRHIDeviceMaxTextureMemory;
 
-// Helper: get game user settings
-UGameUserSettings* FGraphicsSettingsHandler::GetGameUserSettings()
-{
-    return GEngine ? UGameUserSettings::GetGameUserSettings() : nullptr;
-}
+// ===== MAIN APPLY FUNCTION =====
 
-void FGraphicsSettingsHandler::ExecuteConsoleCommand(UWorld* World, const FString& Command)
-{
-    if (GEngine)
-    {
-        // If we have a world, pass it. Otherwise pass nullptr.
-        GEngine->Exec(World, *Command);
-    }
-}
-
-// Apply full settings to engine (main entry)
 void FGraphicsSettingsHandler::ApplyToEngine(const FS_GraphicsSettings& Settings, UWorld* World)
 {
     UGameUserSettings* UserSettings = GetGameUserSettings();
     if (!UserSettings)
     {
-        UE_LOG(LogTemp, Error, TEXT("FGraphicsSettingsHandler: Failed to get GameUserSettings"));
+        UE_LOG(LogTemp, Error, TEXT("GraphicsSettingsHandler: Failed to get GameUserSettings"));
         return;
     }
 
-    UE_LOG(LogTemp, Log, TEXT("FGraphicsSettingsHandler: Applying graphics settings to engine"));
+    UE_LOG(LogTemp, Log, TEXT("GraphicsSettingsHandler: Applying graphics settings..."));
 
     // Resolution
-    FIntPoint CurrentRes = UserSettings->GetScreenResolution();
-    FIntPoint NewRes(Settings.ResolutionX, Settings.ResolutionY);
-    if (CurrentRes != NewRes)
-    {
-        UserSettings->SetScreenResolution(NewRes);
-        UE_LOG(LogTemp, Log, TEXT("  - Resolution: %dx%d"), NewRes.X, NewRes.Y);
-    }
+    SetResolution(Settings.ResolutionX, Settings.ResolutionY);
 
     // VSync
-    bool bCurrentVSync = UserSettings->IsVSyncEnabled();
-    if (bCurrentVSync != Settings.bVSyncEnabled)
-    {
-        UserSettings->SetVSyncEnabled(Settings.bVSyncEnabled);
-        UE_LOG(LogTemp, Log, TEXT("  - VSync: %s"), Settings.bVSyncEnabled ? TEXT("Enabled") : TEXT("Disabled"));
-    }
+    SetVSync(Settings.bVSyncEnabled);
 
     // Frame rate limit
-    float CurrentFrameRateLimit = UserSettings->GetFrameRateLimit();
-    float NewFrameRateLimit = (Settings.FrameRateCap == 0) ? 0.0f : static_cast<float>(Settings.FrameRateCap);
-    if (!FMath::IsNearlyEqual(CurrentFrameRateLimit, NewFrameRateLimit, 0.1f))
-    {
-        UserSettings->SetFrameRateLimit(NewFrameRateLimit);
-        if (Settings.FrameRateCap == 0)
-        {
-            UE_LOG(LogTemp, Log, TEXT("  - Frame Rate: Unlimited"));
-        }
-        else
-        {
-            UE_LOG(LogTemp, Log, TEXT("  - Frame Rate: %d FPS"), Settings.FrameRateCap);
-        }
-    }
+    SetFrameRateLimit(Settings.FrameRateCap);
 
-    // Overall quality (when not Custom)
+    // Quality preset
     if (Settings.QualityPreset != EE_GraphicsQuality::Custom)
     {
-        int32 QualityLevel = static_cast<int32>(Settings.QualityPreset);
-        int32 CurrentQualityLevel = UserSettings->GetOverallScalabilityLevel();
-        if (CurrentQualityLevel != QualityLevel)
-        {
-            UserSettings->SetOverallScalabilityLevel(QualityLevel);
-            UE_LOG(LogTemp, Log, TEXT("  - Overall Quality: Level %d"), QualityLevel);
-        }
+        SetOverallQuality(Settings.QualityPreset);
     }
     else
     {
-        // Custom: apply per-quality values
-        int32 ViewDistanceQuality = static_cast<int32>(Settings.ShadowQuality); // reuse shadow as placeholder
-        if (UserSettings->GetViewDistanceQuality() != ViewDistanceQuality)
-        {
-            UserSettings->SetViewDistanceQuality(ViewDistanceQuality);
-            UE_LOG(LogTemp, Log, TEXT("    - View Distance: %d"), ViewDistanceQuality);
-        }
+        // Custom quality - apply individual settings
+        SetTextureQuality(static_cast<int32>(Settings.TextureQuality));
+        SetShadowQuality(static_cast<int32>(Settings.ShadowQuality));
+        SetAntiAliasing(static_cast<int32>(Settings.AntiAliasingMethod));
 
-        int32 ShadowQuality = static_cast<int32>(Settings.ShadowQuality);
-        if (UserSettings->GetShadowQuality() != ShadowQuality)
-        {
-            UserSettings->SetShadowQuality(ShadowQuality);
-            UE_LOG(LogTemp, Log, TEXT("    - Shadow Quality: %d"), ShadowQuality);
-        }
-
-        int32 TextureQuality = static_cast<int32>(Settings.TextureQuality);
-        if (UserSettings->GetTextureQuality() != TextureQuality)
-        {
-            UserSettings->SetTextureQuality(TextureQuality);
-            UE_LOG(LogTemp, Log, TEXT("    - Texture Quality: %d"), TextureQuality);
-        }
-
-        int32 AntiAliasingQuality = static_cast<int32>(Settings.AntiAliasingMethod);
-        if (UserSettings->GetAntiAliasingQuality() != AntiAliasingQuality)
-        {
-            UserSettings->SetAntiAliasingQuality(AntiAliasingQuality);
-            UE_LOG(LogTemp, Log, TEXT("    - Anti-Aliasing: %d"), AntiAliasingQuality);
-        }
-
-        int32 PostProcessQuality = (Settings.MotionBlurAmount > 0.5f) ? 3 : 1;
-        if (UserSettings->GetPostProcessingQuality() != PostProcessQuality)
-        {
-            UserSettings->SetPostProcessingQuality(PostProcessQuality);
-            UE_LOG(LogTemp, Log, TEXT("    - Post Processing: %d (Motion Blur: %.2f)"),
-                PostProcessQuality, Settings.MotionBlurAmount);
-        }
-
-        int32 EffectsQuality = static_cast<int32>(Settings.TextureQuality);
-        if (UserSettings->GetVisualEffectQuality() != EffectsQuality)
-        {
-            UserSettings->SetVisualEffectQuality(EffectsQuality);
-            UE_LOG(LogTemp, Log, TEXT("    - Effects Quality: %d"), EffectsQuality);
-        }
-
-        int32 FoliageQuality = static_cast<int32>(Settings.ShadowQuality);
-        if (UserSettings->GetFoliageQuality() != FoliageQuality)
-        {
-            UserSettings->SetFoliageQuality(FoliageQuality);
-            UE_LOG(LogTemp, Log, TEXT("    - Foliage Quality: %d"), FoliageQuality);
-        }
-
-        int32 ShadingQuality = static_cast<int32>(Settings.TextureQuality);
-        if (UserSettings->GetShadingQuality() != ShadingQuality)
-        {
-            UserSettings->SetShadingQuality(ShadingQuality);
-            UE_LOG(LogTemp, Log, TEXT("    - Shading Quality: %d"), ShadingQuality);
-        }
+        // Post processing based on motion blur
+        int32 PostProcessQuality = Settings.MotionBlurAmount > 0.5f ? 3 : 1;
+        SetPostProcessing(PostProcessQuality);
     }
 
-    // Ray tracing (console vars)
-    if (Settings.bRayTracingEnabled)
-    {
-        ExecuteConsoleCommand(World, TEXT("r.RayTracing.GlobalIllumination 1"));
-        ExecuteConsoleCommand(World, TEXT("r.RayTracing.Reflections 1"));
-        ExecuteConsoleCommand(World, TEXT("r.RayTracing.Shadows 1"));
-        ExecuteConsoleCommand(World, TEXT("r.RayTracing.AmbientOcclusion 1"));
-
-        int32 RTQuality = static_cast<int32>(Settings.RayTracingQuality);
-        FString RTQualityCmd = FString::Printf(TEXT("r.RayTracing.SamplesPerPixel %d"), FMath::Clamp(RTQuality + 1, 1, 4));
-        ExecuteConsoleCommand(World, RTQualityCmd);
-
-        UE_LOG(LogTemp, Log, TEXT("  - Ray Tracing: Enabled (Quality: %d)"), RTQuality);
-    }
-    else
-    {
-        ExecuteConsoleCommand(World, TEXT("r.RayTracing.GlobalIllumination 0"));
-        ExecuteConsoleCommand(World, TEXT("r.RayTracing.Reflections 0"));
-        ExecuteConsoleCommand(World, TEXT("r.RayTracing.Shadows 0"));
-        ExecuteConsoleCommand(World, TEXT("r.RayTracing.AmbientOcclusion 0"));
-
-        UE_LOG(LogTemp, Log, TEXT("  - Ray Tracing: Disabled"));
-    }
+    // Ray tracing
+    SetRayTracing(Settings.bRayTracingEnabled, Settings.RayTracingQuality, World);
 
     // Motion blur
-    {
-        FString MotionBlurCmd = FString::Printf(TEXT("r.MotionBlurQuality %.2f"), Settings.MotionBlurAmount * 4.0f);
-        ExecuteConsoleCommand(World, MotionBlurCmd);
+    SetMotionBlur(Settings.MotionBlurAmount, World);
 
-        if (Settings.MotionBlurAmount <= 0.0f)
-            ExecuteConsoleCommand(World, TEXT("r.MotionBlur.Max 0"));
-        else
-            ExecuteConsoleCommand(World, TEXT("r.MotionBlur.Max 1"));
-    }
+    // Field of view
+    SetFieldOfView(Settings.FieldOfView, World);
 
-    // Field of view (global console var approach)
-    {
-        FString FOVCmd = FString::Printf(TEXT("fov %.1f"), Settings.FieldOfView);
-        ExecuteConsoleCommand(World, FOVCmd);
-        UE_LOG(LogTemp, Log, TEXT("  - Field of View: %.1f"), Settings.FieldOfView);
-    }
-
-    // Finally apply UGameUserSettings changes
+    // Apply all settings
     UserSettings->ApplySettings(false);
 
-    UE_LOG(LogTemp, Log, TEXT("FGraphicsSettingsHandler: Graphics settings applied"));
+    UE_LOG(LogTemp, Log, TEXT("GraphicsSettingsHandler: Graphics settings applied successfully"));
 }
 
-// Auto-detect a reasonable settings object from current engine/usersettings
+// ===== AUTO-DETECT =====
+
 FS_GraphicsSettings FGraphicsSettingsHandler::AutoDetectSettings()
 {
-    FS_GraphicsSettings Out;
-    UGameUserSettings* UserSettings = GetGameUserSettings();
-    if (!UserSettings)
-    {
-        // fallback defaults
-        Out.ResolutionX = 1920;
-        Out.ResolutionY = 1080;
-        Out.QualityPreset = EE_GraphicsQuality::Medium;
-        return Out;
-    }
+    UE_LOG(LogTemp, Log, TEXT("GraphicsSettingsHandler: Auto-detecting optimal settings..."));
 
-    // Use current scalability and resolution to pick a preset
-    int32 Scalability = UserSettings->GetOverallScalabilityLevel();
-    FIntPoint Res = UserSettings->GetScreenResolution();
+    FS_GraphicsSettings Settings;
 
-    Out.ResolutionX = Res.X;
-    Out.ResolutionY = Res.Y;
+    // Detect GPU
+    FString GPUName = GRHIAdapterName;
+    int32 VRAMSizeMB = GRHIDeviceMaxTextureMemory / (1024 * 1024);
+    bool bSupportsRayTracing = GRHISupportsRayTracing;
 
-    if (Scalability <= 1)
+    // Detect CPU
+    int32 CoreCount = FPlatformMisc::NumberOfCores();
+
+    // Detect RAM
+    FPlatformMemoryStats MemStats = FPlatformMemory::GetStats();
+    int32 RAMSizeGB = MemStats.TotalPhysical / (1024 * 1024 * 1024);
+
+    // Calculate performance score (0-100)
+    int32 PerformanceScore = 50; // Base score
+
+    // GPU scoring
+    if (VRAMSizeMB >= 8192) PerformanceScore += 20;
+    else if (VRAMSizeMB >= 4096) PerformanceScore += 10;
+    else if (VRAMSizeMB >= 2048) PerformanceScore += 5;
+
+    if (bSupportsRayTracing) PerformanceScore += 15;
+
+    // CPU scoring
+    if (CoreCount >= 16) PerformanceScore += 15;
+    else if (CoreCount >= 8) PerformanceScore += 10;
+    else if (CoreCount >= 6) PerformanceScore += 5;
+
+    // RAM scoring
+    if (RAMSizeGB >= 32) PerformanceScore += 10;
+    else if (RAMSizeGB >= 16) PerformanceScore += 5;
+
+    PerformanceScore = FMath::Clamp(PerformanceScore, 0, 100);
+
+    UE_LOG(LogTemp, Log, TEXT("  - GPU: %s (VRAM: %d MB)"), *GPUName, VRAMSizeMB);
+    UE_LOG(LogTemp, Log, TEXT("  - CPU: %d cores"), CoreCount);
+    UE_LOG(LogTemp, Log, TEXT("  - RAM: %d GB"), RAMSizeGB);
+    UE_LOG(LogTemp, Log, TEXT("  - Performance Score: %d"), PerformanceScore);
+
+    // Determine quality preset based on score
+    EE_GraphicsQuality RecommendedQuality;
+    if (PerformanceScore >= 85)
+        RecommendedQuality = EE_GraphicsQuality::Ultra;
+    else if (PerformanceScore >= 70)
+        RecommendedQuality = EE_GraphicsQuality::High;
+    else if (PerformanceScore >= 50)
+        RecommendedQuality = EE_GraphicsQuality::Medium;
+    else
+        RecommendedQuality = EE_GraphicsQuality::Low;
+
+    // Set preset
+    Settings.QualityPreset = RecommendedQuality;
+
+    // Set resolution based on VRAM
+    if (VRAMSizeMB >= 8192)
     {
-        Out.QualityPreset = EE_GraphicsQuality::Low;
-        Out.ShadowQuality = EE_ShadowQuality::Low;
-        Out.TextureQuality = EE_TextureQuality::Low;
-        Out.AntiAliasingMethod = EE_AntiAliasingMethod::None;
+        Settings.ResolutionX = 3840;
+        Settings.ResolutionY = 2160; // 4K
     }
-    else if (Scalability == 2)
+    else if (VRAMSizeMB >= 4096)
     {
-        Out.QualityPreset = EE_GraphicsQuality::Medium;
-        Out.ShadowQuality = EE_ShadowQuality::Medium;
-        Out.TextureQuality = EE_TextureQuality::Medium;
-        Out.AntiAliasingMethod = EE_AntiAliasingMethod::FXAA;
-    }
-    else if (Scalability == 3)
-    {
-        Out.QualityPreset = EE_GraphicsQuality::High;
-        Out.ShadowQuality = EE_ShadowQuality::High;
-        Out.TextureQuality = EE_TextureQuality::High;
-        Out.AntiAliasingMethod = EE_AntiAliasingMethod::TAA;
+        Settings.ResolutionX = 2560;
+        Settings.ResolutionY = 1440; // 1440p
     }
     else
     {
-        Out.QualityPreset = EE_GraphicsQuality::Ultra;
-        Out.ShadowQuality = EE_ShadowQuality::Epic;
-        Out.TextureQuality = EE_TextureQuality::Epic;
-        Out.AntiAliasingMethod = EE_AntiAliasingMethod::MSAA_4x;
+        Settings.ResolutionX = 1920;
+        Settings.ResolutionY = 1080; // 1080p
     }
 
-    // Frame rate / vSync defaults
-    Out.FrameRateCap = static_cast<int32>(UserSettings->GetFrameRateLimit());
-    Out.bVSyncEnabled = UserSettings->IsVSyncEnabled();
+    // Enable ray tracing only if supported and high-end GPU
+    Settings.bRayTracingEnabled = bSupportsRayTracing && PerformanceScore >= 75;
+    Settings.RayTracingQuality = Settings.bRayTracingEnabled ? EE_RayTracingQuality::High : EE_RayTracingQuality::Low;
 
-    // conservative defaults for other fields
-    Out.bRayTracingEnabled = false;
-    Out.MotionBlurAmount = (UserSettings->GetPostProcessingQuality() > 1) ? 0.5f : 0.0f;
-    Out.FieldOfView = 90.0f;
+    // VSync - enable for better consistency
+    Settings.bVSyncEnabled = true;
 
-    return Out;
+    // Frame rate cap - uncapped for high-end, capped for low-end
+    Settings.FrameRateCap = PerformanceScore >= 70 ? 0 : 60;
+
+    // FOV
+    Settings.FieldOfView = 90.0f;
+
+    // Motion blur
+    Settings.MotionBlurAmount = PerformanceScore >= 70 ? 0.5f : 0.0f;
+
+    // Individual quality settings based on preset
+    switch (RecommendedQuality)
+    {
+    case EE_GraphicsQuality::Ultra:
+        Settings.TextureQuality = EE_TextureQuality::Epic;
+        Settings.ShadowQuality = EE_ShadowQuality::Epic;
+        Settings.AntiAliasingMethod = EE_AntiAliasingMethod::TAA;
+        break;
+    case EE_GraphicsQuality::High:
+        Settings.TextureQuality = EE_TextureQuality::High;
+        Settings.ShadowQuality = EE_ShadowQuality::High;
+        Settings.AntiAliasingMethod = EE_AntiAliasingMethod::MSAA_4x;
+        break;
+    case EE_GraphicsQuality::Medium:
+        Settings.TextureQuality = EE_TextureQuality::Medium;
+        Settings.ShadowQuality = EE_ShadowQuality::Medium;
+        Settings.AntiAliasingMethod = EE_AntiAliasingMethod::FXAA;
+        break;
+    case EE_GraphicsQuality::Low:
+        Settings.TextureQuality = EE_TextureQuality::Low;
+        Settings.ShadowQuality = EE_ShadowQuality::Low;
+        Settings.AntiAliasingMethod = EE_AntiAliasingMethod::None;
+        break;
+    default:
+        break;
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("  - Recommended Quality: %d"), static_cast<int32>(RecommendedQuality));
+    UE_LOG(LogTemp, Log, TEXT("  - Resolution: %dx%d"), Settings.ResolutionX, Settings.ResolutionY);
+    UE_LOG(LogTemp, Log, TEXT("  - Ray Tracing: %s"), Settings.bRayTracingEnabled ? TEXT("Enabled") : TEXT("Disabled"));
+
+    return Settings;
 }
 
-// Individual setters - thin wrappers around UGameUserSettings / console commands
+// ===== INDIVIDUAL SETTERS =====
+
 void FGraphicsSettingsHandler::SetResolution(int32 X, int32 Y)
 {
     UGameUserSettings* UserSettings = GetGameUserSettings();
-    if (UserSettings)
-    {
-        UserSettings->SetScreenResolution(FIntPoint(X, Y));
-        UserSettings->ApplySettings(false);
-    }
+    if (!UserSettings) return;
+
+    FIntPoint Resolution(X, Y);
+    UserSettings->SetScreenResolution(Resolution);
+
+    UE_LOG(LogTemp, Log, TEXT("GraphicsSettingsHandler: Resolution set to %dx%d"), X, Y);
 }
 
 void FGraphicsSettingsHandler::SetVSync(bool bEnabled)
 {
     UGameUserSettings* UserSettings = GetGameUserSettings();
-    if (UserSettings)
-    {
-        UserSettings->SetVSyncEnabled(bEnabled);
-        UserSettings->ApplySettings(false);
-    }
+    if (!UserSettings) return;
+
+    UserSettings->SetVSyncEnabled(bEnabled);
+
+    UE_LOG(LogTemp, Log, TEXT("GraphicsSettingsHandler: VSync %s"), bEnabled ? TEXT("enabled") : TEXT("disabled"));
 }
 
 void FGraphicsSettingsHandler::SetFrameRateLimit(int32 FrameRate)
 {
     UGameUserSettings* UserSettings = GetGameUserSettings();
-    if (UserSettings)
+    if (!UserSettings) return;
+
+    float Limit = (FrameRate == 0) ? 0.0f : static_cast<float>(FrameRate);
+    UserSettings->SetFrameRateLimit(Limit);
+
+    if (FrameRate == 0)
     {
-        UserSettings->SetFrameRateLimit(static_cast<float>(FrameRate));
-        UserSettings->ApplySettings(false);
+        UE_LOG(LogTemp, Log, TEXT("GraphicsSettingsHandler: Frame rate uncapped"));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Log, TEXT("GraphicsSettingsHandler: Frame rate limited to %d"), FrameRate);
     }
 }
 
 void FGraphicsSettingsHandler::SetOverallQuality(EE_GraphicsQuality Quality)
 {
     UGameUserSettings* UserSettings = GetGameUserSettings();
-    if (UserSettings)
-    {
-        UserSettings->SetOverallScalabilityLevel(static_cast<int32>(Quality));
-        UserSettings->ApplySettings(false);
-    }
+    if (!UserSettings) return;
+
+    int32 QualityLevel = static_cast<int32>(Quality);
+    UserSettings->SetOverallScalabilityLevel(QualityLevel);
+
+    UE_LOG(LogTemp, Log, TEXT("GraphicsSettingsHandler: Overall quality set to %d"), QualityLevel);
 }
 
 void FGraphicsSettingsHandler::SetRayTracing(bool bEnabled, EE_RayTracingQuality Quality, UWorld* World)
 {
+    if (!GRHISupportsRayTracing)
+    {
+        if (bEnabled)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("GraphicsSettingsHandler: Ray tracing not supported on this hardware"));
+        }
+        return;
+    }
+
     if (bEnabled)
     {
+        ExecuteConsoleCommand(World, TEXT("r.RayTracing 1"));
         ExecuteConsoleCommand(World, TEXT("r.RayTracing.GlobalIllumination 1"));
         ExecuteConsoleCommand(World, TEXT("r.RayTracing.Reflections 1"));
         ExecuteConsoleCommand(World, TEXT("r.RayTracing.Shadows 1"));
-        ExecuteConsoleCommand(World, TEXT("r.RayTracing.AmbientOcclusion 1"));
 
-        int32 RTQuality = static_cast<int32>(Quality);
-        FString RTQualityCmd = FString::Printf(TEXT("r.RayTracing.SamplesPerPixel %d"), FMath::Clamp(RTQuality + 1, 1, 4));
-        ExecuteConsoleCommand(World, RTQualityCmd);
+        // Quality settings
+        switch (Quality)
+        {
+        case EE_RayTracingQuality::Low:
+            ExecuteConsoleCommand(World, TEXT("r.RayTracing.GlobalIllumination.SamplesPerPixel 1"));
+            ExecuteConsoleCommand(World, TEXT("r.RayTracing.Reflections.SamplesPerPixel 1"));
+            break;
+        case EE_RayTracingQuality::Medium:
+            ExecuteConsoleCommand(World, TEXT("r.RayTracing.GlobalIllumination.SamplesPerPixel 2"));
+            ExecuteConsoleCommand(World, TEXT("r.RayTracing.Reflections.SamplesPerPixel 2"));
+            break;
+        case EE_RayTracingQuality::High:
+            ExecuteConsoleCommand(World, TEXT("r.RayTracing.GlobalIllumination.SamplesPerPixel 4"));
+            ExecuteConsoleCommand(World, TEXT("r.RayTracing.Reflections.SamplesPerPixel 4"));
+            break;
+        case EE_RayTracingQuality::Epic:
+            ExecuteConsoleCommand(World, TEXT("r.RayTracing.GlobalIllumination.SamplesPerPixel 8"));
+            ExecuteConsoleCommand(World, TEXT("r.RayTracing.Reflections.SamplesPerPixel 8"));
+            break;
+        }
+
+        UE_LOG(LogTemp, Log, TEXT("GraphicsSettingsHandler: Ray tracing enabled (Quality: %d)"), static_cast<int32>(Quality));
     }
     else
     {
+        ExecuteConsoleCommand(World, TEXT("r.RayTracing 0"));
         ExecuteConsoleCommand(World, TEXT("r.RayTracing.GlobalIllumination 0"));
         ExecuteConsoleCommand(World, TEXT("r.RayTracing.Reflections 0"));
         ExecuteConsoleCommand(World, TEXT("r.RayTracing.Shadows 0"));
-        ExecuteConsoleCommand(World, TEXT("r.RayTracing.AmbientOcclusion 0"));
+
+        UE_LOG(LogTemp, Log, TEXT("GraphicsSettingsHandler: Ray tracing disabled"));
     }
 }
 
 void FGraphicsSettingsHandler::SetMotionBlur(float Amount, UWorld* World)
 {
-    FString MotionBlurCmd = FString::Printf(TEXT("r.MotionBlurQuality %.2f"), FMath::Clamp(Amount, 0.0f, 1.0f) * 4.0f);
-    ExecuteConsoleCommand(World, MotionBlurCmd);
+    Amount = FMath::Clamp(Amount, 0.0f, 1.0f);
 
-    if (Amount <= 0.0f)
-        ExecuteConsoleCommand(World, TEXT("r.MotionBlur.Max 0"));
+    if (Amount > 0.0f)
+    {
+        ExecuteConsoleCommand(World, TEXT("r.MotionBlurQuality 4"));
+
+        FString Command = FString::Printf(TEXT("r.MotionBlur.Amount %.2f"), Amount);
+        ExecuteConsoleCommand(World, Command);
+
+        UE_LOG(LogTemp, Log, TEXT("GraphicsSettingsHandler: Motion blur set to %.2f"), Amount);
+    }
     else
-        ExecuteConsoleCommand(World, TEXT("r.MotionBlur.Max 1"));
+    {
+        ExecuteConsoleCommand(World, TEXT("r.MotionBlurQuality 0"));
+        UE_LOG(LogTemp, Log, TEXT("GraphicsSettingsHandler: Motion blur disabled"));
+    }
 }
 
 void FGraphicsSettingsHandler::SetFieldOfView(float FOV, UWorld* World)
 {
-    FString FOVCmd = FString::Printf(TEXT("fov %.1f"), FMath::Clamp(FOV, 70.0f, 120.0f));
-    ExecuteConsoleCommand(World, FOVCmd);
+    FOV = FMath::Clamp(FOV, 70.0f, 120.0f);
+
+    FString Command = FString::Printf(TEXT("fov %.1f"), FOV);
+    ExecuteConsoleCommand(World, Command);
+
+    UE_LOG(LogTemp, Log, TEXT("GraphicsSettingsHandler: FOV set to %.1f"), FOV);
 }
+
+// ===== CUSTOM QUALITY SETTINGS =====
 
 void FGraphicsSettingsHandler::SetViewDistance(int32 Quality)
 {
     UGameUserSettings* UserSettings = GetGameUserSettings();
-    if (UserSettings)
-    {
-        UserSettings->SetViewDistanceQuality(Quality);
-        UserSettings->ApplySettings(false);
-    }
+    if (!UserSettings) return;
+
+    Quality = FMath::Clamp(Quality, 0, 3);
+    UserSettings->SetViewDistanceQuality(Quality);
+
+    UE_LOG(LogTemp, Log, TEXT("GraphicsSettingsHandler: View distance quality set to %d"), Quality);
 }
 
 void FGraphicsSettingsHandler::SetShadowQuality(int32 Quality)
 {
     UGameUserSettings* UserSettings = GetGameUserSettings();
-    if (UserSettings)
-    {
-        UserSettings->SetShadowQuality(Quality);
-        UserSettings->ApplySettings(false);
-    }
+    if (!UserSettings) return;
+
+    Quality = FMath::Clamp(Quality, 0, 3);
+    UserSettings->SetShadowQuality(Quality);
+
+    UE_LOG(LogTemp, Log, TEXT("GraphicsSettingsHandler: Shadow quality set to %d"), Quality);
 }
 
 void FGraphicsSettingsHandler::SetTextureQuality(int32 Quality)
 {
     UGameUserSettings* UserSettings = GetGameUserSettings();
-    if (UserSettings)
-    {
-        UserSettings->SetTextureQuality(Quality);
-        UserSettings->ApplySettings(false);
-    }
+    if (!UserSettings) return;
+
+    Quality = FMath::Clamp(Quality, 0, 3);
+    UserSettings->SetTextureQuality(Quality);
+
+    UE_LOG(LogTemp, Log, TEXT("GraphicsSettingsHandler: Texture quality set to %d"), Quality);
 }
 
 void FGraphicsSettingsHandler::SetAntiAliasing(int32 Quality)
 {
     UGameUserSettings* UserSettings = GetGameUserSettings();
-    if (UserSettings)
-    {
-        UserSettings->SetAntiAliasingQuality(Quality);
-        UserSettings->ApplySettings(false);
-    }
+    if (!UserSettings) return;
+
+    Quality = FMath::Clamp(Quality, 0, 3);
+    UserSettings->SetAntiAliasingQuality(Quality);
+
+    UE_LOG(LogTemp, Log, TEXT("GraphicsSettingsHandler: Anti-aliasing quality set to %d"), Quality);
 }
 
 void FGraphicsSettingsHandler::SetPostProcessing(int32 Quality)
 {
     UGameUserSettings* UserSettings = GetGameUserSettings();
-    if (UserSettings)
-    {
-        UserSettings->SetPostProcessingQuality(Quality);
-        UserSettings->ApplySettings(false);
-    }
+    if (!UserSettings) return;
+
+    Quality = FMath::Clamp(Quality, 0, 3);
+    UserSettings->SetPostProcessingQuality(Quality);
+
+    UE_LOG(LogTemp, Log, TEXT("GraphicsSettingsHandler: Post-processing quality set to %d"), Quality);
 }
 
 void FGraphicsSettingsHandler::SetEffectsQuality(int32 Quality)
 {
     UGameUserSettings* UserSettings = GetGameUserSettings();
-    if (UserSettings)
-    {
-        UserSettings->SetVisualEffectQuality(Quality);
-        UserSettings->ApplySettings(false);
-    }
+    if (!UserSettings) return;
+
+    Quality = FMath::Clamp(Quality, 0, 3);
+    UserSettings->SetVisualEffectQuality(Quality);
+
+    UE_LOG(LogTemp, Log, TEXT("GraphicsSettingsHandler: Effects quality set to %d"), Quality);
 }
 
 void FGraphicsSettingsHandler::SetFoliageQuality(int32 Quality)
 {
     UGameUserSettings* UserSettings = GetGameUserSettings();
-    if (UserSettings)
-    {
-        UserSettings->SetFoliageQuality(Quality);
-        UserSettings->ApplySettings(false);
-    }
+    if (!UserSettings) return;
+
+    Quality = FMath::Clamp(Quality, 0, 3);
+    UserSettings->SetFoliageQuality(Quality);
+
+    UE_LOG(LogTemp, Log, TEXT("GraphicsSettingsHandler: Foliage quality set to %d"), Quality);
 }
 
 void FGraphicsSettingsHandler::SetShadingQuality(int32 Quality)
 {
     UGameUserSettings* UserSettings = GetGameUserSettings();
-    if (UserSettings)
+    if (!UserSettings) return;
+
+    Quality = FMath::Clamp(Quality, 0, 3);
+    UserSettings->SetShadingQuality(Quality);
+
+    UE_LOG(LogTemp, Log, TEXT("GraphicsSettingsHandler: Shading quality set to %d"), Quality);
+}
+
+// ===== HELPER FUNCTIONS =====
+
+UGameUserSettings* FGraphicsSettingsHandler::GetGameUserSettings()
+{
+    UGameUserSettings* UserSettings = UGameUserSettings::GetGameUserSettings();
+
+    if (!UserSettings)
     {
-        UserSettings->SetShadingQuality(Quality);
-        UserSettings->ApplySettings(false);
+        UE_LOG(LogTemp, Error, TEXT("GraphicsSettingsHandler: Failed to get GameUserSettings"));
     }
+
+    return UserSettings;
+}
+
+void FGraphicsSettingsHandler::ExecuteConsoleCommand(UWorld* World, const FString& Command)
+{
+    if (!World || !GEngine)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("GraphicsSettingsHandler: Cannot execute command '%s' - World or Engine is null"), *Command);
+        return;
+    }
+
+    GEngine->Exec(World, *Command);
 }

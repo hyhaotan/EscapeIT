@@ -20,9 +20,25 @@ class ESCAPEIT_API AEscapeITPlayerController : public APlayerController
     GENERATED_BODY()
 
 public:
+    AEscapeITPlayerController();
+
     virtual void BeginPlay() override;
     virtual void SetupInputComponent() override;
     virtual void PlayerTick(float DeltaTime) override;
+
+    void SetMouseSensitivity(float InSensitivity) { MouseSensitivity = FMath::Max(0.001f, InSensitivity); }
+    void SetGamepadSensitivity(float InSensitivity) { GamepadSensitivity = FMath::Max(0.001f, InSensitivity); }
+    void SetInvertPitch(bool bInvert) { bInvertPitch = bInvert; }
+
+    float GetMouseSensitivity() const { return MouseSensitivity; }
+    float GetGamepadSensitivity() const { return GamepadSensitivity; }
+    bool IsInvertPitch() const { return bInvertPitch; }
+
+    UFUNCTION(BlueprintCallable, Category = "Input")
+    void NotifyMouseInput();
+
+    UFUNCTION(BlueprintCallable, Category = "Input")
+    void NotifyGamepadInput();
 
 protected:
     // ========== Components ==========
@@ -103,6 +119,12 @@ protected:
     UPROPERTY()
     int32 CurrentEquippedSlotIndex = -1; // -1 = không có item nào được equip
 
+    float MouseSensitivity;
+    bool bInvertPitch;
+    float GamepadSensitivity;
+    bool bLastInputWasGamepad;
+    double LastInputNotifyTime;
+
     // ========== Functions ==========
     void CheckForInteractables();
     void OnInteractableFound(AActor* Interactable);
@@ -111,6 +133,9 @@ protected:
     void Inventory();
     void OnFlashlight();
     void OnPauseMenu();
+
+    virtual void AddYawInput(float Val) override;
+    virtual void AddPitchInput(float Val) override;
 
     // Equip functions
     void EquipQuickbarSlot1();

@@ -16,6 +16,7 @@
 #include "EscapeIT/UI/SanityWidget.h"
 #include "Kismet/GameplayStatics.h"
 #include "EscapeIT/UI/HUD/WidgetManager.h"
+#include "EscapeIT/EscapeITPlayerController.h"
 
 AEscapeITCharacter::AEscapeITCharacter()
 {
@@ -95,12 +96,42 @@ void AEscapeITCharacter::MoveInput(const FInputActionValue& Value)
 
 void AEscapeITCharacter::LookInput(const FInputActionValue& Value)
 {
-	// get the Vector2D look axis
+	// lấy axis 2D từ Enhanced Input
 	FVector2D LookAxisVector = Value.Get<FVector2D>();
 
-	// pass the axis values to the aim input
-	DoAim(LookAxisVector.X, LookAxisVector.Y);
+	// cố gắng xác định thiết bị nguồn input và notify PlayerController
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		// 1) kiểm tra delta chuột trong frame (nếu chuột di chuyển thì ưu tiên chuột)
+		float MouseDX = 0.f;
+		float MouseDY = 0.f;
+		PC->GetInputMouseDelta(MouseDX, MouseDY);
 
+		if (!FMath::IsNearlyZero(MouseDX) || !FMath::IsNearlyZero(MouseDY))
+		{
+			if (AEscapeITPlayerController* EPC = Cast<AEscapeITPlayerController>(PC))
+			{
+				EPC->NotifyMouseInput();
+			}
+		}
+		else
+		{
+			// 2) nếu không có delta chuột, kiểm tra trạng thái analog của gamepad (stick phải)
+			const float GamepadX = PC->GetInputAnalogKeyState(EKeys::Gamepad_RightX);
+			const float GamepadY = PC->GetInputAnalogKeyState(EKeys::Gamepad_RightY);
+
+			if (!FMath::IsNearlyZero(GamepadX) || !FMath::IsNearlyZero(GamepadY))
+			{
+				if (AEscapeITPlayerController* EPC = Cast<AEscapeITPlayerController>(PC))
+				{
+					EPC->NotifyGamepadInput();
+				}
+			}
+		}
+	}
+
+	// chuyển giá trị qua hệ thống aim (vẫn dùng Value từ Enhanced Input)
+	DoAim(LookAxisVector.X, LookAxisVector.Y);
 }
 
 void AEscapeITCharacter::DoAim(float Yaw, float Pitch)

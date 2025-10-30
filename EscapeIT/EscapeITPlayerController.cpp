@@ -15,6 +15,57 @@
 #include "EscapeIT/UI/HUD/WidgetManager.h"
 #include <EnhancedInputSubsystems.h>
 
+AEscapeITPlayerController::AEscapeITPlayerController()
+    : MouseSensitivity(1.0f)
+    , GamepadSensitivity(1.0f)
+    , bInvertPitch(false)
+    , bLastInputWasGamepad(false)
+    , LastInputNotifyTime(0.0)
+{
+    bShowMouseCursor = false;
+}
+
+void AEscapeITPlayerController::AddYawInput(float Val)
+{
+    if (FMath::IsNearlyZero(Val)) return;
+
+    // Decide which sensitivity to use based on last-notified input source.
+    // This requires your input binding code to call NotifyMouseInput()/NotifyGamepadInput()
+    // when it receives input from each device. If you don't call those, we'll default to mouse sensitivity.
+    const float Sensitivity = bLastInputWasGamepad ? GamepadSensitivity : MouseSensitivity;
+
+    const float Scaled = Val * Sensitivity;
+
+    Super::AddYawInput(Scaled);
+}
+
+void AEscapeITPlayerController::AddPitchInput(float Val)
+{
+    if (FMath::IsNearlyZero(Val)) return;
+
+    const float Sensitivity = bLastInputWasGamepad ? GamepadSensitivity : MouseSensitivity;
+    float Effective = Val * Sensitivity;
+
+    if (bInvertPitch)
+    {
+        Effective *= -1.0f;
+    }
+
+    Super::AddPitchInput(Effective);
+}
+
+void AEscapeITPlayerController::NotifyMouseInput()
+{
+    bLastInputWasGamepad = false;
+    LastInputNotifyTime = FPlatformTime::Seconds();
+}
+
+void AEscapeITPlayerController::NotifyGamepadInput()
+{
+    bLastInputWasGamepad = true;
+    LastInputNotifyTime = FPlatformTime::Seconds();
+}
+
 void AEscapeITPlayerController::BeginPlay()
 {
     Super::BeginPlay();
@@ -31,6 +82,7 @@ void AEscapeITPlayerController::BeginPlay()
             }
         }
     }
+    LastInputNotifyTime = FPlatformTime::Seconds();
 
     FlashlightComponent->SetLightEnabled(true);
 

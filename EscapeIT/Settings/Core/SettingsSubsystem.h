@@ -212,42 +212,6 @@ public:
 
     FS_DifficultyMultiplier GetDifficultyMultiplier(EE_DifficultyLevel DifficultyLevel) const;
 
-    // ===== GRAPHICS SETTINGS =====
-    UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-    void SetGraphicsQuality(EE_GraphicsQuality QualityPreset);
-
-    UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-    void SetResolution(int32 X, int32 Y);
-
-    UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-    void SetFrameRateCap(int32 FrameRate);
-
-    UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-    void SetVSyncEnabled(bool bEnabled);
-
-    UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-    void SetRayTracingEnabled(bool bEnabled);
-
-    UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-    void SetRayTracingQuality(EE_RayTracingQuality Quality);
-
-    UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-    void SetShadowQuality(EE_ShadowQuality Quality);
-
-    UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-    void SetTextureQuality(EE_TextureQuality Quality);
-
-    UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-    void SetAntiAliasingMethod(EE_AntiAliasingMethod Method);
-
-    UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-    void SetMotionBlurAmount(float Amount);
-
-    UFUNCTION(BlueprintCallable, Category = "Settings|Graphics")
-    void SetFieldOfView(float FOV);
-
-    // ... (other setters remain similar)
-
     // ===== DIAGNOSTICS =====
 
     UFUNCTION(BlueprintCallable, Category = "Settings|Debug")
