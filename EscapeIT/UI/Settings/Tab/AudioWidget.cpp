@@ -55,11 +55,6 @@ void UAudioWidget::NativeConstruct()
 		TestAudioButton->OnClicked.AddDynamic(this, &UAudioWidget::OnTestAudioButtonClicked);
 	}
 
-	if (ResetButton)
-	{
-		ResetButton->OnClicked.AddDynamic(this, &UAudioWidget::OnResetButtonClicked);
-	}
-
 	// Load test sound (adjust path to your actual test sound asset)
 	TestSound = LoadObject<USoundBase>(nullptr, TEXT("/Game/Audio/UI/TestSound"));
 }
@@ -72,11 +67,6 @@ void UAudioWidget::NativeDestruct()
 	if (TestAudioButton)
 	{
 		TestAudioButton->OnClicked.RemoveDynamic(this, &UAudioWidget::OnTestAudioButtonClicked);
-	}
-
-	if (ResetButton)
-	{
-		ResetButton->OnClicked.RemoveDynamic(this, &UAudioWidget::OnResetButtonClicked);
 	}
 
 	Super::NativeDestruct();
@@ -373,15 +363,6 @@ void UAudioWidget::OnTestAudioButtonClicked()
 	{
 		UE_LOG(LogTemp, Warning, TEXT("AudioWidget: Test sound not loaded"));
 	}
-}
-
-void UAudioWidget::OnResetButtonClicked()
-{
-	// Reset locally to defaults (do NOT automatically apply to subsystem)
-	FS_AudioSettings DefaultSettings;
-	LoadSettings(DefaultSettings);
-
-	UE_LOG(LogTemp, Log, TEXT("AudioWidget: Reset to default settings (local, not saved)"));
 }
 
 // ===== HELPERS =====

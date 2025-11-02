@@ -299,7 +299,6 @@ private:
     mutable FS_PerformanceMetrics CachedMetrics;
     mutable float LastMetricsCacheTime = 0.0f;
     const float MetricsCacheDuration = 1.0f; // Cache for 1 second
-    int32 GRHIDeviceMaxTextureMemory;
     float GAverageFPS;
 
     // Thread safety

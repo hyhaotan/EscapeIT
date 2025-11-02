@@ -32,22 +32,10 @@ void UGameplayWidget::NativeConstruct()
 
 	// Load current settings from subsystem
 	LoadCurrentSettings();
-
-	// Bind Reset Button
-	if (ResetButton)
-	{
-		ResetButton->OnClicked.AddDynamic(this, &UGameplayWidget::OnResetButtonClicked);
-	}
 }
 
 void UGameplayWidget::NativeDestruct()
 {
-	// Unbind all delegates
-	if (ResetButton)
-	{
-		ResetButton->OnClicked.RemoveDynamic(this, &UGameplayWidget::OnResetButtonClicked);
-	}
-
 	Super::NativeDestruct();
 }
 
@@ -456,15 +444,6 @@ void UGameplayWidget::OnScreenBlurChanged(int32 NewIndex)
 	CurrentSettings.ScreenBlurAmount = Amount;
 
 	UE_LOG(LogTemp, Log, TEXT("GameplayWidget: Screen blur changed to %.2f (not saved yet)"), Amount);
-}
-
-void UGameplayWidget::OnResetButtonClicked()
-{
-	// Reset về default settings
-	FS_GameplaySettings DefaultSettings;
-	LoadSettings(DefaultSettings);
-
-	UE_LOG(LogTemp, Log, TEXT("GameplayWidget: Reset to default settings (not saved yet)"));
 }
 
 // ===== HELPER FUNCTIONS =====

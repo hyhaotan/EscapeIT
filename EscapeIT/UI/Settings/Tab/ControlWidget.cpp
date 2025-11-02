@@ -52,11 +52,6 @@ void UControlWidget::NativeConstruct()
 	{
 		RebindKeysButton->OnClicked.AddDynamic(this, &UControlWidget::OnRebindKeysButtonClicked);
 	}
-
-	if (ResetButton)
-	{
-		ResetButton->OnClicked.AddDynamic(this, &UControlWidget::OnResetButtonClicked);
-	}
 }
 
 void UControlWidget::NativeDestruct()
@@ -66,11 +61,6 @@ void UControlWidget::NativeDestruct()
 	if (RebindKeysButton)
 	{
 		RebindKeysButton->OnClicked.RemoveDynamic(this, &UControlWidget::OnRebindKeysButtonClicked);
-	}
-
-	if (ResetButton)
-	{
-		ResetButton->OnClicked.RemoveDynamic(this, &UControlWidget::OnResetButtonClicked);
 	}
 
 	Super::NativeDestruct();
@@ -366,15 +356,6 @@ void UControlWidget::OnRebindKeysButtonClicked()
 {
 	UE_LOG(LogTemp, Log, TEXT("ControlWidget: Rebind Keys clicked - open key binding UI (not implemented here)"));
 	// No subsystem call here — this should open a rebind widget / broadcast an event
-}
-
-void UControlWidget::OnResetButtonClicked()
-{
-	// Reset to default settings locally (do not apply to subsystem automatically)
-	FS_ControlSettings DefaultSettings;
-	LoadSettings(DefaultSettings);
-
-	UE_LOG(LogTemp, Log, TEXT("ControlWidget: Reset to default settings (local, not saved)"));
 }
 
 // ===== HELPERS =====

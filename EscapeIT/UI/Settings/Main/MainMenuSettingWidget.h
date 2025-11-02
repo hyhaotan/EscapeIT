@@ -294,7 +294,7 @@ protected:
 	void TrackSettingChange(const FString& SettingName, const FString& OldValue, const FString& NewValue);
 	void UndoLastChange();
 	void UpdateUndoButton();
-	bool CanUndo() const { return RecentChanges.Num() > 0; }
+	bool CanUndo() const;
 
 	// Dialogs
 	void ShowUnsavedChangesDialog();
@@ -355,6 +355,7 @@ protected:
 	void SaveCustomProfile(const FString& ProfileName);
 	void LoadCustomProfile(const FString& ProfileName);
 
+	void CloseSettingsMenu();
 	// ===== PROPERTIES =====
 
 	UPROPERTY()
@@ -399,8 +400,5 @@ public:
 	bool HasUnsavedChanges() const { return bHasUnsavedChanges; }
 
 	UFUNCTION(BlueprintPure, Category = "Settings")
-	ESettingsCategory GetCurrentCategory() const
-	{
-		return static_cast<ESettingsCategory>(CurrentCategoryIndex + 1);
-	}
+	ESettingsCategory GetCurrentCategory() const;
 };

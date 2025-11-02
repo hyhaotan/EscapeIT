@@ -59,9 +59,6 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	USelectionWidget* ScreenBlurSelection;
 
-	UPROPERTY(meta = (BindWidget))
-	UButton* ResetButton;
-
 	// ===== CALLBACKS =====
 
 	UFUNCTION()
@@ -96,9 +93,6 @@ protected:
 
 	UFUNCTION()
 	void OnScreenBlurChanged(int32 NewIndex);
-
-	UFUNCTION()
-	void OnResetButtonClicked();
 
 	// ===== PROPERTIES =====
 

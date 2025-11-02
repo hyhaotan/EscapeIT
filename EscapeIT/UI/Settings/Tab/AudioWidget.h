@@ -82,9 +82,6 @@ protected:
 	UPROPERTY(meta = (BindWidgetOptional))
 	UButton* TestAudioButton;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	UButton* ResetButton;
-
 	// Internal
 	UPROPERTY()
 	class USettingsSubsystem* SettingsSubsystem;
@@ -144,7 +141,4 @@ protected:
 	// Buttons
 	UFUNCTION()
 	void OnTestAudioButtonClicked();
-
-	UFUNCTION()
-	void OnResetButtonClicked();
 };

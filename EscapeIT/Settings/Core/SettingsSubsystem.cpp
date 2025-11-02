@@ -22,6 +22,9 @@ void USettingsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
     UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem: Initializing..."));
 
+    // Initialize handlers
+    FGraphicsSettingsHandler::Initialize();
+
     // Initialize defaults
     InitializeDefaults();
 
@@ -466,44 +469,17 @@ void USettingsSubsystem::DetectHardwareCapabilities()
 
 void USettingsSubsystem::DetectGPU()
 {
-    // Get GPU adapter name
-    HardwareInfo.GPU.Name = GRHIAdapterName;
+    // Use handler to get GPU info
+    HardwareInfo.GPU.Name = FGraphicsSettingsHandler::GetGPUName();
+    HardwareInfo.GPU.VRAMSizeMB = FGraphicsSettingsHandler::GetAvailableVRAM();
+    HardwareInfo.GPU.bSupportsRayTracing = FGraphicsSettingsHandler::IsRayTracingSupported();
+    HardwareInfo.GPU.bSupportsDXR = HardwareInfo.GPU.bSupportsRayTracing;
+    HardwareInfo.GPU.PerformanceScore = FGraphicsSettingsHandler::CalculateGPUPerformanceScore();
+
+    // Determine vendor
     HardwareInfo.GPU.Vendor = GRHIVendorId == 0x10DE ? TEXT("NVIDIA") :
         GRHIVendorId == 0x1002 ? TEXT("AMD") :
         GRHIVendorId == 0x8086 ? TEXT("Intel") : TEXT("Unknown");
-
-    // Get VRAM size (in MB)
-    HardwareInfo.GPU.VRAMSizeMB = GRHIDeviceMaxTextureMemory / (1024 * 1024);
-
-    // Check ray tracing support
-    HardwareInfo.GPU.bSupportsRayTracing = GRHISupportsRayTracing;
-    HardwareInfo.GPU.bSupportsDXR = GRHISupportsRayTracing;
-
-    // Performance scoring
-    int32 Score = 50;
-
-    if (HardwareInfo.GPU.bSupportsRayTracing)
-        Score += 20;
-
-    if (HardwareInfo.GPU.VRAMSizeMB >= 8192)
-        Score += 20;
-    else if (HardwareInfo.GPU.VRAMSizeMB >= 4096)
-        Score += 10;
-
-    // Vendor-specific heuristics
-    if (HardwareInfo.GPU.Vendor == TEXT("NVIDIA"))
-    {
-        if (HardwareInfo.GPU.Name.Contains(TEXT("RTX 40")))
-            Score = 95;
-        else if (HardwareInfo.GPU.Name.Contains(TEXT("RTX 30")))
-            Score = 80;
-        else if (HardwareInfo.GPU.Name.Contains(TEXT("RTX 20")))
-            Score = 70;
-        else if (HardwareInfo.GPU.Name.Contains(TEXT("GTX 16")))
-            Score = 60;
-    }
-
-    HardwareInfo.GPU.PerformanceScore = FMath::Clamp(Score, 0, 100);
 }
 
 void USettingsSubsystem::DetectCPU()
@@ -563,32 +539,12 @@ void USettingsSubsystem::DetectDisplays()
 
 TArray<FIntPoint> USettingsSubsystem::GetAvailableResolutions() const
 {
-    TArray<FIntPoint> Resolutions;
-
-    // Get screen resolutions from engine
-    FScreenResolutionArray ScreenResolutions;
-    if (RHIGetAvailableResolutions(ScreenResolutions, true))
-    {
-        for (const FScreenResolutionRHI& Resolution : ScreenResolutions)
-        {
-            Resolutions.Add(FIntPoint(Resolution.Width, Resolution.Height));
-        }
-    }
-
-    // If no resolutions found, add some common ones
-    if (Resolutions.Num() == 0)
-    {
-        Resolutions.Add(FIntPoint(1920, 1080));
-        Resolutions.Add(FIntPoint(2560, 1440));
-        Resolutions.Add(FIntPoint(3840, 2160));
-    }
-
-    return Resolutions;
+    return FGraphicsSettingsHandler::GetAvailableResolutions();
 }
 
 bool USettingsSubsystem::IsRayTracingSupported() const
 {
-    return HardwareInfo.GPU.bSupportsRayTracing;
+    return FGraphicsSettingsHandler::IsRayTracingSupported();
 }
 
 // ===== AUTO-DETECT & RECOMMENDATIONS =====
@@ -600,20 +556,15 @@ FS_AllSettings USettingsSubsystem::GetRecommendedSettings() const
     if (!bHardwareDetected)
     {
         UE_LOG(LogTemp, Warning, TEXT("SettingsSubsystem: Hardware not detected, using defaults"));
-        Recommended.GraphicsSettings = GetGraphicsPreset(EE_GraphicsQuality::Medium);
+        Recommended.GraphicsSettings = FGraphicsSettingsHandler::GetPreset(EE_GraphicsQuality::Medium);
         return Recommended;
     }
 
-    // Use handler's auto-detect
+    // Use handler's auto-detect for graphics
     Recommended.GraphicsSettings = FGraphicsSettingsHandler::AutoDetectSettings();
 
-    // Apply hardware-specific adjustments
-    if (HardwareInfo.Displays.Num() > 0)
-    {
-        // Use native display resolution
-        Recommended.GraphicsSettings.ResolutionX = HardwareInfo.Displays[0].Resolution.X;
-        Recommended.GraphicsSettings.ResolutionY = HardwareInfo.Displays[0].Resolution.Y;
-    }
+    // Other settings use defaults
+    // Audio, Gameplay, Controls, Accessibility remain as default
 
     UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem: Recommended settings generated"));
 
@@ -629,9 +580,7 @@ FS_GraphicsSettings USettingsSubsystem::AutoDetectGraphicsSettings()
 
 bool USettingsSubsystem::AreSettingsEqual(const FS_AllSettings& A, const FS_AllSettings& B)
 {
-    return /*A.GraphicsSettings == B.GraphicsSettings &&
-        A.AudioSettings == B.AudioSettings &&*/
-        A.GameplaySettings == B.GameplaySettings &&
+    return A.GameplaySettings == B.GameplaySettings &&
         A.ControlSettings == B.ControlSettings &&
         A.AccessibilitySettings == B.AccessibilitySettings;
 }
@@ -918,9 +867,6 @@ void USettingsSubsystem::InitializeDefaults()
 {
     UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem: Initializing default settings"));
 
-    // Initialize graphics presets
-    InitGraphicSettings();
-
     // Set default settings
     AllSettings = FS_AllSettings();
 
@@ -934,7 +880,7 @@ void USettingsSubsystem::InitializeDefaults()
     }
     else
     {
-        AllSettings.GraphicsSettings = GetGraphicsPreset(EE_GraphicsQuality::Medium);
+        AllSettings.GraphicsSettings = FGraphicsSettingsHandler::GetPreset(EE_GraphicsQuality::Medium);
         UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem: Applied medium preset as default"));
     }
 }
@@ -1392,9 +1338,7 @@ void USettingsSubsystem::LoadCustomPresetsFromDisk()
 
 TArray<EE_GraphicsQuality> USettingsSubsystem::GetAvailableGraphicsPresets() const
 {
-    TArray<EE_GraphicsQuality> Presets;
-    GraphicsPresets.GetKeys(Presets);
-    return Presets;
+    return FGraphicsSettingsHandler::GetAvailablePresets();
 }
 
 // ===== PERFORMANCE METRICS =====
@@ -1591,85 +1535,12 @@ FString USettingsSubsystem::RunDiagnostics()
 
 void USettingsSubsystem::BenchmarkGraphicsSettings(float Duration)
 {
-    UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem: Starting graphics benchmark (%.1fs)"), Duration);
-
-    // Store current settings
-    FS_GraphicsSettings OriginalSettings = AllSettings.GraphicsSettings;
-
-    // Create benchmark struct
-    FS_BenchmarkResult BenchmarkResult;
-    BenchmarkResult.DurationSeconds = Duration;
-    BenchmarkResult.BenchmarkTime = FDateTime::UtcNow();
-
-    // Test different quality levels
-    TArray<EE_GraphicsQuality> QualitiesToTest = {
-        EE_GraphicsQuality::Low,
-        EE_GraphicsQuality::Medium,
-        EE_GraphicsQuality::High,
-        EE_GraphicsQuality::Ultra
-    };
-
-    TArray<float> AverageFPS;
-
-    for (EE_GraphicsQuality Quality : QualitiesToTest)
-    {
-        // Apply quality preset
-        FS_GraphicsSettings TestSettings = GetGraphicsPreset(Quality);
-        ApplyGraphicsSettingsToEngine(TestSettings);
-
-        // Wait for settings to apply
-        FPlatformProcess::Sleep(1.0f);
-
-        // Measure performance for Duration seconds
-        float TotalFPS = 0.0f;
-        int32 SampleCount = 0;
-        float StartTime = UGameplayStatics::GetRealTimeSeconds(GetWorld());
-
-        while (UGameplayStatics::GetRealTimeSeconds(GetWorld()) - StartTime < Duration / QualitiesToTest.Num())
+    FGraphicsSettingsHandler::BenchmarkSettings(Duration, GetWorld(),
+        [](EE_GraphicsQuality Quality, float FPS)
         {
-            if (GAverageFPS > 0)
-            {
-                TotalFPS += GAverageFPS;
-                SampleCount++;
-            }
-
-            FPlatformProcess::Sleep(0.1f);
-        }
-
-        float AvgFPS = SampleCount > 0 ? TotalFPS / SampleCount : 0.0f;
-        AverageFPS.Add(AvgFPS);
-
-        UE_LOG(LogTemp, Log, TEXT("  - %s: %.1f FPS"),
-            *UEnum::GetValueAsString(Quality), AvgFPS);
-    }
-
-    // Determine best quality level (target 60 FPS)
-    EE_GraphicsQuality RecommendedQuality = EE_GraphicsQuality::Medium;
-
-    for (int32 i = AverageFPS.Num() - 1; i >= 0; i--)
-    {
-        if (AverageFPS[i] >= 60.0f)
-        {
-            RecommendedQuality = QualitiesToTest[i];
-            break;
-        }
-    }
-
-    BenchmarkResult.RecommendedPreset = RecommendedQuality;
-    BenchmarkResult.BenchmarkScore = FMath::Clamp(
-        AverageFPS[static_cast<int32>(RecommendedQuality)] / 60.0f * 100.0f,
-        0.0f, 100.0f);
-
-    // Restore original settings
-    ApplyGraphicsSettingsToEngine(OriginalSettings);
-
-    UE_LOG(LogTemp, Log, TEXT("SettingsSubsystem: Benchmark complete"));
-    UE_LOG(LogTemp, Log, TEXT("  - Recommended Quality: %s"),
-        *UEnum::GetValueAsString(RecommendedQuality));
-    UE_LOG(LogTemp, Log, TEXT("  - Benchmark Score: %.1f"), BenchmarkResult.BenchmarkScore);
-
-    // You could broadcast this result via a delegate
-    // OnBenchmarkComplete.Broadcast(BenchmarkResult);
+            UE_LOG(LogTemp, Log, TEXT("Benchmark result - %s: %.1f FPS"),
+                *UEnum::GetValueAsString(Quality), FPS);
+        });
 }
 
 // ===== HELPER FUNCTIONS =====
@@ -1701,65 +1572,7 @@ bool USettingsSubsystem::ApplySettingsCategory(ESettingsCategory Category, bool 
 
 FS_GraphicsSettings USettingsSubsystem::GetGraphicsPreset(EE_GraphicsQuality Quality) const
 {
-    FS_GraphicsSettings Preset;
-    // sane defaults
-    Preset.QualityPreset = Quality;
-    Preset.bVSyncEnabled = true;
-    Preset.FrameRateCap = 0; // uncapped
-    Preset.bRayTracingEnabled = false;
-    Preset.FieldOfView = 90.0f;
-
-    switch (Quality)
-    {
-    case EE_GraphicsQuality::Low:
-        Preset.ResolutionX = 1280;
-        Preset.ResolutionY = 720;
-        Preset.TextureQuality = EE_TextureQuality::Low;
-        Preset.ShadowQuality = EE_ShadowQuality::Low;
-        Preset.AntiAliasingMethod = EE_AntiAliasingMethod::None;
-        Preset.MotionBlurAmount = 0.0f;
-        Preset.bVSyncEnabled = false;
-        Preset.FrameRateCap = 60;
-        break;
-
-    case EE_GraphicsQuality::Medium:
-        Preset.ResolutionX = 1920;
-        Preset.ResolutionY = 1080;
-        Preset.TextureQuality = EE_TextureQuality::Medium;
-        Preset.ShadowQuality = EE_ShadowQuality::Medium;
-        Preset.AntiAliasingMethod = EE_AntiAliasingMethod::FXAA;
-        Preset.MotionBlurAmount = 0.2f;
-        Preset.FrameRateCap = 0;
-        break;
-
-    case EE_GraphicsQuality::High:
-        Preset.ResolutionX = 2560;
-        Preset.ResolutionY = 1440;
-        Preset.TextureQuality = EE_TextureQuality::High;
-        Preset.ShadowQuality = EE_ShadowQuality::High;
-        Preset.AntiAliasingMethod = EE_AntiAliasingMethod::MSAA_4x;
-        Preset.MotionBlurAmount = 0.4f;
-        Preset.FrameRateCap = 0;
-        break;
-
-    case EE_GraphicsQuality::Ultra:
-        Preset.ResolutionX = 3840;
-        Preset.ResolutionY = 2160;
-        Preset.TextureQuality = EE_TextureQuality::Epic;
-        Preset.ShadowQuality = EE_ShadowQuality::Epic;
-        Preset.AntiAliasingMethod = EE_AntiAliasingMethod::MSAA_4x;
-        Preset.MotionBlurAmount = 1.0f;
-        Preset.bRayTracingEnabled = true;
-        Preset.FrameRateCap = 0;
-        break;
-
-    case EE_GraphicsQuality::Custom:
-    default:
-        // leave default values (caller is expected to set custom fields)
-        break;
-    }
-
-    return Preset;
+    return FGraphicsSettingsHandler::GetPreset(Quality);
 }
 
 void USettingsSubsystem::InitGraphicSettings()
