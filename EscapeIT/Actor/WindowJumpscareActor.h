@@ -16,6 +16,7 @@ class UCameraComponent;
 class AEscapeITCharacter;
 class ACameraActor;
 class USpringArmComponent;
+class AWidgetManager;
 
 UCLASS()
 class ESCAPEIT_API AWindowJumpscareActor : public AActor
@@ -93,6 +94,9 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<USanityComponent> SanityComponent;
+
+	UPROPERTY()
+	TObjectPtr<AWidgetManager> WidgetManager;
 
 	UPROPERTY()
 	TObjectPtr<AEscapeITCharacter> OwningCharacter;

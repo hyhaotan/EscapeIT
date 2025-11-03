@@ -13,6 +13,9 @@
 #include "TimerManager.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "EscapeIT/EscapeITCharacter.h"
+#include "EscapeIT/UI/SanityWidget.h"
+#include "EscapeIT/UI/HUD/WidgetManager.h"
+#include "EscapeIT/Actor/Components/SanityComponent.h"
 
 AWindowJumpscareActor::AWindowJumpscareActor()
 {
@@ -57,6 +60,32 @@ void AWindowJumpscareActor::BeginPlay()
 
 	LeftHingeInitialRot = LeftWindowHinge->GetRelativeRotation();
 	RightHingeInitialRot = RightWindowHinge->GetRelativeRotation();
+
+	TObjectPtr<APlayerController> PlayerCon = UGameplayStatics::GetPlayerController(this, 0);
+	if (PlayerCon)
+	{
+		// Lấy WidgetManager
+		WidgetManager = Cast<AWidgetManager>(PlayerCon->GetHUD());
+		if (!WidgetManager)
+		{
+			UE_LOG(LogTemp, Error, TEXT("WidgetManager not found!"));
+		}
+
+		TObjectPtr<AEscapeITCharacter> PlayerCharacter = Cast<AEscapeITCharacter>(PlayerCon->GetPawn());
+		if (PlayerCharacter)
+		{
+			SanityComponent = PlayerCharacter->FindComponentByClass<USanityComponent>();
+			if (!SanityComponent)
+			{
+				UE_LOG(LogTemp, Error, TEXT("SanityComponent not found on player!"));
+			}
+		}
+	}
+
+	if (WidgetManager && SanityComponent)
+	{
+		WidgetManager->InitializeSanityWidget(SanityComponent);
+	}
 
 	if (WindowTimeline && WindowCurve)
 	{
@@ -109,7 +138,7 @@ void AWindowJumpscareActor::UpdateWindowRotation(float Value)
 
 void AWindowJumpscareActor::TriggerJumpscare()
 {
-	if (!GhostCamera) // Kiểm tra GhostCamera thay vì OwningCharacter
+	if (!GhostCamera)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("GhostCamera is not set!"));
 		return;
@@ -122,10 +151,10 @@ void AWindowJumpscareActor::TriggerJumpscare()
 		return;
 	}
 
-	// Lưu lại ViewTarget ban đầu để restore sau
+	DisableInput(PlayerCon);
+
 	OriginalViewTarget = PlayerCon->GetViewTarget();
 
-	// Chuyển camera sang Actor này (WindowJumpscareActor) - nó sẽ dùng GhostCamera
 	PlayerCon->SetViewTargetWithBlend(this, 1.0f, EViewTargetBlendFunction::VTBlend_EaseInOut, 1.0f, false);
 
 	if (WindowTimeline)
@@ -148,6 +177,12 @@ void AWindowJumpscareActor::TriggerJumpscare()
 		UGameplayStatics::PlaySoundAtLocation(this, JumpscareSound, GetActorLocation());
 	}
 
+	if (SanityComponent)
+	{
+		float ReductionAmount = 20.0f;
+		SanityComponent->ReduceSanity(ReductionAmount);
+	}
+	
 	GetWorldTimerManager().SetTimer(CloseWindowTimer, this, &AWindowJumpscareActor::CloseWindows, CloseDelayTime, false);
 }
 
@@ -164,8 +199,11 @@ void AWindowJumpscareActor::CloseWindows()
 	}
 
 	TObjectPtr<APlayerController> PlayerCon = UGameplayStatics::GetPlayerController(this, 0);
+
 	if (PlayerCon && OriginalViewTarget)
 	{
 		PlayerCon->SetViewTargetWithBlend(OriginalViewTarget, 1.0f, EViewTargetBlendFunction::VTBlend_EaseInOut, 1.0f, false);
 	}
+
+	EnableInput(PlayerCon);
 }
