@@ -5,6 +5,7 @@
 #include "EscapeIT/Settings/Core/SettingsSubsystem.h"
 #include "Components/Button.h"
 #include "Kismet/GameplayStatics.h"
+#include "EscapeIT/UI/ContainerBorder.h"
 
 UAccessibilityWidget::UAccessibilityWidget(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -33,23 +34,6 @@ void UAccessibilityWidget::NativeConstruct()
 
 	// Load current settings from subsystem
 	LoadCurrentSettings();
-
-	// Bind Reset Button
-	if (ResetButton)
-	{
-		ResetButton->OnClicked.AddDynamic(this, &UAccessibilityWidget::OnResetButtonClicked);
-	}
-}
-
-void UAccessibilityWidget::NativeDestruct()
-{
-	// Unbind all delegates
-	if (ResetButton)
-	{
-		ResetButton->OnClicked.RemoveDynamic(this, &UAccessibilityWidget::OnResetButtonClicked);
-	}
-
-	Super::NativeDestruct();
 }
 
 void UAccessibilityWidget::InitializeSelections()
@@ -508,3 +492,5 @@ int32 UAccessibilityWidget::ActivationTimeToIndex(float Value)
 
 	return ClosestIndex;
 }
+
+

@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -10,6 +10,7 @@
 class USelectionWidget;
 class USettingsSubsystem;
 class UButton;
+class USettingRowWidget;
 
 UCLASS()
 class ESCAPEIT_API UAccessibilityWidget : public UUserWidget
@@ -29,7 +30,6 @@ public:
 	void LoadSettings(const FS_AccessibilitySettings& Settings);
 protected:
 	virtual void NativeConstruct() override;
-	virtual void NativeDestruct() override;
 
 	// ===== WIDGET BINDINGS =====
 
@@ -73,7 +73,43 @@ protected:
 	USelectionWidget* HoldActivationTimeSelection;
 
 	UPROPERTY(meta = (BindWidget))
-	UButton* ResetButton;
+	USettingRowWidget* TextSizeWidget;
+
+	UPROPERTY(meta = (BindWidget))
+	USettingRowWidget* TextContrastWidget;
+
+	UPROPERTY(meta = (BindWidget))
+	USettingRowWidget* DyslexiaFontWidget;
+
+	UPROPERTY(meta = (BindWidget))
+	USettingRowWidget* ColorBlindModeWidget;
+
+	UPROPERTY(meta = (BindWidget))
+	USettingRowWidget* HighContrastUIWidget;
+
+	UPROPERTY(meta = (BindWidget))
+	USettingRowWidget* ReducedMotionWidget;
+
+	UPROPERTY(meta = (BindWidget))
+	USettingRowWidget* PhotosensitivityModeWidget;
+
+	UPROPERTY(meta = (BindWidget))
+	USettingRowWidget* ScreenReaderWidget;
+
+	UPROPERTY(meta = (BindWidget))
+	USettingRowWidget* SoundCuesVisualizationWidget;
+
+	UPROPERTY(meta = (BindWidget))
+	USettingRowWidget* HapticFeedbackWidget;
+
+	UPROPERTY(meta = (BindWidget))
+	USettingRowWidget* SingleHandedModeWidget;
+
+	UPROPERTY(meta = (BindWidget))
+	USettingRowWidget* HoldToActivateWidget;
+
+	UPROPERTY(meta = (BindWidget))
+	USettingRowWidget* HoldActivationTimeSelection;
 
 	// ===== CALLBACKS =====
 

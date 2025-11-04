@@ -11,6 +11,9 @@ void AMainMenuHUD::BeginPlay()
 {
 	Super::BeginPlay();
 
+	TObjectPtr<APlayerController> PlayerCon = UGameplayStatics::GetPlayerController(this, 0);
+	PlayerCon->bShowMouseCursor = true;
+
 	InitializeWidget();
 }
 
