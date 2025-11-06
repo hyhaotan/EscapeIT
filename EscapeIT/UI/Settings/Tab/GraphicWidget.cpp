@@ -1,843 +1,735 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
-
+﻿// GraphicWidget.cpp
 #include "GraphicWidget.h"
-#include "EscapeIT/UI/Settings/Tab/Selection/SelectionWidget.h"
+#include "EscapeIT/UI/Settings/Row/SelectionSettingRow.h"
 #include "EscapeIT/Settings/Core/SettingsSubsystem.h"
-#include "Components/Button.h"
 #include "CommonTextBlock.h"
-#include "Kismet/GameplayStatics.h"
 #include "GameFramework/GameUserSettings.h"
 #include "Engine/Engine.h"
 
 UGraphicWidget::UGraphicWidget(const FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer)
-	, bIsLoadingSettings(false)
+    : Super(ObjectInitializer)
+    , bIsLoadingSettings(false)
+    , SettingsSubsystem(nullptr)
 {
 }
 
 void UGraphicWidget::NativeConstruct()
 {
-	Super::NativeConstruct();
+    Super::NativeConstruct();
 
-	// Get Settings Subsystem
-	UGameInstance* GameInstance = GetGameInstance();
-	if (GameInstance)
-	{
-		SettingsSubsystem = GameInstance->GetSubsystem<USettingsSubsystem>();
-	}
+    // Get Settings Subsystem (optional)
+    if (UGameInstance* GameInstance = GetGameInstance())
+    {
+        SettingsSubsystem = GameInstance->GetSubsystem<USettingsSubsystem>();
+    }
 
-	if (!SettingsSubsystem)
-	{
-		UE_LOG(LogTemp, Error, TEXT("GraphicWidget: Failed to get SettingsSubsystem"));
-		return;
-	}
+    if (!SettingsSubsystem)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("GraphicWidget: SettingsSubsystem not found; widget will still work locally"));
+    }
 
-	// Initialize all selections
-	InitializeSelections();
+    // Initialize selection rows and bind their delegates
+    InitializeSelectionRows();
 
-	// Load current settings from subsystem
-	LoadCurrentSettings();
+    // Load current settings either from subsystem (if available) or defaults
+    if (SettingsSubsystem)
+    {
+        LoadSettings(SettingsSubsystem->GetAllSettings().GraphicsSettings);
+    }
+    else
+    {
+        FS_GraphicsSettings DefaultSettings;
+        LoadSettings(DefaultSettings);
+    }
 
-	// Start FPS counter if widget exists (with lower frequency to reduce overhead)
-	if (FPSText)
-	{
-		GetWorld()->GetTimerManager().SetTimer(
-			FPSTimerHandle,
-			this,
-			&UGraphicWidget::UpdateFPSCounter,
-			1.0f,  // Update every 1 second instead of 0.5s
-			true
-		);
-	}
+    // Start FPS counter if widget exists
+    if (FPSText)
+    {
+        GetWorld()->GetTimerManager().SetTimer(
+            FPSTimerHandle,
+            this,
+            &UGraphicWidget::UpdateFPSCounter,
+            1.0f,  // Update every 1 second
+            true
+        );
+    }
 }
 
 void UGraphicWidget::NativeDestruct()
 {
-	// Clear FPS timer
-	if (FPSTimerHandle.IsValid())
-	{
-		GetWorld()->GetTimerManager().ClearTimer(FPSTimerHandle);
-		FPSTimerHandle.Invalidate();
-	}
+    // Clear FPS timer
+    if (FPSTimerHandle.IsValid())
+    {
+        GetWorld()->GetTimerManager().ClearTimer(FPSTimerHandle);
+        FPSTimerHandle.Invalidate();
+    }
 
-	Super::NativeDestruct();
+    // Unbind selection row delegates
+    if (QualityPresetRow)
+        QualityPresetRow->OnSelectionChanged.RemoveDynamic(this, &UGraphicWidget::OnQualityPresetChanged);
+    if (ResolutionRow)
+        ResolutionRow->OnSelectionChanged.RemoveDynamic(this, &UGraphicWidget::OnResolutionChanged);
+    if (VSyncRow)
+        VSyncRow->OnSelectionChanged.RemoveDynamic(this, &UGraphicWidget::OnVSyncChanged);
+    if (FrameRateCapRow)
+        FrameRateCapRow->OnSelectionChanged.RemoveDynamic(this, &UGraphicWidget::OnFrameRateCapChanged);
+    if (RayTracingRow)
+        RayTracingRow->OnSelectionChanged.RemoveDynamic(this, &UGraphicWidget::OnRayTracingChanged);
+    if (RayTracingQualityRow)
+        RayTracingQualityRow->OnSelectionChanged.RemoveDynamic(this, &UGraphicWidget::OnRayTracingQualityChanged);
+    if (ShadowQualityRow)
+        ShadowQualityRow->OnSelectionChanged.RemoveDynamic(this, &UGraphicWidget::OnShadowQualityChanged);
+    if (TextureQualityRow)
+        TextureQualityRow->OnSelectionChanged.RemoveDynamic(this, &UGraphicWidget::OnTextureQualityChanged);
+    if (AntiAliasingRow)
+        AntiAliasingRow->OnSelectionChanged.RemoveDynamic(this, &UGraphicWidget::OnAntiAliasingChanged);
+    if (MotionBlurRow)
+        MotionBlurRow->OnSelectionChanged.RemoveDynamic(this, &UGraphicWidget::OnMotionBlurChanged);
+    if (FieldOfViewRow)
+        FieldOfViewRow->OnSelectionChanged.RemoveDynamic(this, &UGraphicWidget::OnFieldOfViewChanged);
+
+    Super::NativeDestruct();
 }
 
-void UGraphicWidget::InitializeSelections()
+// Initialize selection rows with options and bind delegates
+void UGraphicWidget::InitializeSelectionRows()
 {
-	// Quality Preset
-	if (QualityPresetSelection)
-	{
-		QualityPresetSelection->Clear();
-		QualityPresetSelection->AddOption(FSelectionOption{ FText::FromString(TEXT("Low")) });
-		QualityPresetSelection->AddOption(FSelectionOption{ FText::FromString(TEXT("Medium")) });
-		QualityPresetSelection->AddOption(FSelectionOption{ FText::FromString(TEXT("High")) });
-		QualityPresetSelection->AddOption(FSelectionOption{ FText::FromString(TEXT("Ultra")) });
-		QualityPresetSelection->AddOption(FSelectionOption{ FText::FromString(TEXT("Custom")) });
-		QualityPresetSelection->OnSelectionChanged.BindDynamic(this, &UGraphicWidget::OnQualityPresetChanged);
-	}
+    const TArray<FText> ToggleOptions = MakeToggleOptions();
+    const TArray<FText> QualityPresetOptions = MakeQualityPresetOptions();
+    const TArray<FText> ResolutionOptions = MakeResolutionOptions();
+    const TArray<FText> FrameRateCapOptions = MakeFrameRateCapOptions();
+    const TArray<FText> RayTracingQualityOptions = MakeRayTracingQualityOptions();
+    const TArray<FText> QualityLevelOptions = MakeQualityLevelOptions();
+    const TArray<FText> AntiAliasingOptions = MakeAntiAliasingOptions();
+    const TArray<FText> PercentageOptions = MakePercentageOptions();
+    const TArray<FText> FieldOfViewOptions = MakeFieldOfViewOptions();
 
-	// Resolution
-	if (ResolutionSelection)
-	{
-		ResolutionSelection->Clear();
-		TArray<FIntPoint> Resolutions = GetAvailableResolutions();
-		for (const FIntPoint& Res : Resolutions)
-		{
-			FString ResText = FString::Printf(TEXT("%dx%d"), Res.X, Res.Y);
-			ResolutionSelection->AddOption(FSelectionOption{ FText::FromString(ResText) });
-		}
-		ResolutionSelection->OnSelectionChanged.BindDynamic(this, &UGraphicWidget::OnResolutionChanged);
-	}
+    if (QualityPresetRow)
+    {
+        QualityPresetRow->InitializeRow(QualityPresetOptions, static_cast<int32>(CurrentSettings.QualityPreset), FText::FromString(TEXT("Quality Preset")));
+        QualityPresetRow->OnSelectionChanged.AddDynamic(this, &UGraphicWidget::OnQualityPresetChanged);
+    }
 
-	// VSync
-	if (VSyncSelection)
-	{
-		VSyncSelection->Clear();
-		AddToggleOptions(VSyncSelection);
-		VSyncSelection->OnSelectionChanged.BindDynamic(this, &UGraphicWidget::OnVSyncChanged);
-	}
+    if (ResolutionRow)
+    {
+        FIntPoint CurrentResolution(CurrentSettings.ResolutionX, CurrentSettings.ResolutionY);
+        ResolutionRow->InitializeRow(ResolutionOptions, ResolutionToIndex(CurrentResolution), FText::FromString(TEXT("Resolution")));
+        ResolutionRow->OnSelectionChanged.AddDynamic(this, &UGraphicWidget::OnResolutionChanged);
+    }
 
-	// Frame Rate Cap
-	if (FrameRateCapSelection)
-	{
-		FrameRateCapSelection->Clear();
-		FrameRateCapSelection->AddOption(FSelectionOption{ FText::FromString(TEXT("30 FPS")) });
-		FrameRateCapSelection->AddOption(FSelectionOption{ FText::FromString(TEXT("60 FPS")) });
-		FrameRateCapSelection->AddOption(FSelectionOption{ FText::FromString(TEXT("90 FPS")) });
-		FrameRateCapSelection->AddOption(FSelectionOption{ FText::FromString(TEXT("120 FPS")) });
-		FrameRateCapSelection->AddOption(FSelectionOption{ FText::FromString(TEXT("144 FPS")) });
-		FrameRateCapSelection->AddOption(FSelectionOption{ FText::FromString(TEXT("Unlimited")) });
-		FrameRateCapSelection->OnSelectionChanged.BindDynamic(this, &UGraphicWidget::OnFrameRateCapChanged);
-	}
+    if (VSyncRow)
+    {
+        VSyncRow->InitializeRow(ToggleOptions, CurrentSettings.bVSyncEnabled ? 1 : 0, FText::FromString(TEXT("VSync")));
+        VSyncRow->OnSelectionChanged.AddDynamic(this, &UGraphicWidget::OnVSyncChanged);
+    }
 
-	// Ray Tracing
-	if (RayTracingSelection)
-	{
-		RayTracingSelection->Clear();
-		AddToggleOptions(RayTracingSelection);
-		RayTracingSelection->OnSelectionChanged.BindDynamic(this, &UGraphicWidget::OnRayTracingChanged);
-	}
+    if (FrameRateCapRow)
+    {
+        FrameRateCapRow->InitializeRow(FrameRateCapOptions, FrameRateCapToIndex(CurrentSettings.FrameRateCap), FText::FromString(TEXT("Frame Rate Cap")));
+        FrameRateCapRow->OnSelectionChanged.AddDynamic(this, &UGraphicWidget::OnFrameRateCapChanged);
+    }
 
-	// Ray Tracing Quality
-	if (RayTracingQualitySelection)
-	{
-		RayTracingQualitySelection->Clear();
-		RayTracingQualitySelection->AddOption(FSelectionOption{ FText::FromString(TEXT("Low")) });
-		RayTracingQualitySelection->AddOption(FSelectionOption{ FText::FromString(TEXT("Medium")) });
-		RayTracingQualitySelection->AddOption(FSelectionOption{ FText::FromString(TEXT("High")) });
-		RayTracingQualitySelection->AddOption(FSelectionOption{ FText::FromString(TEXT("Epic")) });
-		RayTracingQualitySelection->OnSelectionChanged.BindDynamic(this, &UGraphicWidget::OnRayTracingQualityChanged);
+    if (RayTracingRow)
+    {
+        RayTracingRow->InitializeRow(ToggleOptions, CurrentSettings.bRayTracingEnabled ? 1 : 0, FText::FromString(TEXT("Ray Tracing")));
+        RayTracingRow->OnSelectionChanged.AddDynamic(this, &UGraphicWidget::OnRayTracingChanged);
+    }
 
-		// Disable if ray tracing is off
-		RayTracingQualitySelection->SetIsEnabled(CurrentSettings.bRayTracingEnabled);
-	}
+    if (RayTracingQualityRow)
+    {
+        RayTracingQualityRow->InitializeRow(RayTracingQualityOptions, static_cast<int32>(CurrentSettings.RayTracingQuality), FText::FromString(TEXT("Ray Tracing Quality")));
+        RayTracingQualityRow->OnSelectionChanged.AddDynamic(this, &UGraphicWidget::OnRayTracingQualityChanged);
+        RayTracingQualityRow->SetIsEnabled(CurrentSettings.bRayTracingEnabled);
+    }
 
-	// Shadow Quality
-	if (ShadowQualitySelection)
-	{
-		ShadowQualitySelection->Clear();
-		ShadowQualitySelection->AddOption(FSelectionOption{ FText::FromString(TEXT("Low")) });
-		ShadowQualitySelection->AddOption(FSelectionOption{ FText::FromString(TEXT("Medium")) });
-		ShadowQualitySelection->AddOption(FSelectionOption{ FText::FromString(TEXT("High")) });
-		ShadowQualitySelection->AddOption(FSelectionOption{ FText::FromString(TEXT("Epic")) });
-		ShadowQualitySelection->OnSelectionChanged.BindDynamic(this, &UGraphicWidget::OnShadowQualityChanged);
-	}
+    if (ShadowQualityRow)
+    {
+        ShadowQualityRow->InitializeRow(QualityLevelOptions, static_cast<int32>(CurrentSettings.ShadowQuality), FText::FromString(TEXT("Shadow Quality")));
+        ShadowQualityRow->OnSelectionChanged.AddDynamic(this, &UGraphicWidget::OnShadowQualityChanged);
+    }
 
-	// Texture Quality
-	if (TextureQualitySelection)
-	{
-		TextureQualitySelection->Clear();
-		TextureQualitySelection->AddOption(FSelectionOption{ FText::FromString(TEXT("Low")) });
-		TextureQualitySelection->AddOption(FSelectionOption{ FText::FromString(TEXT("Medium")) });
-		TextureQualitySelection->AddOption(FSelectionOption{ FText::FromString(TEXT("High")) });
-		TextureQualitySelection->AddOption(FSelectionOption{ FText::FromString(TEXT("Epic")) });
-		TextureQualitySelection->OnSelectionChanged.BindDynamic(this, &UGraphicWidget::OnTextureQualityChanged);
-	}
+    if (TextureQualityRow)
+    {
+        TextureQualityRow->InitializeRow(QualityLevelOptions, static_cast<int32>(CurrentSettings.TextureQuality), FText::FromString(TEXT("Texture Quality")));
+        TextureQualityRow->OnSelectionChanged.AddDynamic(this, &UGraphicWidget::OnTextureQualityChanged);
+    }
 
-	// Anti-Aliasing
-	if (AntiAliasingSelection)
-	{
-		AntiAliasingSelection->Clear();
-		AntiAliasingSelection->AddOption(FSelectionOption{ FText::FromString(TEXT("Off")) });
-		AntiAliasingSelection->AddOption(FSelectionOption{ FText::FromString(TEXT("FXAA")) });
-		AntiAliasingSelection->AddOption(FSelectionOption{ FText::FromString(TEXT("TAA")) });
-		AntiAliasingSelection->AddOption(FSelectionOption{ FText::FromString(TEXT("MSAA x2")) });
-		AntiAliasingSelection->AddOption(FSelectionOption{ FText::FromString(TEXT("MSAA x4")) });
-		AntiAliasingSelection->OnSelectionChanged.BindDynamic(this, &UGraphicWidget::OnAntiAliasingChanged);
-	}
+    if (AntiAliasingRow)
+    {
+        AntiAliasingRow->InitializeRow(AntiAliasingOptions, static_cast<int32>(CurrentSettings.AntiAliasingMethod), FText::FromString(TEXT("Anti-Aliasing")));
+        AntiAliasingRow->OnSelectionChanged.AddDynamic(this, &UGraphicWidget::OnAntiAliasingChanged);
+    }
 
-	// Motion Blur
-	if (MotionBlurSelection)
-	{
-		MotionBlurSelection->Clear();
-		AddPercentageOptions(MotionBlurSelection);
-		MotionBlurSelection->OnSelectionChanged.BindDynamic(this, &UGraphicWidget::OnMotionBlurChanged);
-	}
+    if (MotionBlurRow)
+    {
+        MotionBlurRow->InitializeRow(PercentageOptions, PercentageToIndex(CurrentSettings.MotionBlurAmount), FText::FromString(TEXT("Motion Blur")));
+        MotionBlurRow->OnSelectionChanged.AddDynamic(this, &UGraphicWidget::OnMotionBlurChanged);
+    }
 
-	// Field of View (70-120)
-	if (FieldOfViewSelection)
-	{
-		FieldOfViewSelection->Clear();
-		FieldOfViewSelection->AddOption(FSelectionOption{ FText::FromString(TEXT("70°")) });
-		FieldOfViewSelection->AddOption(FSelectionOption{ FText::FromString(TEXT("80°")) });
-		FieldOfViewSelection->AddOption(FSelectionOption{ FText::FromString(TEXT("90°")) });
-		FieldOfViewSelection->AddOption(FSelectionOption{ FText::FromString(TEXT("100°")) });
-		FieldOfViewSelection->AddOption(FSelectionOption{ FText::FromString(TEXT("110°")) });
-		FieldOfViewSelection->AddOption(FSelectionOption{ FText::FromString(TEXT("120°")) });
-		FieldOfViewSelection->OnSelectionChanged.BindDynamic(this, &UGraphicWidget::OnFieldOfViewChanged);
-	}
+    if (FieldOfViewRow)
+    {
+        FieldOfViewRow->InitializeRow(FieldOfViewOptions, FOVToIndex(CurrentSettings.FieldOfView), FText::FromString(TEXT("Field of View")));
+        FieldOfViewRow->OnSelectionChanged.AddDynamic(this, &UGraphicWidget::OnFieldOfViewChanged);
+    }
 }
 
-void UGraphicWidget::LoadCurrentSettings()
+TArray<FText> UGraphicWidget::MakeToggleOptions() const
 {
-	if (!SettingsSubsystem)
-		return;
-
-	// Get settings from subsystem and save to CurrentSettings
-	CurrentSettings = SettingsSubsystem->GetAllSettings().GraphicsSettings;
-
-	// Load settings to UI
-	LoadSettings(CurrentSettings);
-
-	UE_LOG(LogTemp, Log, TEXT("GraphicWidget: Loaded current settings from subsystem"));
+    TArray<FText> Out;
+    Out.Add(FText::FromString(TEXT("Off")));
+    Out.Add(FText::FromString(TEXT("On")));
+    return Out;
 }
 
-// ===== PUBLIC API =====
+TArray<FText> UGraphicWidget::MakeQualityPresetOptions() const
+{
+    TArray<FText> Out;
+    Out.Add(FText::FromString(TEXT("Low")));
+    Out.Add(FText::FromString(TEXT("Medium")));
+    Out.Add(FText::FromString(TEXT("High")));
+    Out.Add(FText::FromString(TEXT("Ultra")));
+    Out.Add(FText::FromString(TEXT("Custom")));
+    return Out;
+}
+
+TArray<FText> UGraphicWidget::MakeResolutionOptions() const
+{
+    TArray<FText> Out;
+    TArray<FIntPoint> Resolutions = GetAvailableResolutions();
+    for (const FIntPoint& Res : Resolutions)
+    {
+        FString ResText = FString::Printf(TEXT("%dx%d"), Res.X, Res.Y);
+        Out.Add(FText::FromString(ResText));
+    }
+    return Out;
+}
+
+TArray<FText> UGraphicWidget::MakeFrameRateCapOptions() const
+{
+    TArray<FText> Out;
+    Out.Add(FText::FromString(TEXT("30 FPS")));
+    Out.Add(FText::FromString(TEXT("60 FPS")));
+    Out.Add(FText::FromString(TEXT("90 FPS")));
+    Out.Add(FText::FromString(TEXT("120 FPS")));
+    Out.Add(FText::FromString(TEXT("144 FPS")));
+    Out.Add(FText::FromString(TEXT("Unlimited")));
+    return Out;
+}
+
+TArray<FText> UGraphicWidget::MakeRayTracingQualityOptions() const
+{
+    TArray<FText> Out;
+    Out.Add(FText::FromString(TEXT("Low")));
+    Out.Add(FText::FromString(TEXT("Medium")));
+    Out.Add(FText::FromString(TEXT("High")));
+    Out.Add(FText::FromString(TEXT("Epic")));
+    return Out;
+}
+
+TArray<FText> UGraphicWidget::MakeQualityLevelOptions() const
+{
+    TArray<FText> Out;
+    Out.Add(FText::FromString(TEXT("Low")));
+    Out.Add(FText::FromString(TEXT("Medium")));
+    Out.Add(FText::FromString(TEXT("High")));
+    Out.Add(FText::FromString(TEXT("Epic")));
+    return Out;
+}
+
+TArray<FText> UGraphicWidget::MakeAntiAliasingOptions() const
+{
+    TArray<FText> Out;
+    Out.Add(FText::FromString(TEXT("Off")));
+    Out.Add(FText::FromString(TEXT("FXAA")));
+    Out.Add(FText::FromString(TEXT("TAA")));
+    Out.Add(FText::FromString(TEXT("MSAA x2")));
+    Out.Add(FText::FromString(TEXT("MSAA x4")));
+    return Out;
+}
+
+TArray<FText> UGraphicWidget::MakePercentageOptions() const
+{
+    TArray<FText> Out;
+    Out.Add(FText::FromString(TEXT("0%")));
+    Out.Add(FText::FromString(TEXT("25%")));
+    Out.Add(FText::FromString(TEXT("50%")));
+    Out.Add(FText::FromString(TEXT("75%")));
+    Out.Add(FText::FromString(TEXT("100%")));
+    return Out;
+}
+
+TArray<FText> UGraphicWidget::MakeFieldOfViewOptions() const
+{
+    TArray<FText> Out;
+    Out.Add(FText::FromString(TEXT("70°")));
+    Out.Add(FText::FromString(TEXT("80°")));
+    Out.Add(FText::FromString(TEXT("90°")));
+    Out.Add(FText::FromString(TEXT("100°")));
+    Out.Add(FText::FromString(TEXT("110°")));
+    Out.Add(FText::FromString(TEXT("120°")));
+    return Out;
+}
 
 void UGraphicWidget::LoadSettings(const FS_GraphicsSettings& Settings)
 {
-	// Save to CurrentSettings
-	CurrentSettings = Settings;
+    bIsLoadingSettings = true;
+    CurrentSettings = Settings;
 
-	// Load to UI (don't trigger callbacks)
-	bIsLoadingSettings = true;
+    // Update selection rows (do not trigger delegates)
+    if (QualityPresetRow)
+        QualityPresetRow->SetCurrentSelection(static_cast<int32>(CurrentSettings.QualityPreset), false);
 
-	// Quality Preset
-	if (QualityPresetSelection)
-	{
-		int32 Index = static_cast<int32>(Settings.QualityPreset);
-		QualityPresetSelection->SetCurrentSelection(Index);
-	}
+    if (ResolutionRow)
+    {
+        FIntPoint Resolution(CurrentSettings.ResolutionX, CurrentSettings.ResolutionY);
+        ResolutionRow->SetCurrentSelection(ResolutionToIndex(Resolution), false);
+    }
 
-	// Resolution
-	if (ResolutionSelection)
-	{
-		FIntPoint Resolution(Settings.ResolutionX, Settings.ResolutionY);
-		int32 Index = ResolutionToIndex(Resolution);
-		ResolutionSelection->SetCurrentSelection(Index);
-	}
+    if (VSyncRow)
+        VSyncRow->SetCurrentSelection(CurrentSettings.bVSyncEnabled ? 1 : 0, false);
 
-	// VSync
-	if (VSyncSelection)
-	{
-		VSyncSelection->SetCurrentSelection(Settings.bVSyncEnabled ? 1 : 0);
-	}
+    if (FrameRateCapRow)
+        FrameRateCapRow->SetCurrentSelection(FrameRateCapToIndex(CurrentSettings.FrameRateCap), false);
 
-	// Frame Rate Cap
-	if (FrameRateCapSelection)
-	{
-		int32 Index = FrameRateCapToIndex(Settings.FrameRateCap);
-		FrameRateCapSelection->SetCurrentSelection(Index);
-	}
+    if (RayTracingRow)
+        RayTracingRow->SetCurrentSelection(CurrentSettings.bRayTracingEnabled ? 1 : 0, false);
 
-	// Ray Tracing
-	if (RayTracingSelection)
-	{
-		RayTracingSelection->SetCurrentSelection(Settings.bRayTracingEnabled ? 1 : 0);
-	}
+    if (RayTracingQualityRow)
+    {
+        RayTracingQualityRow->SetCurrentSelection(static_cast<int32>(CurrentSettings.RayTracingQuality), false);
+        RayTracingQualityRow->SetIsEnabled(CurrentSettings.bRayTracingEnabled);
+    }
 
-	// Ray Tracing Quality
-	if (RayTracingQualitySelection)
-	{
-		int32 Index = static_cast<int32>(Settings.RayTracingQuality);
-		RayTracingQualitySelection->SetCurrentSelection(Index);
-		RayTracingQualitySelection->SetIsEnabled(Settings.bRayTracingEnabled);
-	}
+    if (ShadowQualityRow)
+        ShadowQualityRow->SetCurrentSelection(static_cast<int32>(CurrentSettings.ShadowQuality), false);
 
-	// Shadow Quality
-	if (ShadowQualitySelection)
-	{
-		int32 Index = static_cast<int32>(Settings.ShadowQuality);
-		ShadowQualitySelection->SetCurrentSelection(Index);
-	}
+    if (TextureQualityRow)
+        TextureQualityRow->SetCurrentSelection(static_cast<int32>(CurrentSettings.TextureQuality), false);
 
-	// Texture Quality
-	if (TextureQualitySelection)
-	{
-		int32 Index = static_cast<int32>(Settings.TextureQuality);
-		TextureQualitySelection->SetCurrentSelection(Index);
-	}
+    if (AntiAliasingRow)
+        AntiAliasingRow->SetCurrentSelection(static_cast<int32>(CurrentSettings.AntiAliasingMethod), false);
 
-	// Anti-Aliasing
-	if (AntiAliasingSelection)
-	{
-		int32 Index = static_cast<int32>(Settings.AntiAliasingMethod);
-		AntiAliasingSelection->SetCurrentSelection(Index);
-	}
+    if (MotionBlurRow)
+        MotionBlurRow->SetCurrentSelection(PercentageToIndex(CurrentSettings.MotionBlurAmount), false);
 
-	// Motion Blur (0-100%)
-	if (MotionBlurSelection)
-	{
-		int32 Index = PercentageToIndex(Settings.MotionBlurAmount);
-		MotionBlurSelection->SetCurrentSelection(Index);
-	}
+    if (FieldOfViewRow)
+        FieldOfViewRow->SetCurrentSelection(FOVToIndex(CurrentSettings.FieldOfView), false);
 
-	// Field of View
-	if (FieldOfViewSelection)
-	{
-		int32 Index = FOVToIndex(Settings.FieldOfView);
-		FieldOfViewSelection->SetCurrentSelection(Index);
-	}
-
-	bIsLoadingSettings = false;
-
-	UE_LOG(LogTemp, Log, TEXT("GraphicWidget: Settings loaded into UI"));
+    bIsLoadingSettings = false;
 }
 
 FS_GraphicsSettings UGraphicWidget::GetCurrentSettings() const
 {
-	return CurrentSettings;
+    return CurrentSettings;
 }
 
 TArray<FString> UGraphicWidget::ValidateSettings() const
 {
-	TArray<FString> Errors;
+    TArray<FString> Errors;
 
-	// Validate Resolution
-	if (CurrentSettings.ResolutionX < 640 || CurrentSettings.ResolutionX > 7680)
-	{
-		Errors.Add(FString::Printf(
-			TEXT("Invalid resolution width: %d (must be 640-7680)"),
-			CurrentSettings.ResolutionX
-		));
-	}
+    if (CurrentSettings.ResolutionX < 640 || CurrentSettings.ResolutionX > 7680)
+    {
+        Errors.Add(TEXT("Resolution width out of range (640 - 7680)"));
+    }
+    if (CurrentSettings.ResolutionY < 480 || CurrentSettings.ResolutionY > 4320)
+    {
+        Errors.Add(TEXT("Resolution height out of range (480 - 4320)"));
+    }
+    if (CurrentSettings.FrameRateCap != 0 && (CurrentSettings.FrameRateCap < 30 || CurrentSettings.FrameRateCap > 300))
+    {
+        Errors.Add(TEXT("Frame rate cap out of range (0 or 30 - 300)"));
+    }
+    if (CurrentSettings.FieldOfView < 60.0f || CurrentSettings.FieldOfView > 120.0f)
+    {
+        Errors.Add(TEXT("Field of view out of range (60 - 120)"));
+    }
+    if (CurrentSettings.MotionBlurAmount < 0.0f || CurrentSettings.MotionBlurAmount > 1.0f)
+    {
+        Errors.Add(TEXT("Motion blur amount out of range (0.0 - 1.0)"));
+    }
 
-	if (CurrentSettings.ResolutionY < 480 || CurrentSettings.ResolutionY > 4320)
-	{
-		Errors.Add(FString::Printf(
-			TEXT("Invalid resolution height: %d (must be 480-4320)"),
-			CurrentSettings.ResolutionY
-		));
-	}
+    if (CurrentSettings.bRayTracingEnabled)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("GraphicWidget: Ray tracing enabled - ensure hardware supports it"));
+    }
 
-	// Validate Frame Rate Cap
-	if (CurrentSettings.FrameRateCap != 0 &&
-		(CurrentSettings.FrameRateCap < 30 || CurrentSettings.FrameRateCap > 300))
-	{
-		Errors.Add(FString::Printf(
-			TEXT("Invalid frame rate cap: %d (must be 0 or 30-300)"),
-			CurrentSettings.FrameRateCap
-		));
-	}
+    if (CurrentSettings.QualityPreset == EE_GraphicsQuality::Ultra &&
+        CurrentSettings.ResolutionX >= 3840 &&
+        CurrentSettings.bRayTracingEnabled)
+    {
+        Errors.Add(TEXT("Warning: Ultra quality with 4K+ resolution and ray tracing may impact performance"));
+    }
 
-	// Validate FOV
-	if (CurrentSettings.FieldOfView < 60.0f || CurrentSettings.FieldOfView > 120.0f)
-	{
-		Errors.Add(FString::Printf(
-			TEXT("Invalid field of view: %.1f (must be 60-120)"),
-			CurrentSettings.FieldOfView
-		));
-	}
+    if (Errors.Num() > 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("GraphicWidget: Validation found %d errors"), Errors.Num());
+    }
 
-	// Validate Motion Blur
-	if (CurrentSettings.MotionBlurAmount < 0.0f || CurrentSettings.MotionBlurAmount > 1.0f)
-	{
-		Errors.Add(FString::Printf(
-			TEXT("Invalid motion blur amount: %.2f (must be 0-1)"),
-			CurrentSettings.MotionBlurAmount
-		));
-	}
-
-	// Check Ray Tracing compatibility
-	if (CurrentSettings.bRayTracingEnabled)
-	{
-		// Check if hardware supports ray tracing
-		// This would need platform-specific checks in production
-		UGameUserSettings* UserSettings = UGameUserSettings::GetGameUserSettings();
-		if (UserSettings)
-		{
-			// Add hardware capability check here
-			// For now, just log a warning
-			UE_LOG(LogTemp, Warning, TEXT("GraphicWidget: Ray tracing enabled - ensure hardware supports it"));
-		}
-	}
-
-	// Warn about performance-heavy settings
-	if (CurrentSettings.QualityPreset == EE_GraphicsQuality::Ultra &&
-		CurrentSettings.ResolutionX >= 3840 &&
-		CurrentSettings.bRayTracingEnabled)
-	{
-		Errors.Add(TEXT("Warning: Ultra quality with 4K resolution and ray tracing may cause performance issues"));
-	}
-
-	if (Errors.Num() > 0)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("GraphicWidget: Validation found %d issues"), Errors.Num());
-	}
-
-	return Errors;
+    return Errors;
 }
 
-// ===== CALLBACKS =====
-// Only update CurrentSettings, DO NOT call subsystem
+// Conversion helpers
 
-void UGraphicWidget::OnQualityPresetChanged(int32 NewIndex)
+TArray<FIntPoint> UGraphicWidget::GetAvailableResolutions() const
 {
-	if (bIsLoadingSettings)
-		return;
+    TArray<FIntPoint> Resolutions;
 
-	EE_GraphicsQuality Quality = static_cast<EE_GraphicsQuality>(NewIndex);
-	CurrentSettings.QualityPreset = Quality;
+    UGameUserSettings* UserSettings = UGameUserSettings::GetGameUserSettings();
+    if (UserSettings)
+    {
+        TArray<FIntPoint> SupportedResolutions;
+        // UserSettings->GetSupportedFullscreenResolutions(SupportedResolutions);
 
-	// When changing quality preset, automatically adjust other settings
-	// But only if not Custom
-	if (Quality != EE_GraphicsQuality::Custom && SettingsSubsystem)
-	{
-		FS_GraphicsSettings PresetSettings = SettingsSubsystem->GetGraphicsPreset(Quality);
+        if (SupportedResolutions.Num() > 0)
+        {
+            for (const FIntPoint& Res : SupportedResolutions)
+            {
+                float AspectRatio = static_cast<float>(Res.X) / static_cast<float>(Res.Y);
+                if ((FMath::IsNearlyEqual(AspectRatio, 16.0f / 9.0f, 0.1f) ||
+                    FMath::IsNearlyEqual(AspectRatio, 16.0f / 10.0f, 0.1f)) &&
+                    !Resolutions.Contains(Res))
+                {
+                    Resolutions.Add(Res);
+                }
+            }
+        }
+    }
 
-		// Copy preset values to current settings (except resolution and FPS cap)
-		CurrentSettings.bRayTracingEnabled = PresetSettings.bRayTracingEnabled;
-		CurrentSettings.RayTracingQuality = PresetSettings.RayTracingQuality;
-		CurrentSettings.ShadowQuality = PresetSettings.ShadowQuality;
-		CurrentSettings.TextureQuality = PresetSettings.TextureQuality;
-		CurrentSettings.AntiAliasingMethod = PresetSettings.AntiAliasingMethod;
-		CurrentSettings.MotionBlurAmount = PresetSettings.MotionBlurAmount;
+    // Fallback common resolutions
+    if (Resolutions.Num() == 0)
+    {
+        Resolutions.Add(FIntPoint(1280, 720));   // HD
+        Resolutions.Add(FIntPoint(1920, 1080));  // Full HD
+        Resolutions.Add(FIntPoint(2560, 1440));  // QHD
+        Resolutions.Add(FIntPoint(3840, 2160));  // 4K
+    }
 
-		// Update UI to reflect automatic changes
-		bIsLoadingSettings = true;
+    Resolutions.Sort([](const FIntPoint& A, const FIntPoint& B)
+        {
+            return (A.X * A.Y) < (B.X * B.Y);
+        });
 
-		if (RayTracingSelection)
-		{
-			RayTracingSelection->SetCurrentSelection(CurrentSettings.bRayTracingEnabled ? 1 : 0);
-		}
-
-		if (RayTracingQualitySelection)
-		{
-			RayTracingQualitySelection->SetCurrentSelection(static_cast<int32>(CurrentSettings.RayTracingQuality));
-			RayTracingQualitySelection->SetIsEnabled(CurrentSettings.bRayTracingEnabled);
-		}
-
-		if (ShadowQualitySelection)
-		{
-			ShadowQualitySelection->SetCurrentSelection(static_cast<int32>(CurrentSettings.ShadowQuality));
-		}
-
-		if (TextureQualitySelection)
-		{
-			TextureQualitySelection->SetCurrentSelection(static_cast<int32>(CurrentSettings.TextureQuality));
-		}
-
-		if (AntiAliasingSelection)
-		{
-			AntiAliasingSelection->SetCurrentSelection(static_cast<int32>(CurrentSettings.AntiAliasingMethod));
-		}
-
-		if (MotionBlurSelection)
-		{
-			MotionBlurSelection->SetCurrentSelection(PercentageToIndex(CurrentSettings.MotionBlurAmount));
-		}
-
-		bIsLoadingSettings = false;
-	}
-	else if (Quality == EE_GraphicsQuality::Custom)
-	{
-		// When switching to custom, keep current values
-		UE_LOG(LogTemp, Log, TEXT("GraphicWidget: Switched to Custom preset - keeping current values"));
-	}
-
-	UE_LOG(LogTemp, Log, TEXT("GraphicWidget: Quality preset changed to index %d (not saved yet)"), NewIndex);
+    return Resolutions;
 }
 
-void UGraphicWidget::OnResolutionChanged(int32 NewIndex)
+FIntPoint UGraphicWidget::IndexToResolution(int32 Index) const
 {
-	if (bIsLoadingSettings)
-		return;
-
-	FIntPoint Resolution = IndexToResolution(NewIndex);
-	CurrentSettings.ResolutionX = Resolution.X;
-	CurrentSettings.ResolutionY = Resolution.Y;
-
-	// Mark as custom if user manually changes
-	if (CurrentSettings.QualityPreset != EE_GraphicsQuality::Custom)
-	{
-		CurrentSettings.QualityPreset = EE_GraphicsQuality::Custom;
-		if (QualityPresetSelection)
-		{
-			bIsLoadingSettings = true;
-			QualityPresetSelection->SetCurrentSelection(static_cast<int32>(EE_GraphicsQuality::Custom));
-			bIsLoadingSettings = false;
-		}
-	}
-
-	UE_LOG(LogTemp, Log, TEXT("GraphicWidget: Resolution changed to %dx%d (not saved yet)"),
-		Resolution.X, Resolution.Y);
+    TArray<FIntPoint> Resolutions = GetAvailableResolutions();
+    if (Index >= 0 && Index < Resolutions.Num())
+    {
+        return Resolutions[Index];
+    }
+    return FIntPoint(1920, 1080); // Default
 }
 
-void UGraphicWidget::OnVSyncChanged(int32 NewIndex)
+int32 UGraphicWidget::ResolutionToIndex(FIntPoint Resolution) const
 {
-	if (bIsLoadingSettings)
-		return;
+    TArray<FIntPoint> Resolutions = GetAvailableResolutions();
 
-	CurrentSettings.bVSyncEnabled = (NewIndex == 1);
+    for (int32 i = 0; i < Resolutions.Num(); i++)
+    {
+        if (Resolutions[i] == Resolution)
+        {
+            return i;
+        }
+    }
 
-	UE_LOG(LogTemp, Log, TEXT("GraphicWidget: VSync %s (not saved yet)"),
-		CurrentSettings.bVSyncEnabled ? TEXT("enabled") : TEXT("disabled"));
+    // Find closest match
+    int32 ClosestIndex = 1; // Default to Full HD
+    int32 ClosestDiff = INT_MAX;
+
+    for (int32 i = 0; i < Resolutions.Num(); i++)
+    {
+        int32 Diff = FMath::Abs((Resolutions[i].X * Resolutions[i].Y) - (Resolution.X * Resolution.Y));
+        if (Diff < ClosestDiff)
+        {
+            ClosestDiff = Diff;
+            ClosestIndex = i;
+        }
+    }
+
+    return ClosestIndex;
 }
 
-void UGraphicWidget::OnFrameRateCapChanged(int32 NewIndex)
+int32 UGraphicWidget::IndexToFrameRateCap(int32 Index) const
 {
-	if (bIsLoadingSettings)
-		return;
-
-	int32 FrameRate = IndexToFrameRateCap(NewIndex);
-	CurrentSettings.FrameRateCap = FrameRate;
-
-	UE_LOG(LogTemp, Log, TEXT("GraphicWidget: Frame rate cap changed to %d (not saved yet)"), FrameRate);
+    TArray<int32> FrameRates = { 30, 60, 90, 120, 144, 0 }; // 0 = Unlimited
+    if (Index >= 0 && Index < FrameRates.Num())
+    {
+        return FrameRates[Index];
+    }
+    return 60; // Default
 }
 
-void UGraphicWidget::OnRayTracingChanged(int32 NewIndex)
+int32 UGraphicWidget::FrameRateCapToIndex(int32 Value) const
 {
-	if (bIsLoadingSettings)
-		return;
+    TArray<int32> FrameRates = { 30, 60, 90, 120, 144, 0 };
 
-	CurrentSettings.bRayTracingEnabled = (NewIndex == 1);
+    for (int32 i = 0; i < FrameRates.Num(); i++)
+    {
+        if (FrameRates[i] == Value)
+        {
+            return i;
+        }
+    }
 
-	// Enable/disable ray tracing quality selection
-	if (RayTracingQualitySelection)
-	{
-		RayTracingQualitySelection->SetIsEnabled(CurrentSettings.bRayTracingEnabled);
-	}
-
-	// Mark as custom
-	MarkAsCustomPreset();
-
-	UE_LOG(LogTemp, Log, TEXT("GraphicWidget: Ray tracing %s (not saved yet)"),
-		CurrentSettings.bRayTracingEnabled ? TEXT("enabled") : TEXT("disabled"));
+    return 1; // Default to 60 FPS
 }
 
-void UGraphicWidget::OnRayTracingQualityChanged(int32 NewIndex)
+float UGraphicWidget::IndexToFOV(int32 Index) const
 {
-	if (bIsLoadingSettings)
-		return;
-
-	EE_RayTracingQuality Quality = static_cast<EE_RayTracingQuality>(NewIndex);
-	CurrentSettings.RayTracingQuality = Quality;
-
-	MarkAsCustomPreset();
-
-	UE_LOG(LogTemp, Log, TEXT("GraphicWidget: Ray tracing quality changed to index %d (not saved yet)"), NewIndex);
+    TArray<float> FOVs = { 70.0f, 80.0f, 90.0f, 100.0f, 110.0f, 120.0f };
+    if (Index >= 0 && Index < FOVs.Num())
+    {
+        return FOVs[Index];
+    }
+    return 90.0f; // Default
 }
 
-void UGraphicWidget::OnShadowQualityChanged(int32 NewIndex)
+int32 UGraphicWidget::FOVToIndex(float Value) const
 {
-	if (bIsLoadingSettings)
-		return;
+    TArray<float> FOVs = { 70.0f, 80.0f, 90.0f, 100.0f, 110.0f, 120.0f };
 
-	EE_ShadowQuality Quality = static_cast<EE_ShadowQuality>(NewIndex);
-	CurrentSettings.ShadowQuality = Quality;
+    int32 ClosestIndex = 2; // Default to 90°
+    float ClosestDiff = FLT_MAX;
 
-	MarkAsCustomPreset();
+    for (int32 i = 0; i < FOVs.Num(); i++)
+    {
+        float Diff = FMath::Abs(Value - FOVs[i]);
+        if (Diff < ClosestDiff)
+        {
+            ClosestDiff = Diff;
+            ClosestIndex = i;
+        }
+    }
 
-	UE_LOG(LogTemp, Log, TEXT("GraphicWidget: Shadow quality changed to index %d (not saved yet)"), NewIndex);
+    return ClosestIndex;
 }
 
-void UGraphicWidget::OnTextureQualityChanged(int32 NewIndex)
+float UGraphicWidget::IndexToPercentage(int32 Index) const
 {
-	if (bIsLoadingSettings)
-		return;
-
-	EE_TextureQuality Quality = static_cast<EE_TextureQuality>(NewIndex);
-	CurrentSettings.TextureQuality = Quality;
-
-	MarkAsCustomPreset();
-
-	UE_LOG(LogTemp, Log, TEXT("GraphicWidget: Texture quality changed to index %d (not saved yet)"), NewIndex);
+    TArray<float> Percentages = { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f };
+    if (Index >= 0 && Index < Percentages.Num())
+    {
+        return Percentages[Index];
+    }
+    return 0.5f; // Default
 }
 
-void UGraphicWidget::OnAntiAliasingChanged(int32 NewIndex)
+int32 UGraphicWidget::PercentageToIndex(float Value) const
 {
-	if (bIsLoadingSettings)
-		return;
+    TArray<float> Percentages = { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f };
 
-	EE_AntiAliasingMethod Method = static_cast<EE_AntiAliasingMethod>(NewIndex);
-	CurrentSettings.AntiAliasingMethod = Method;
+    int32 ClosestIndex = 2; // Default to 50%
+    float ClosestDiff = FLT_MAX;
 
-	MarkAsCustomPreset();
+    for (int32 i = 0; i < Percentages.Num(); i++)
+    {
+        float Diff = FMath::Abs(Value - Percentages[i]);
+        if (Diff < ClosestDiff)
+        {
+            ClosestDiff = Diff;
+            ClosestIndex = i;
+        }
+    }
 
-	UE_LOG(LogTemp, Log, TEXT("GraphicWidget: Anti-aliasing changed to index %d (not saved yet)"), NewIndex);
-}
-
-void UGraphicWidget::OnMotionBlurChanged(int32 NewIndex)
-{
-	if (bIsLoadingSettings)
-		return;
-
-	float Amount = IndexToPercentage(NewIndex);
-	CurrentSettings.MotionBlurAmount = Amount;
-
-	MarkAsCustomPreset();
-
-	UE_LOG(LogTemp, Log, TEXT("GraphicWidget: Motion blur changed to %.2f (not saved yet)"), Amount);
-}
-
-void UGraphicWidget::OnFieldOfViewChanged(int32 NewIndex)
-{
-	if (bIsLoadingSettings)
-		return;
-
-	float FOV = IndexToFOV(NewIndex);
-	CurrentSettings.FieldOfView = FOV;
-
-	UE_LOG(LogTemp, Log, TEXT("GraphicWidget: Field of view changed to %.0f° (not saved yet)"), FOV);
-}
-
-// ===== HELPER FUNCTIONS =====
-
-void UGraphicWidget::MarkAsCustomPreset()
-{
-	if (CurrentSettings.QualityPreset != EE_GraphicsQuality::Custom)
-	{
-		CurrentSettings.QualityPreset = EE_GraphicsQuality::Custom;
-		if (QualityPresetSelection)
-		{
-			bIsLoadingSettings = true;
-			QualityPresetSelection->SetCurrentSelection(static_cast<int32>(EE_GraphicsQuality::Custom));
-			bIsLoadingSettings = false;
-		}
-	}
-}
-
-void UGraphicWidget::AddToggleOptions(USelectionWidget* Selection)
-{
-	if (Selection)
-	{
-		Selection->AddOption(FSelectionOption{ FText::FromString(TEXT("Off")) });
-		Selection->AddOption(FSelectionOption{ FText::FromString(TEXT("On")) });
-	}
-}
-
-void UGraphicWidget::AddPercentageOptions(USelectionWidget* Selection)
-{
-	if (Selection)
-	{
-		Selection->AddOption(FSelectionOption{ FText::FromString(TEXT("0%")) });
-		Selection->AddOption(FSelectionOption{ FText::FromString(TEXT("25%")) });
-		Selection->AddOption(FSelectionOption{ FText::FromString(TEXT("50%")) });
-		Selection->AddOption(FSelectionOption{ FText::FromString(TEXT("75%")) });
-		Selection->AddOption(FSelectionOption{ FText::FromString(TEXT("100%")) });
-	}
+    return ClosestIndex;
 }
 
 void UGraphicWidget::UpdateFPSCounter()
 {
-	if (!FPSText || !GEngine)
-		return;
+    if (!FPSText || !GEngine)
+        return;
 
-	// Get actual frame time from engine
-	float AverageFPS = 0.0f;
+    float AverageFPS = 0.0f;
 
-	//if (GEngine->GetAverageFPS() > 0.0f)
-	//{
-	//	AverageFPS = GEngine->GetAverageFPS();
-	//}
-	//else
-	//{
-	//	// Fallback calculation
-	//	float DeltaTime = GetWorld()->GetDeltaSeconds();
-	//	if (DeltaTime > 0.0f)
-	//	{
-	//		AverageFPS = 1.0f / DeltaTime;
-	//	}
-	//}
+    // Uncomment when GEngine->GetAverageFPS() is available
+    // if (GEngine->GetAverageFPS() > 0.0f)
+    // {
+    //     AverageFPS = GEngine->GetAverageFPS();
+    // }
+    // else
+    // {
+    //     float DeltaTime = GetWorld()->GetDeltaSeconds();
+    //     if (DeltaTime > 0.0f)
+    //     {
+    //         AverageFPS = 1.0f / DeltaTime;
+    //     }
+    // }
 
-	// Format with color based on FPS
-	FString FPSString;
-	if (AverageFPS >= 60.0f)
-	{
-		FPSString = FString::Printf(TEXT("FPS: %.0f"), AverageFPS);
-	}
-	else if (AverageFPS >= 30.0f)
-	{
-		FPSString = FString::Printf(TEXT("FPS: %.0f (OK)"), AverageFPS);
-	}
-	else
-	{
-		FPSString = FString::Printf(TEXT("FPS: %.0f (Low)"), AverageFPS);
-	}
+    FString FPSString;
+    if (AverageFPS >= 60.0f)
+    {
+        FPSString = FString::Printf(TEXT("FPS: %.0f"), AverageFPS);
+    }
+    else if (AverageFPS >= 30.0f)
+    {
+        FPSString = FString::Printf(TEXT("FPS: %.0f (OK)"), AverageFPS);
+    }
+    else
+    {
+        FPSString = FString::Printf(TEXT("FPS: %.0f (Low)"), AverageFPS);
+    }
 
-	FPSText->SetText(FText::FromString(FPSString));
+    FPSText->SetText(FText::FromString(FPSString));
 }
 
-TArray<FIntPoint> UGraphicWidget::GetAvailableResolutions()
+void UGraphicWidget::MarkAsCustomPreset()
 {
-	TArray<FIntPoint> Resolutions;
-
-	// Get resolutions from engine
-	UGameUserSettings* UserSettings = UGameUserSettings::GetGameUserSettings();
-	if (UserSettings)
-	{
-		// Try to get supported fullscreen resolutions
-		TArray<FIntPoint> SupportedResolutions;
-		//UserSettings->GetSupportedFullscreenResolutions(SupportedResolutions);
-
-		if (SupportedResolutions.Num() > 0)
-		{
-			// Filter and sort unique resolutions
-			for (const FIntPoint& Res : SupportedResolutions)
-			{
-				// Only add 16:9 and 16:10 aspect ratios
-				float AspectRatio = static_cast<float>(Res.X) / static_cast<float>(Res.Y);
-				if ((FMath::IsNearlyEqual(AspectRatio, 16.0f / 9.0f, 0.1f) ||
-					FMath::IsNearlyEqual(AspectRatio, 16.0f / 10.0f, 0.1f)) &&
-					!Resolutions.Contains(Res))
-				{
-					Resolutions.Add(Res);
-				}
-			}
-		}
-	}
-
-	// If no resolutions found, add common ones
-	if (Resolutions.Num() == 0)
-	{
-		Resolutions.Add(FIntPoint(1280, 720));   // HD
-		Resolutions.Add(FIntPoint(1920, 1080));  // Full HD
-		Resolutions.Add(FIntPoint(2560, 1440));  // QHD
-		Resolutions.Add(FIntPoint(3840, 2160));  // 4K
-	}
-
-	// Sort by total pixels
-	Resolutions.Sort([](const FIntPoint& A, const FIntPoint& B)
-		{
-			return (A.X * A.Y) < (B.X * B.Y);
-		});
-
-	return Resolutions;
+    if (CurrentSettings.QualityPreset != EE_GraphicsQuality::Custom)
+    {
+        CurrentSettings.QualityPreset = EE_GraphicsQuality::Custom;
+        if (QualityPresetRow)
+        {
+            bIsLoadingSettings = true;
+            QualityPresetRow->SetCurrentSelection(static_cast<int32>(EE_GraphicsQuality::Custom), false);
+            bIsLoadingSettings = false;
+        }
+    }
 }
 
-FIntPoint UGraphicWidget::IndexToResolution(int32 Index)
+// Selection callbacks
+
+void UGraphicWidget::OnQualityPresetChanged(int32 NewIndex)
 {
-	TArray<FIntPoint> Resolutions = GetAvailableResolutions();
-	if (Index >= 0 && Index < Resolutions.Num())
-	{
-		return Resolutions[Index];
-	}
-	return FIntPoint(1920, 1080); // Default Full HD
+    if (bIsLoadingSettings) return;
+
+    EE_GraphicsQuality Quality = static_cast<EE_GraphicsQuality>(NewIndex);
+    CurrentSettings.QualityPreset = Quality;
+
+    UE_LOG(LogTemp, Log, TEXT("GraphicWidget: Quality preset changed to index %d (local)"), NewIndex);
+
+    // Auto-adjust settings based on preset if subsystem is available
+    if (Quality != EE_GraphicsQuality::Custom && SettingsSubsystem)
+    {
+        FS_GraphicsSettings PresetSettings = SettingsSubsystem->GetGraphicsPreset(Quality);
+
+        // Copy preset values (except resolution and FPS cap)
+        CurrentSettings.bRayTracingEnabled = PresetSettings.bRayTracingEnabled;
+        CurrentSettings.RayTracingQuality = PresetSettings.RayTracingQuality;
+        CurrentSettings.ShadowQuality = PresetSettings.ShadowQuality;
+        CurrentSettings.TextureQuality = PresetSettings.TextureQuality;
+        CurrentSettings.AntiAliasingMethod = PresetSettings.AntiAliasingMethod;
+        CurrentSettings.MotionBlurAmount = PresetSettings.MotionBlurAmount;
+
+        // Update UI to reflect auto-adjusted values (without triggering callbacks)
+        bIsLoadingSettings = true;
+
+        if (RayTracingRow)
+            RayTracingRow->SetCurrentSelection(CurrentSettings.bRayTracingEnabled ? 1 : 0, false);
+        if (RayTracingQualityRow)
+        {
+            RayTracingQualityRow->SetCurrentSelection(static_cast<int32>(CurrentSettings.RayTracingQuality), false);
+            RayTracingQualityRow->SetIsEnabled(CurrentSettings.bRayTracingEnabled);
+        }
+        if (ShadowQualityRow)
+            ShadowQualityRow->SetCurrentSelection(static_cast<int32>(CurrentSettings.ShadowQuality), false);
+        if (TextureQualityRow)
+            TextureQualityRow->SetCurrentSelection(static_cast<int32>(CurrentSettings.TextureQuality), false);
+        if (AntiAliasingRow)
+            AntiAliasingRow->SetCurrentSelection(static_cast<int32>(CurrentSettings.AntiAliasingMethod), false);
+        if (MotionBlurRow)
+            MotionBlurRow->SetCurrentSelection(PercentageToIndex(CurrentSettings.MotionBlurAmount), false);
+
+        bIsLoadingSettings = false;
+
+        SettingsSubsystem->ApplyGraphicsSettings(CurrentSettings);
+    }
 }
 
-int32 UGraphicWidget::ResolutionToIndex(FIntPoint Resolution)
+void UGraphicWidget::OnResolutionChanged(int32 NewIndex)
 {
-	TArray<FIntPoint> Resolutions = GetAvailableResolutions();
+    if (bIsLoadingSettings) return;
 
-	for (int32 i = 0; i < Resolutions.Num(); i++)
-	{
-		if (Resolutions[i] == Resolution)
-		{
-			return i;
-		}
-	}
+    FIntPoint Resolution = IndexToResolution(NewIndex);
+    CurrentSettings.ResolutionX = Resolution.X;
+    CurrentSettings.ResolutionY = Resolution.Y;
 
-	// Find closest match if exact not found
-	int32 ClosestIndex = 1; // Default to Full HD
-	int32 ClosestDiff = INT_MAX;
+    MarkAsCustomPreset();
 
-	for (int32 i = 0; i < Resolutions.Num(); i++)
-	{
-		int32 Diff = FMath::Abs((Resolutions[i].X * Resolutions[i].Y) - (Resolution.X * Resolution.Y));
-		if (Diff < ClosestDiff)
-		{
-			ClosestDiff = Diff;
-			ClosestIndex = i;
-		}
-	}
-
-	return ClosestIndex;
+    UE_LOG(LogTemp, Log, TEXT("GraphicWidget: Resolution changed to %dx%d (local)"), Resolution.X, Resolution.Y);
+    if (SettingsSubsystem) SettingsSubsystem->ApplyGraphicsSettings(CurrentSettings);
 }
 
-int32 UGraphicWidget::IndexToFrameRateCap(int32 Index)
+void UGraphicWidget::OnVSyncChanged(int32 NewIndex)
 {
-	TArray<int32> FrameRates = { 30, 60, 90, 120, 144, 0 }; // 0 = Unlimited
-	if (Index >= 0 && Index < FrameRates.Num())
-	{
-		return FrameRates[Index];
-	}
-	return 60; // Default
+    if (bIsLoadingSettings) return;
+    CurrentSettings.bVSyncEnabled = (NewIndex == 1);
+    MarkAsCustomPreset();
+    UE_LOG(LogTemp, Log, TEXT("GraphicWidget: VSync changed to %s (local)"), CurrentSettings.bVSyncEnabled ? TEXT("true") : TEXT("false"));
+    if (SettingsSubsystem) SettingsSubsystem->ApplyGraphicsSettings(CurrentSettings);
 }
 
-int32 UGraphicWidget::FrameRateCapToIndex(int32 Value)
+void UGraphicWidget::OnFrameRateCapChanged(int32 NewIndex)
 {
-	TArray<int32> FrameRates = { 30, 60, 90, 120, 144, 0 };
-
-	for (int32 i = 0; i < FrameRates.Num(); i++)
-	{
-		if (FrameRates[i] == Value)
-		{
-			return i;
-		}
-	}
-
-	return 1; // Default to 60 FPS
+    if (bIsLoadingSettings) return;
+    CurrentSettings.FrameRateCap = IndexToFrameRateCap(NewIndex);
+    MarkAsCustomPreset();
+    UE_LOG(LogTemp, Log, TEXT("GraphicWidget: FrameRateCap changed to %d (local)"), CurrentSettings.FrameRateCap);
+    if (SettingsSubsystem) SettingsSubsystem->ApplyGraphicsSettings(CurrentSettings);
 }
 
-float UGraphicWidget::IndexToFOV(int32 Index)
+void UGraphicWidget::OnRayTracingChanged(int32 NewIndex)
 {
-	TArray<float> FOVs = { 70.0f, 80.0f, 90.0f, 100.0f, 110.0f, 120.0f };
-	if (Index >= 0 && Index < FOVs.Num())
-	{
-		return FOVs[Index];
-	}
-	return 90.0f; // Default
+    if (bIsLoadingSettings) return;
+    CurrentSettings.bRayTracingEnabled = (NewIndex == 1);
+    MarkAsCustomPreset();
+    UE_LOG(LogTemp, Log, TEXT("GraphicWidget: RayTracing changed to %s (local)"), CurrentSettings.bRayTracingEnabled ? TEXT("true") : TEXT("false"));
+    if (RayTracingQualityRow) RayTracingQualityRow->SetIsEnabled(CurrentSettings.bRayTracingEnabled);
+    if (SettingsSubsystem)  SettingsSubsystem->ApplyGraphicsSettings(CurrentSettings);
 }
 
-int32 UGraphicWidget::FOVToIndex(float Value)
+void UGraphicWidget::OnRayTracingQualityChanged(int32 NewIndex)
 {
-	TArray<float> FOVs = { 70.0f, 80.0f, 90.0f, 100.0f, 110.0f, 120.0f };
-
-	// Find closest match
-	int32 ClosestIndex = 2; // Default to 90°
-	float ClosestDiff = FLT_MAX;
-
-	for (int32 i = 0; i < FOVs.Num(); i++)
-	{
-		float Diff = FMath::Abs(Value - FOVs[i]);
-		if (Diff < ClosestDiff)
-		{
-			ClosestDiff = Diff;
-			ClosestIndex = i;
-		}
-	}
-
-	return ClosestIndex;
+    if (bIsLoadingSettings) return;
+    CurrentSettings.RayTracingQuality = static_cast<EE_RayTracingQuality>(NewIndex);
+    MarkAsCustomPreset();
+    UE_LOG(LogTemp, Log, TEXT("GraphicWidget: RayTracingQuality changed to index %d (local)"), NewIndex);
+    if (SettingsSubsystem) SettingsSubsystem->ApplyGraphicsSettings(CurrentSettings);
 }
 
-float UGraphicWidget::IndexToPercentage(int32 Index)
+void UGraphicWidget::OnShadowQualityChanged(int32 NewIndex)
 {
-	TArray<float> Percentages = { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f };
-	if (Index >= 0 && Index < Percentages.Num())
-	{
-		return Percentages[Index];
-	}
-	return 0.5f; // Default
+    if (bIsLoadingSettings) return;
+    CurrentSettings.ShadowQuality = static_cast<EE_ShadowQuality>(NewIndex);
+    MarkAsCustomPreset();
+    UE_LOG(LogTemp, Log, TEXT("GraphicWidget: ShadowQuality changed to index %d (local)"), NewIndex);
+    if (SettingsSubsystem) SettingsSubsystem->ApplyGraphicsSettings(CurrentSettings);
 }
 
-int32 UGraphicWidget::PercentageToIndex(float Value)
+void UGraphicWidget::OnTextureQualityChanged(int32 NewIndex)
 {
-	TArray<float> Percentages = { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f };
-
-	// Find closest match
-	int32 ClosestIndex = 2; // Default to 50%
-	float ClosestDiff = FLT_MAX;
-
-	for (int32 i = 0; i < Percentages.Num(); i++)
-	{
-		float Diff = FMath::Abs(Value - Percentages[i]);
-		if (Diff < ClosestDiff)
-		{
-			ClosestDiff = Diff;
-			ClosestIndex = i;
-		}
-	}
-
-	return ClosestIndex;
+    if (bIsLoadingSettings) return;
+    CurrentSettings.TextureQuality = static_cast<EE_TextureQuality>(NewIndex);
+    MarkAsCustomPreset();
+    UE_LOG(LogTemp, Log, TEXT("GraphicWidget: TextureQuality changed to index %d (local)"), NewIndex);
+    if (SettingsSubsystem) SettingsSubsystem->ApplyGraphicsSettings(CurrentSettings);
 }
+
+void UGraphicWidget::OnAntiAliasingChanged(int32 NewIndex)
+{
+    if (bIsLoadingSettings) return;
+    CurrentSettings.AntiAliasingMethod = static_cast<EE_AntiAliasingMethod>(NewIndex); 
+    MarkAsCustomPreset();
+    UE_LOG(LogTemp, Log, TEXT("GraphicWidget: AntiAliasingMethod changed to index %d (local)"), NewIndex);
+    if (SettingsSubsystem) SettingsSubsystem->ApplyGraphicsSettings(CurrentSettings);
+}
+
+void UGraphicWidget::OnMotionBlurChanged(int32 NewIndex)
+{
+    if (bIsLoadingSettings) return;
+    CurrentSettings.MotionBlurAmount = IndexToPercentage(NewIndex);
+    MarkAsCustomPreset();
+    UE_LOG(LogTemp, Log, TEXT("GraphicWidget: MotionBlur changed to %.2f (local)"), CurrentSettings.MotionBlurAmount);
+    if (SettingsSubsystem) SettingsSubsystem->ApplyGraphicsSettings(CurrentSettings);
+}
+
+void UGraphicWidget::OnFieldOfViewChanged(int32 NewIndex)
+{
+    if (bIsLoadingSettings) return;
+    CurrentSettings.FieldOfView = IndexToFOV(NewIndex);
+    MarkAsCustomPreset();
+    UE_LOG(LogTemp, Log, TEXT("GraphicWidget: FieldOfView changed to %.1f (local)"), CurrentSettings.FieldOfView);
+    if (SettingsSubsystem) SettingsSubsystem->ApplyGraphicsSettings(CurrentSettings);
+}
+

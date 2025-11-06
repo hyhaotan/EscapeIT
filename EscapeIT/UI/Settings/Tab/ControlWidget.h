@@ -1,4 +1,4 @@
-// ControlWidget.h
+// ControlWidget.h (final)
 #pragma once
 
 #include "CoreMinimal.h"
@@ -6,140 +6,120 @@
 #include "EscapeIT/Data/SettingsTypes.h"
 #include "ControlWidget.generated.h"
 
-class USelectionWidget;
-class USlider;
-class UTextBlock;
+class USelectionSettingRow;
 class UButton;
+class UNumericSettingRow;
 
 UCLASS()
 class ESCAPEIT_API UControlWidget : public UUserWidget
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
-	UControlWidget(const FObjectInitializer& ObjectInitializer);
+    UControlWidget(const FObjectInitializer& ObjectInitializer);
 
-	// UUserWidget
-	virtual void NativeConstruct() override;
-	virtual void NativeDestruct() override;
-	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+    // UUserWidget
+    virtual void NativeConstruct() override;
+    virtual void NativeDestruct() override;
+    virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
-	// Public API
-	void LoadSettings(const FS_ControlSettings& Settings);
-	FS_ControlSettings GetCurrentSettings() const;
-	TArray<FString> ValidateSettings() const;
+    // Public API
+    void LoadSettings(const FS_ControlSettings& Settings);
+    FS_ControlSettings GetCurrentSettings() const;
+    TArray<FString> ValidateSettings() const;
 
 protected:
-	// UI refs (bind in UMG)
-	UPROPERTY(meta = (BindWidgetOptional))
-	USelectionWidget* InvertMouseYSelection;
+    // Selection rows (reusable SelectionSettingRow)
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* InvertMouseYRow;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	USelectionWidget* InvertGamepadYSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* InvertGamepadYRow;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	USelectionWidget* GamepadVibrationSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* GamepadVibrationRow;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	USelectionWidget* AutoSprintSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* AutoSprintRow;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	USelectionWidget* CrouchToggleSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* CrouchToggleRow;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	USelectionWidget* FlashlightToggleSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* FlashlightToggleRow;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	USlider* MouseSensitivitySlider;
+    // Reusable numeric rows (Bind instances of your NumericSettingRow UMG)
+    UPROPERTY(meta = (BindWidgetOptional))
+    UNumericSettingRow* MouseSensitivityRow;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	UTextBlock* MouseSensitivityText;
+    UPROPERTY(meta = (BindWidgetOptional))
+    UNumericSettingRow* CameraZoomSensitivityRow;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	USlider* CameraZoomSensitivitySlider;
+    UPROPERTY(meta = (BindWidgetOptional))
+    UNumericSettingRow* GamepadSensitivityRow;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	UTextBlock* CameraZoomSensitivityText;
+    UPROPERTY(meta = (BindWidgetOptional))
+    UNumericSettingRow* GamepadDeadzoneRow;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	USlider* GamepadSensitivitySlider;
+    UPROPERTY(meta = (BindWidgetOptional))
+    UNumericSettingRow* GamepadVibrationIntensityRow;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	UTextBlock* GamepadSensitivityText;
+    UPROPERTY(meta = (BindWidgetOptional))
+    UButton* RebindKeysButton;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	USlider* GamepadDeadzoneSlider;
+    // Internal
+    UPROPERTY()
+    class USettingsSubsystem* SettingsSubsystem;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	UTextBlock* GamepadDeadzoneText;
+    // Flags
+    bool bIsLoadingSettings;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	USlider* GamepadVibrationIntensitySlider;
+    // Current local settings (widget-level, not yet saved to subsystem)
+    FS_ControlSettings CurrentSettings;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	UTextBlock* GamepadVibrationIntensityText;
+    // Initialization
+    void InitializeSelectionRows();
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	UButton* RebindKeysButton;
+    // Helpers
+    TArray<FText> MakeToggleOptions() const;
+    TArray<FText> MakeHoldToggleOptions() const;
 
-	// Internal
-	UPROPERTY()
-	class USettingsSubsystem* SettingsSubsystem;
+    // Selection callbacks
+    UFUNCTION()
+    void OnInvertMouseYChanged(int32 NewIndex);
 
-	// Flags to avoid feedback loops
-	bool bUpdatingSliders;
-	bool bIsLoadingSettings;
+    UFUNCTION()
+    void OnInvertGamepadYChanged(int32 NewIndex);
 
-	// Current local settings (widget-level, not yet saved to subsystem)
-	FS_ControlSettings CurrentSettings;
+    UFUNCTION()
+    void OnGamepadVibrationChanged(int32 NewIndex);
 
-	// Initialization
-	void InitializeSelections();
-	void InitializeSliders();
-	void BindSliderEvents();
-	void UnbindSliderEvents();
+    UFUNCTION()
+    void OnAutoSprintChanged(int32 NewIndex);
 
-	// Helpers
-	void AddToggleOptions(USelectionWidget* Selection);
-	void AddHoldToggleOptions(USelectionWidget* Selection);
-	void UpdateVolumeText();
+    UFUNCTION()
+    void OnCrouchToggleChanged(int32 NewIndex);
 
-	// Slider callbacks (now update CurrentSettings only)
-	UFUNCTION()
-	void OnMouseSensitivityChanged(float Value);
+    UFUNCTION()
+    void OnFlashlightToggleChanged(int32 NewIndex);
 
-	UFUNCTION()
-	void OnCameraZoomSensitivityChanged(float Value);
+    // Button
+    UFUNCTION()
+    void OnRebindKeysButtonClicked();
 
-	UFUNCTION()
-	void OnGamepadSensitivityChanged(float Value);
+    // Numeric row handlers
+    UFUNCTION()
+    void HandleMouseSensitivityRowChanged(float NewValue);
 
-	UFUNCTION()
-	void OnGamepadDeadzoneChanged(float Value);
+    UFUNCTION()
+    void HandleCameraZoomSensitivityRowChanged(float NewValue);
 
-	UFUNCTION()
-	void OnGamepadVibrationIntensityChanged(float Value);
+    UFUNCTION()
+    void HandleGamepadSensitivityRowChanged(float NewValue);
 
-	// Selection callbacks (update CurrentSettings only)
-	UFUNCTION()
-	void OnInvertMouseYChanged(int32 NewIndex);
+    UFUNCTION()
+    void HandleGamepadDeadzoneRowChanged(float NewValue);
 
-	UFUNCTION()
-	void OnInvertGamepadYChanged(int32 NewIndex);
-
-	UFUNCTION()
-	void OnGamepadVibrationChanged(int32 NewIndex);
-
-	UFUNCTION()
-	void OnAutoSprintChanged(int32 NewIndex);
-
-	UFUNCTION()
-	void OnCrouchToggleChanged(int32 NewIndex);
-
-	UFUNCTION()
-	void OnFlashlightToggleChanged(int32 NewIndex);
-
-	// Buttons
-	UFUNCTION()
-	void OnRebindKeysButtonClicked();
+    UFUNCTION()
+    void HandleGamepadVibrationIntensityRowChanged(float NewValue);
 };

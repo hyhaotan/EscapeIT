@@ -47,6 +47,11 @@ void USelectionWidget::AddOption(const FSelectionOption& InOption)
     }
 }
 
+int32 USelectionWidget::GetOptionCount() const
+{
+    return Options.Num();
+}
+
 void USelectionWidget::SetCurrentSelection(int InIndex)
 {
     if (InIndex < 0 || InIndex >= Options.Num())
@@ -95,7 +100,7 @@ UWidget* USelectionWidget::OnNavigation(EUINavigation InNavigation)
     }
 
     UpdateCurrentSelection();
-    OnSelectionChanged.ExecuteIfBound(CurrentSelection);
+    OnSelectionChanged.Broadcast(CurrentSelection);
     return this;
 }
 
@@ -122,4 +127,9 @@ void USelectionWidget::UpdateCurrentSelection()
     }
 
     Label->SetText(Options[CurrentSelection].Label);
+}
+
+int32 USelectionWidget::GetCurrentSelection() const
+{
+    return CurrentSelection;
 }

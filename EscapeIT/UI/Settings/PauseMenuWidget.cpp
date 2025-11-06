@@ -35,7 +35,7 @@ void UPauseMenuWidget::OnClickResumeButton()
             PC->SetInputMode(FInputModeGameOnly());
         }
 
-        this->RemoveFromParent();
+        SetVisibility(ESlateVisibility::Collapsed);
     }
 }
 
@@ -57,11 +57,11 @@ void UPauseMenuWidget::OnClickSettingButton()
             PC->SetInputMode(InputMode);
         }
     }
-    this->RemoveFromParent();
+    SetVisibility(ESlateVisibility::Collapsed);
 }
 
 void UPauseMenuWidget::OnClickBackButton()
 {
-    this->RemoveFromParent();
+    SetVisibility(ESlateVisibility::Collapsed);
     UGameplayStatics::OpenLevel(GetWorld(), TEXT("Lobby"));
 }

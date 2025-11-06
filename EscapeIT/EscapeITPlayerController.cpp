@@ -29,9 +29,6 @@ void AEscapeITPlayerController::AddYawInput(float Val)
 {
     if (FMath::IsNearlyZero(Val)) return;
 
-    // Decide which sensitivity to use based on last-notified input source.
-    // This requires your input binding code to call NotifyMouseInput()/NotifyGamepadInput()
-    // when it receives input from each device. If you don't call those, we'll default to mouse sensitivity.
     const float Sensitivity = bLastInputWasGamepad ? GamepadSensitivity : MouseSensitivity;
 
     const float Scaled = Val * Sensitivity;

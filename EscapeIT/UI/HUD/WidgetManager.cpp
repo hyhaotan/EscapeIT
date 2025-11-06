@@ -32,7 +32,12 @@ void AWidgetManager::BeginPlay()
 
 void AWidgetManager::InitializeWidgets()
 {
-	// Tạo Sanity Widget
+	TObjectPtr<APlayerController> PC = UGameplayStatics::GetPlayerController(this, 0);
+	PC->bShowMouseCursor = false;
+
+	FInputModeGameOnly InputMode;
+	PC->SetInputMode(InputMode);
+
 	if (SanityWidgetClass && !SanityWidget)
 	{
 		SanityWidget = CreateWidget<USanityWidget>(GetWorld(), SanityWidgetClass);

@@ -618,7 +618,7 @@ void UMainMenuSettingWidget::CloseSettingsMenu()
 
 	PlayUISound("ButtonClick");
 	OnBackClicked.Broadcast();
-	RemoveFromParent();
+	SetVisibility(ESlateVisibility::Collapsed);
 }
 
 // ===== CHANGE TRACKING =====

@@ -10,23 +10,36 @@
 void AMainMenuHUD::BeginPlay()
 {
 	Super::BeginPlay();
-
-	TObjectPtr<APlayerController> PlayerCon = UGameplayStatics::GetPlayerController(this, 0);
-	PlayerCon->bShowMouseCursor = true;
-
 	InitializeWidget();
 }
 
 
 void AMainMenuHUD::InitializeWidget()
 {
-	TObjectPtr<APlayerController> PlayerCon = UGameplayStatics::GetPlayerController(this, 0);
-	PlayerCon->SetInputMode(FInputModeUIOnly());
+    TObjectPtr<APlayerController> PC = UGameplayStatics::GetPlayerController(this, 0);
+    PC->bShowMouseCursor = true;
 
-	MainMenuWidget = CreateWidget<UMainMenuWidget>(GetWorld(), MainMenuWidgetClass);
-	if (MainMenuWidget)
-	{
-		MainMenuWidget->AddToViewport();
-	}
+    if (MainMenuWidgetClass)
+    {
+        MainMenuWidget = CreateWidget<UMainMenuWidget>(PC, MainMenuWidgetClass);
+        if (MainMenuWidget)
+        {
+            MainMenuWidget->AddToViewport();
+
+            // Setup input mode and focus
+            FInputModeUIOnly InputMode;
+            InputMode.SetWidgetToFocus(MainMenuWidget->TakeWidget());
+            InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+            PC->SetInputMode(InputMode);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("Failed to create MainMenuWidget"));
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("MainMenuWidgetClass not assigned in HUD"));
+    }
 }
 

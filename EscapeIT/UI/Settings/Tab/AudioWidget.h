@@ -6,139 +6,119 @@
 #include "EscapeIT/Data/SettingsTypes.h"
 #include "AudioWidget.generated.h"
 
-class USelectionWidget;
-class USlider;
-class UTextBlock;
+class USelectionSettingRow;
+class UNumericSettingRow;
 class UButton;
 class USoundBase;
 
 UCLASS()
 class ESCAPEIT_API UAudioWidget : public UUserWidget
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
-	UAudioWidget(const FObjectInitializer& ObjectInitializer);
+    UAudioWidget(const FObjectInitializer& ObjectInitializer);
 
-	// UUserWidget
-	virtual void NativeConstruct() override;
-	virtual void NativeDestruct() override;
+    // UUserWidget
+    virtual void NativeConstruct() override;
+    virtual void NativeDestruct() override;
 
-	// Public API
-	void LoadSettings(const FS_AudioSettings& Settings);
-	FS_AudioSettings GetCurrentSettings() const;
-	TArray<FString> ValidateSettings() const;
+    // Public API
+    void LoadSettings(const FS_AudioSettings& Settings);
+    FS_AudioSettings GetCurrentSettings() const;
+    TArray<FString> ValidateSettings() const;
 
 protected:
-	// UI refs (bind in UMG)
-	UPROPERTY(meta = (BindWidgetOptional))
-	USelectionWidget* AudioLanguageSelection;
+    // Selection rows (reusable SelectionSettingRow)
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* AudioLanguageRow;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	USelectionWidget* AudioOutputSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* AudioOutputRow;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	USelectionWidget* ClosedCaptionsSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* ClosedCaptionsRow;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	USelectionWidget* SubtitlesSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* SubtitlesRow;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	USlider* MasterVolumeSlider;
+    // Reusable numeric rows (Bind instances of your NumericSettingRow UMG)
+    UPROPERTY(meta = (BindWidgetOptional))
+    UNumericSettingRow* MasterVolumeRow;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	UTextBlock* MasterVolumeText;
+    UPROPERTY(meta = (BindWidgetOptional))
+    UNumericSettingRow* SFXVolumeRow;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	USlider* SFXVolumeSlider;
+    UPROPERTY(meta = (BindWidgetOptional))
+    UNumericSettingRow* MusicVolumeRow;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	UTextBlock* SFXVolumeText;
+    UPROPERTY(meta = (BindWidgetOptional))
+    UNumericSettingRow* AmbientVolumeRow;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	USlider* MusicVolumeSlider;
+    UPROPERTY(meta = (BindWidgetOptional))
+    UNumericSettingRow* DialogueVolumeRow;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	UTextBlock* MusicVolumeText;
+    UPROPERTY(meta = (BindWidgetOptional))
+    UNumericSettingRow* UIVolumeRow;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	USlider* AmbientVolumeSlider;
+    UPROPERTY(meta = (BindWidgetOptional))
+    UButton* TestAudioButton;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	UTextBlock* AmbientVolumeText;
+    // Internal
+    UPROPERTY()
+    class USettingsSubsystem* SettingsSubsystem;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	USlider* DialogueVolumeSlider;
+    // Test sound (optional)
+    UPROPERTY()
+    USoundBase* TestSound;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	UTextBlock* DialogueVolumeText;
+    // Flags
+    bool bIsLoadingSettings;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	USlider* UIVolumeSlider;
+    // Current local settings (widget-level, not yet saved to subsystem)
+    FS_AudioSettings CurrentSettings;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	UTextBlock* UIVolumeText;
+    // Initialization
+    void InitializeSelectionRows();
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	UButton* TestAudioButton;
+    // Helpers
+    TArray<FText> MakeToggleOptions() const;
+    TArray<FText> MakeAudioLanguageOptions() const;
+    TArray<FText> MakeAudioOutputOptions() const;
 
-	// Internal
-	UPROPERTY()
-	class USettingsSubsystem* SettingsSubsystem;
+    // Selection callbacks
+    UFUNCTION()
+    void OnAudioLanguageChanged(int32 NewIndex);
 
-	// Test sound (optional)
-	UPROPERTY()
-	USoundBase* TestSound;
+    UFUNCTION()
+    void OnAudioOutputChanged(int32 NewIndex);
 
-	// Flags to avoid feedback loops
-	bool bUpdatingSliders;
-	bool bIsLoadingSettings;
+    UFUNCTION()
+    void OnClosedCaptionsChanged(int32 NewIndex);
 
-	// Current local settings (widget-level, not yet saved to subsystem)
-	FS_AudioSettings CurrentSettings;
+    UFUNCTION()
+    void OnSubtitlesChanged(int32 NewIndex);
 
-	// Initialization helpers
-	void InitializeSelections();
-	void InitializeSliders();
-	void BindSliderEvents();
-	void UnbindSliderEvents();
+    // Numeric row handlers
+    UFUNCTION()
+    void HandleMasterVolumeRowChanged(float NewValue);
 
-	// UI helpers
-	void AddToggleOptions(USelectionWidget* Selection);
-	void UpdateVolumeTexts();
+    UFUNCTION()
+    void HandleSFXVolumeRowChanged(float NewValue);
 
-	// Callbacks (update CurrentSettings only; do NOT call subsystem here)
-	UFUNCTION()
-	void OnMasterVolumeChanged(float Value);
+    UFUNCTION()
+    void HandleMusicVolumeRowChanged(float NewValue);
 
-	UFUNCTION()
-	void OnSFXVolumeChanged(float Value);
+    UFUNCTION()
+    void HandleAmbientVolumeRowChanged(float NewValue);
 
-	UFUNCTION()
-	void OnMusicVolumeChanged(float Value);
+    UFUNCTION()
+    void HandleDialogueVolumeRowChanged(float NewValue);
 
-	UFUNCTION()
-	void OnAmbientVolumeChanged(float Value);
+    UFUNCTION()
+    void HandleUIVolumeRowChanged(float NewValue);
 
-	UFUNCTION()
-	void OnDialogueVolumeChanged(float Value);
-
-	UFUNCTION()
-	void OnUIVolumeChanged(float Value);
-
-	UFUNCTION()
-	void OnAudioLanguageChanged(int32 NewIndex);
-
-	UFUNCTION()
-	void OnAudioOutputChanged(int32 NewIndex);
-
-	UFUNCTION()
-	void OnClosedCaptionsChanged(int32 NewIndex);
-
-	UFUNCTION()
-	void OnSubtitlesChanged(int32 NewIndex);
-
-	// Buttons
-	UFUNCTION()
-	void OnTestAudioButtonClicked();
+    // Button
+    UFUNCTION()
+    void OnTestAudioButtonClicked();
 };

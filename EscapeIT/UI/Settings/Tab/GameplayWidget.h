@@ -1,5 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
-
+﻿// GameplayWidget.h
 #pragma once
 
 #include "CoreMinimal.h"
@@ -7,136 +6,120 @@
 #include "EscapeIT/Data/SettingsTypes.h"
 #include "GameplayWidget.generated.h"
 
-class USelectionWidget;
+class USelectionSettingRow;
 class USettingsSubsystem;
-class UCommonTextBlock;
-class UButton;
 
 UCLASS()
 class ESCAPEIT_API UGameplayWidget : public UUserWidget
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
-	UGameplayWidget(const FObjectInitializer& ObjectInitializer);
+    UGameplayWidget(const FObjectInitializer& ObjectInitializer);
+
+    // UUserWidget
+    virtual void NativeConstruct() override;
+    virtual void NativeDestruct() override;
+
+    // Public API
+    void LoadSettings(const FS_GameplaySettings& Settings);
+    FS_GameplaySettings GetCurrentSettings() const;
+    TArray<FString> ValidateSettings() const;
 
 protected:
-	virtual void NativeConstruct() override;
-	virtual void NativeDestruct() override;
+    // Selection rows (reusable SelectionSettingRow)
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* DifficultyRow;
 
-	// ===== WIDGET BINDINGS =====
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* SanityDrainRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* DifficultySelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* EntityDetectionRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* SanityDrainSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* PuzzleHintRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* EntityDetectionSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* HintTimeRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* PuzzleHintSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* SkipPuzzlesRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* HintTimeSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* ObjectiveMarkersRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* SkipPuzzlesSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* InteractionIndicatorsRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* ObjectiveMarkersSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* AutoPickupRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* InteractionIndicatorsSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* CameraShakeRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* AutoPickupSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* ScreenBlurRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* CameraShakeSelection;
+    // Internal
+    UPROPERTY()
+    USettingsSubsystem* SettingsSubsystem;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* ScreenBlurSelection;
+    // Flags
+    bool bIsLoadingSettings;
 
-	// ===== CALLBACKS =====
+    // Current local settings (widget-level, not yet saved to subsystem)
+    FS_GameplaySettings CurrentSettings;
 
-	UFUNCTION()
-	void OnDifficultyChanged(int32 NewIndex);
+    // Initialization
+    void InitializeSelectionRows();
 
-	UFUNCTION()
-	void OnSanityDrainChanged(int32 NewIndex);
+    // Helpers
+    TArray<FText> MakeToggleOptions() const;
+    TArray<FText> MakeDifficultyOptions() const;
+    TArray<FText> MakeMultiplierOptions() const;
+    TArray<FText> MakeHintTimeOptions() const;
+    TArray<FText> MakePercentageOptions() const;
 
-	UFUNCTION()
-	void OnEntityDetectionChanged(int32 NewIndex);
+    // Conversion helpers
+    float IndexToMultiplier(int32 Index) const;
+    int32 MultiplierToIndex(float Value) const;
+    float IndexToPercentage(int32 Index) const;
+    int32 PercentageToIndex(float Value) const;
+    float IndexToHintTime(int32 Index) const;
+    int32 HintTimeToIndex(float Value) const;
 
-	UFUNCTION()
-	void OnPuzzleHintChanged(int32 NewIndex);
+    // Selection callbacks
+    UFUNCTION()
+    void OnDifficultyChanged(int32 NewIndex);
 
-	UFUNCTION()
-	void OnHintTimeChanged(int32 NewIndex);
+    UFUNCTION()
+    void OnSanityDrainChanged(int32 NewIndex);
 
-	UFUNCTION()
-	void OnSkipPuzzlesChanged(int32 NewIndex);
+    UFUNCTION()
+    void OnEntityDetectionChanged(int32 NewIndex);
 
-	UFUNCTION()
-	void OnObjectiveMarkersChanged(int32 NewIndex);
+    UFUNCTION()
+    void OnPuzzleHintChanged(int32 NewIndex);
 
-	UFUNCTION()
-	void OnInteractionIndicatorsChanged(int32 NewIndex);
+    UFUNCTION()
+    void OnHintTimeChanged(int32 NewIndex);
 
-	UFUNCTION()
-	void OnAutoPickupChanged(int32 NewIndex);
+    UFUNCTION()
+    void OnSkipPuzzlesChanged(int32 NewIndex);
 
-	UFUNCTION()
-	void OnCameraShakeChanged(int32 NewIndex);
+    UFUNCTION()
+    void OnObjectiveMarkersChanged(int32 NewIndex);
 
-	UFUNCTION()
-	void OnScreenBlurChanged(int32 NewIndex);
+    UFUNCTION()
+    void OnInteractionIndicatorsChanged(int32 NewIndex);
 
-	// ===== PROPERTIES =====
+    UFUNCTION()
+    void OnAutoPickupChanged(int32 NewIndex);
 
-	UPROPERTY()
-	FS_GameplaySettings CurrentSettings;
+    UFUNCTION()
+    void OnCameraShakeChanged(int32 NewIndex);
 
-	UPROPERTY()
-	TObjectPtr<USettingsSubsystem> SettingsSubsystem;
-
-	UPROPERTY()
-	bool bIsLoadingSettings = false;
-
-public:
-	// ===== PUBLIC API =====
-
-	UFUNCTION(BlueprintCallable, Category = "Settings")
-	void LoadSettings(const FS_GameplaySettings& Settings);
-
-	UFUNCTION(BlueprintCallable, Category = "Settings")
-	FS_GameplaySettings GetCurrentSettings() const;
-
-	UFUNCTION(BlueprintCallable, Category = "Settings")
-	TArray<FString> ValidateSettings() const;
-
-private:
-	// ===== INITIALIZATION =====
-
-	void InitializeSelections();
-
-	void LoadCurrentSettings();
-
-	// ===== HELPER FUNCTIONS =====
-
-	void AddToggleOptions(USelectionWidget* Selection);
-
-	void AddPercentageOptions(USelectionWidget* Selection);
-
-	void AddMultiplierOptions(USelectionWidget* Selection);
-
-	float IndexToMultiplier(int32 Index);
-
-	int32 MultiplierToIndex(float Value);
-
-	float IndexToPercentage(int32 Index);
-
-	int32 PercentageToIndex(float Value);
+    UFUNCTION()
+    void OnScreenBlurChanged(int32 NewIndex);
 };

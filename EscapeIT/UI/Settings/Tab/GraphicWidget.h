@@ -1,5 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
+// GraphicWidget.h
 #pragma once
 
 #include "CoreMinimal.h"
@@ -7,130 +6,141 @@
 #include "EscapeIT/Data/SettingsTypes.h"
 #include "GraphicWidget.generated.h"
 
-class USelectionWidget;
+class USelectionSettingRow;
 class USettingsSubsystem;
-class UButton;
 class UCommonTextBlock;
 
 UCLASS()
 class ESCAPEIT_API UGraphicWidget : public UUserWidget
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
-	UGraphicWidget(const FObjectInitializer& ObjectInitializer);
+    UGraphicWidget(const FObjectInitializer& ObjectInitializer);
 
-	void LoadSettings(const FS_GraphicsSettings& Settings);
+    // UUserWidget
+    virtual void NativeConstruct() override;
+    virtual void NativeDestruct() override;
 
-	FS_GraphicsSettings GetCurrentSettings() const;
+    // Public API
+    void LoadSettings(const FS_GraphicsSettings& Settings);
+    FS_GraphicsSettings GetCurrentSettings() const;
+    TArray<FString> ValidateSettings() const;
 
-	TArray<FString> ValidateSettings() const;
 protected:
-	virtual void NativeConstruct() override;
-	virtual void NativeDestruct() override;
+    // Selection rows (reusable SelectionSettingRow)
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* QualityPresetRow;
 
-	// ===== WIDGET BINDINGS =====
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* ResolutionRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* QualityPresetSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* VSyncRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* ResolutionSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* FrameRateCapRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* VSyncSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* RayTracingRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* FrameRateCapSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* RayTracingQualityRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* RayTracingSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* ShadowQualityRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* RayTracingQualitySelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* TextureQualityRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* ShadowQualitySelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* AntiAliasingRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* TextureQualitySelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* MotionBlurRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* AntiAliasingSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* FieldOfViewRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* MotionBlurSelection;
+    // Optional FPS counter text
+    UPROPERTY(meta = (BindWidgetOptional))
+    UCommonTextBlock* FPSText;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* FieldOfViewSelection;
+    // Internal
+    UPROPERTY()
+    USettingsSubsystem* SettingsSubsystem;
 
-	UPROPERTY(meta = (BindWidgetOptional))
-	UCommonTextBlock* FPSText;
+    // Flags
+    bool bIsLoadingSettings;
 
-	// ===== CALLBACKS =====
+    // Current local settings (widget-level, not yet saved to subsystem)
+    FS_GraphicsSettings CurrentSettings;
 
-	UFUNCTION()
-	void OnQualityPresetChanged(int32 NewIndex);
+    // FPS counter timer
+    FTimerHandle FPSTimerHandle;
 
-	UFUNCTION()
-	void OnResolutionChanged(int32 NewIndex);
+    // Initialization
+    void InitializeSelectionRows();
 
-	UFUNCTION()
-	void OnVSyncChanged(int32 NewIndex);
+    // Helpers
+    TArray<FText> MakeToggleOptions() const;
+    TArray<FText> MakeQualityPresetOptions() const;
+    TArray<FText> MakeResolutionOptions() const;
+    TArray<FText> MakeFrameRateCapOptions() const;
+    TArray<FText> MakeRayTracingQualityOptions() const;
+    TArray<FText> MakeQualityLevelOptions() const;
+    TArray<FText> MakeAntiAliasingOptions() const;
+    TArray<FText> MakePercentageOptions() const;
+    TArray<FText> MakeFieldOfViewOptions() const;
 
-	UFUNCTION()
-	void OnFrameRateCapChanged(int32 NewIndex);
+    // Conversion helpers
+    TArray<FIntPoint> GetAvailableResolutions() const;
+    FIntPoint IndexToResolution(int32 Index) const;
+    int32 ResolutionToIndex(FIntPoint Resolution) const;
+    int32 IndexToFrameRateCap(int32 Index) const;
+    int32 FrameRateCapToIndex(int32 Value) const;
+    float IndexToFOV(int32 Index) const;
+    int32 FOVToIndex(float Value) const;
+    float IndexToPercentage(int32 Index) const;
+    int32 PercentageToIndex(float Value) const;
 
-	UFUNCTION()
-	void OnRayTracingChanged(int32 NewIndex);
+    // FPS counter
+    void UpdateFPSCounter();
 
-	UFUNCTION()
-	void OnRayTracingQualityChanged(int32 NewIndex);
+    // Helper to mark preset as custom when user changes individual settings
+    void MarkAsCustomPreset();
 
-	UFUNCTION()
-	void OnShadowQualityChanged(int32 NewIndex);
+    // Selection callbacks
+    UFUNCTION()
+    void OnQualityPresetChanged(int32 NewIndex);
 
-	UFUNCTION()
-	void OnTextureQualityChanged(int32 NewIndex);
+    UFUNCTION()
+    void OnResolutionChanged(int32 NewIndex);
 
-	UFUNCTION()
-	void OnAntiAliasingChanged(int32 NewIndex);
+    UFUNCTION()
+    void OnVSyncChanged(int32 NewIndex);
 
-	UFUNCTION()
-	void OnMotionBlurChanged(int32 NewIndex);
+    UFUNCTION()
+    void OnFrameRateCapChanged(int32 NewIndex);
 
-	UFUNCTION()
-	void OnFieldOfViewChanged(int32 NewIndex);
+    UFUNCTION()
+    void OnRayTracingChanged(int32 NewIndex);
 
-private:
-	/** Reference to Settings Subsystem */
-	UPROPERTY()
-	USettingsSubsystem* SettingsSubsystem;
+    UFUNCTION()
+    void OnRayTracingQualityChanged(int32 NewIndex);
 
-	FS_GraphicsSettings CurrentSettings;
+    UFUNCTION()
+    void OnShadowQualityChanged(int32 NewIndex);
 
-	bool bIsLoadingSettings = false;
+    UFUNCTION()
+    void OnTextureQualityChanged(int32 NewIndex);
 
-	bool bSettingsChanged;
-	FTimerHandle FPSTimerHandle;
+    UFUNCTION()
+    void OnAntiAliasingChanged(int32 NewIndex);
 
-	void InitializeSelections();
-	void LoadCurrentSettings();
-	void AddToggleOptions(USelectionWidget* Selection);
-	void AddPercentageOptions(USelectionWidget* Selection);
+    UFUNCTION()
+    void OnMotionBlurChanged(int32 NewIndex);
 
-	UFUNCTION()
-	void UpdateFPSCounter();
-
-	TArray<FIntPoint> GetAvailableResolutions();
-	FIntPoint IndexToResolution(int32 Index);
-	int32 ResolutionToIndex(FIntPoint Resolution);
-	int32 IndexToFrameRateCap(int32 Index);
-	int32 FrameRateCapToIndex(int32 Value);
-	float IndexToFOV(int32 Index);
-	int32 FOVToIndex(float Value);
-	void MarkAsCustomPreset();
-
-	float IndexToPercentage(int32 Index);
-	int32 PercentageToIndex(float Value);
+    UFUNCTION()
+    void OnFieldOfViewChanged(int32 NewIndex);
 };

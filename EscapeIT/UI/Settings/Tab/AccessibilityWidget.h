@@ -7,167 +7,129 @@
 #include "EscapeIT/Data/SettingsTypes.h"
 #include "AccessibilityWidget.generated.h"
 
-class USelectionWidget;
-class USettingsSubsystem;
-class UButton;
-class USettingRowWidget;
+class USelectionSettingRow;
 
 UCLASS()
 class ESCAPEIT_API UAccessibilityWidget : public UUserWidget
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
-	UAccessibilityWidget(const FObjectInitializer& ObjectInitializer);
+    UAccessibilityWidget(const FObjectInitializer& ObjectInitializer);
 
-	UFUNCTION(BlueprintCallable, Category = "Settings")
-	TArray<FString> ValidateSettings() const;
+    // UUserWidget
+    virtual void NativeConstruct() override;
+    virtual void NativeDestruct() override;
+    virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
-	UFUNCTION(BlueprintCallable, Category = "Settings")
-	FS_AccessibilitySettings GetCurrentSettings() const;
+    // Public API
+    void LoadSettings(const FS_AccessibilitySettings& Settings);
+    FS_AccessibilitySettings GetCurrentSettings() const;
+    TArray<FString> ValidateSettings() const;
 
-	UFUNCTION(BlueprintCallable, Category = "Settings")
-	void LoadSettings(const FS_AccessibilitySettings& Settings);
 protected:
-	virtual void NativeConstruct() override;
+    // Selection rows (reusable SelectionSettingRow)
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* TextSizeRow;
 
-	// ===== WIDGET BINDINGS =====
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* TextContrastRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* TextSizeSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* DyslexiaFontRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* TextContrastSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* ColorBlindModeRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* DyslexiaFontSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* HighContrastUIRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* ColorBlindModeSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* ReducedMotionRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* HighContrastUISelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* PhotosensitivityModeRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* ReducedMotionSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* ScreenReaderRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* PhotosensitivityModeSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* SoundCuesVisualizationRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* ScreenReaderSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* HapticFeedbackRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* SoundCuesVisualizationSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* SingleHandedModeRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* HapticFeedbackSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* HoldToActivateRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* SingleHandedModeSelection;
+    UPROPERTY(meta = (BindWidgetOptional))
+    USelectionSettingRow* HoldActivationTimeRow;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* HoldToActivateSelection;
+    // Internal
+    UPROPERTY()
+    class USettingsSubsystem* SettingsSubsystem;
 
-	UPROPERTY(meta = (BindWidget))
-	USelectionWidget* HoldActivationTimeSelection;
+    // Flags
+    bool bIsLoadingSettings;
 
-	UPROPERTY(meta = (BindWidget))
-	USettingRowWidget* TextSizeWidget;
+    // Current local settings (widget-level, not yet saved to subsystem)
+    FS_AccessibilitySettings CurrentSettings;
 
-	UPROPERTY(meta = (BindWidget))
-	USettingRowWidget* TextContrastWidget;
+    // Initialization
+    void InitializeSelectionRows();
 
-	UPROPERTY(meta = (BindWidget))
-	USettingRowWidget* DyslexiaFontWidget;
+    // Helpers
+    TArray<FText> MakeToggleOptions() const;
+    TArray<FText> MakeTextSizeOptions() const;
+    TArray<FText> MakeTextContrastOptions() const;
+    TArray<FText> MakeColorBlindModeOptions() const;
+    TArray<FText> MakePhotosensitivityModeOptions() const;
+    TArray<FText> MakeSingleHandedModeOptions() const;
+    TArray<FText> MakeHoldActivationTimeOptions() const;
 
-	UPROPERTY(meta = (BindWidget))
-	USettingRowWidget* ColorBlindModeWidget;
+    float IndexToActivationTime(int32 Index);
+    int32 ActivationTimeToIndex(float Value);
 
-	UPROPERTY(meta = (BindWidget))
-	USettingRowWidget* HighContrastUIWidget;
+    // Selection callbacks
+    UFUNCTION()
+    void OnTextSizeChanged(int32 NewIndex);
 
-	UPROPERTY(meta = (BindWidget))
-	USettingRowWidget* ReducedMotionWidget;
+    UFUNCTION()
+    void OnTextContrastChanged(int32 NewIndex);
 
-	UPROPERTY(meta = (BindWidget))
-	USettingRowWidget* PhotosensitivityModeWidget;
+    UFUNCTION()
+    void OnDyslexiaFontChanged(int32 NewIndex);
 
-	UPROPERTY(meta = (BindWidget))
-	USettingRowWidget* ScreenReaderWidget;
+    UFUNCTION()
+    void OnColorBlindModeChanged(int32 NewIndex);
 
-	UPROPERTY(meta = (BindWidget))
-	USettingRowWidget* SoundCuesVisualizationWidget;
+    UFUNCTION()
+    void OnHighContrastUIChanged(int32 NewIndex);
 
-	UPROPERTY(meta = (BindWidget))
-	USettingRowWidget* HapticFeedbackWidget;
+    UFUNCTION()
+    void OnReducedMotionChanged(int32 NewIndex);
 
-	UPROPERTY(meta = (BindWidget))
-	USettingRowWidget* SingleHandedModeWidget;
+    UFUNCTION()
+    void OnPhotosensitivityModeChanged(int32 NewIndex);
 
-	UPROPERTY(meta = (BindWidget))
-	USettingRowWidget* HoldToActivateWidget;
+    UFUNCTION()
+    void OnScreenReaderChanged(int32 NewIndex);
 
-	UPROPERTY(meta = (BindWidget))
-	USettingRowWidget* HoldActivationTimeSelection;
+    UFUNCTION()
+    void OnSoundCuesVisualizationChanged(int32 NewIndex);
 
-	// ===== CALLBACKS =====
+    UFUNCTION()
+    void OnHapticFeedbackChanged(int32 NewIndex);
 
-	UFUNCTION()
-	void OnTextSizeChanged(int32 NewIndex);
+    UFUNCTION()
+    void OnSingleHandedModeChanged(int32 NewIndex);
 
-	UFUNCTION()
-	void OnTextContrastChanged(int32 NewIndex);
+    UFUNCTION()
+    void OnHoldToActivateChanged(int32 NewIndex);
 
-	UFUNCTION()
-	void OnDyslexiaFontChanged(int32 NewIndex);
-
-	UFUNCTION()
-	void OnColorBlindModeChanged(int32 NewIndex);
-
-	UFUNCTION()
-	void OnHighContrastUIChanged(int32 NewIndex);
-
-	UFUNCTION()
-	void OnReducedMotionChanged(int32 NewIndex);
-
-	UFUNCTION()
-	void OnPhotosensitivityModeChanged(int32 NewIndex);
-
-	UFUNCTION()
-	void OnScreenReaderChanged(int32 NewIndex);
-
-	UFUNCTION()
-	void OnSoundCuesVisualizationChanged(int32 NewIndex);
-
-	UFUNCTION()
-	void OnHapticFeedbackChanged(int32 NewIndex);
-
-	UFUNCTION()
-	void OnSingleHandedModeChanged(int32 NewIndex);
-
-	UFUNCTION()
-	void OnHoldToActivateChanged(int32 NewIndex);
-
-	UFUNCTION()
-	void OnHoldActivationTimeChanged(int32 NewIndex);
-
-	UFUNCTION()
-	void OnResetButtonClicked();
-
-private:
-	UPROPERTY()
-	TObjectPtr<USettingsSubsystem> SettingsSubsystem;
-
-	UPROPERTY()
-	FS_AccessibilitySettings CurrentSettings;
-
-	UPROPERTY()
-	bool bIsLoadingSettings = false;
-
-	void InitializeSelections();
-	void LoadCurrentSettings();
-	void AddToggleOptions(USelectionWidget* Selection);
-	float IndexToActivationTime(int32 Index);
-	int32 ActivationTimeToIndex(float Value);
+    UFUNCTION()
+    void OnHoldActivationTimeChanged(int32 NewIndex);
 };

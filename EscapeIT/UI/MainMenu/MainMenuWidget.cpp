@@ -8,6 +8,7 @@
 #include "Sound/SoundBase.h"
 #include "Animation/WidgetAnimation.h"
 #include "EscapeIT/UI/Settings/Main/MainMenuSettingWidget.h"
+#include "EscapeIT/GameInstance/EscapeITSubsystem.h"
 #include "EscapeIT/UI/MainMenu/ConfirmExitWidget.h"
 
 void UMainMenuWidget::NativeConstruct()
@@ -20,6 +21,27 @@ void UMainMenuWidget::NativeConstruct()
 	OptionsButton->OnClicked.AddDynamic(this, &UMainMenuWidget::OnOptionsButton);
 	CreditsButton->OnClicked.AddDynamic(this, &UMainMenuWidget::OnCreditsButton);
 	ExitButton->OnClicked.AddDynamic(this, &UMainMenuWidget::OnExitButton);
+
+	if (NewGameButton)
+	{
+		NewGameButton->OnHovered.AddDynamic(this, &UMainMenuWidget::OnNewGameButtonHovered);
+		NewGameButton->OnUnhovered.AddDynamic(this, &UMainMenuWidget::OnNewGameButtonUnhovered);
+	}
+
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		if (UEscapeITSubsystem* SaveSubsystem = GI->GetSubsystem<UEscapeITSubsystem>())
+		{
+			if (!SaveSubsystem->DoesSaveExist())
+			{
+				if (ContinueButton) ContinueButton->SetIsEnabled(false);
+			}
+			else
+			{
+				if (ContinueButton) ContinueButton->SetIsEnabled(true);
+			}
+		}
+	}
 
 	// Setup hover effects
 	SetupButtonHoverEffects();
@@ -47,21 +69,11 @@ void UMainMenuWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 
 	TimeElapsed += InDeltaTime;
 
-	// Update horror effects
-	if (bEnableStaticNoise)
-		UpdateStaticNoise(InDeltaTime);
-
 	if (bEnableButtonGlitch)
 		UpdateButtonGlitch(InDeltaTime);
 
 	if (bEnableTextCorruption)
 		UpdateTextCorruption(InDeltaTime);
-
-	if (bEnableScreenFlash)
-		UpdateScreenFlash(InDeltaTime);
-
-	if (bEnableVignettePulse)
-		UpdateVignettePulse(InDeltaTime);
 }
 
 // ============= Button Handlers =============
@@ -73,13 +85,6 @@ void UMainMenuWidget::OnNewGameButton()
 		UGameplayStatics::PlaySound2D(this, ButtonClickSound, 0.5f);
 	}
 
-	// Add slight delay with screen flash for dramatic effect
-	if (FlashImage)
-	{
-		FlashImage->SetColorAndOpacity(FLinearColor::White);
-		FlashImage->SetOpacity(1.0f);
-	}
-
 	FTimerHandle TimerHandle;
 	GetWorld()->GetTimerManager().SetTimer(TimerHandle, [this]()
 		{
@@ -89,15 +94,40 @@ void UMainMenuWidget::OnNewGameButton()
 
 void UMainMenuWidget::OnContinueButton()
 {
-	// Implement continue logic
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		if (UEscapeITSubsystem* SaveSubsystem = GI->GetSubsystem<UEscapeITSubsystem>())
+		{
+			if (SaveSubsystem->DoesSaveExist())
+			{
+				// Optional: play animation / fade here
+				SaveSubsystem->LoadGame();
+				// After loading, open saved level if subsystem applies it, or let subsystem handle teleporting
+			}
+			else
+			{
+				// show feedback (toast) that no save exists
+				UE_LOG(LogTemp, Warning, TEXT("No save to continue"));
+			}
+		}
+	}
 }
 
 void UMainMenuWidget::OnOptionsButton()
 {
-	MainMenuSettingWidget = CreateWidget<UMainMenuSettingWidget>(GetWorld(), MainMenuSettingWidgetClass);
-	if (MainMenuSettingWidget)
+	if (!MainMenuSettingWidgetClass) return;
+	if (APlayerController* PC = GetOwningPlayer())
 	{
-		MainMenuSettingWidget->AddToViewport(999);
+		MainMenuSettingWidget = CreateWidget<UMainMenuSettingWidget>(PC, MainMenuSettingWidgetClass);
+		if (MainMenuSettingWidget)
+		{
+			MainMenuSettingWidget->AddToViewport(1000);
+			// Set input focus to new widget
+			FInputModeUIOnly InputMode;
+			InputMode.SetWidgetToFocus(MainMenuSettingWidget->TakeWidget());
+			PC->SetInputMode(InputMode);
+			PC->bShowMouseCursor = true;
+		}
 	}
 }
 
@@ -120,26 +150,6 @@ void UMainMenuWidget::OnExitButton()
 }
 
 // ============= Horror Effects =============
-void UMainMenuWidget::UpdateStaticNoise(float DeltaTime)
-{
-	if (!StaticNoiseOverlay) return;
-
-	// Animated static noise effect
-	float NoiseValue = FMath::PerlinNoise1D(TimeElapsed * StaticNoiseSpeed);
-	float Opacity = FMath::Clamp(NoiseValue * StaticNoiseIntensity, 0.0f, StaticNoiseIntensity);
-
-	StaticNoiseOverlay->SetOpacity(Opacity);
-
-	// Random position shift for more chaotic effect
-	if (FMath::RandRange(0.0f, 1.0f) < 0.1f)
-	{
-		FVector2D RandomOffset(
-			FMath::RandRange(-2.0f, 2.0f),
-			FMath::RandRange(-2.0f, 2.0f)
-		);
-		StaticNoiseOverlay->SetRenderTranslation(RandomOffset);
-	}
-}
 
 void UMainMenuWidget::UpdateButtonGlitch(float DeltaTime)
 {
@@ -244,55 +254,6 @@ void UMainMenuWidget::TriggerTextCorruption()
 				}, FMath::RandRange(0.1f, 0.3f), false);
 		}
 	}
-}
-
-void UMainMenuWidget::UpdateScreenFlash(float DeltaTime)
-{
-	if (!FlashImage) return;
-
-	if (bIsFlashing)
-	{
-		FlashTimer += DeltaTime;
-
-		// Fade out flash
-		float Alpha = 1.0f - (FlashTimer / FlashDuration);
-		FlashImage->SetOpacity(FMath::Max(0.0f, Alpha));
-
-		if (FlashTimer >= FlashDuration)
-		{
-			bIsFlashing = false;
-			FlashImage->SetOpacity(0.0f);
-		}
-		return;
-	}
-
-	// Random flash trigger
-	if (FMath::RandRange(0.0f, 1.0f) < FlashChance * DeltaTime)
-	{
-		TriggerScreenFlash();
-	}
-}
-
-void UMainMenuWidget::TriggerScreenFlash()
-{
-	if (!FlashImage) return;
-
-	bIsFlashing = true;
-	FlashTimer = 0.0f;
-
-	FlashImage->SetColorAndOpacity(FlashColor);
-	FlashImage->SetOpacity(FMath::RandRange(0.3f, 0.7f));
-}
-
-void UMainMenuWidget::UpdateVignettePulse(float DeltaTime)
-{
-	if (!VignetteOverlay) return;
-
-	// Breathing vignette effect
-	float PulseCycle = FMath::Sin(TimeElapsed * VignettePulseSpeed);
-	float Opacity = FMath::Lerp(VignetteMinOpacity, VignetteMaxOpacity, (PulseCycle + 1.0f) * 0.5f);
-
-	VignetteOverlay->SetOpacity(Opacity);
 }
 
 void UMainMenuWidget::SetupButtonHoverEffects()

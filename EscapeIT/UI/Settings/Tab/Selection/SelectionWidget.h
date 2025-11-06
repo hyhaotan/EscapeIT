@@ -10,7 +10,7 @@
 
 class UCommonTextBlock;
 
-DECLARE_DYNAMIC_DELEGATE_OneParam(FOnSelectionChanged, int,NewSelection);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSelectionChanged, int,NewSelection);
 
 UCLASS(Blueprintable,BlueprintType)
 class ESCAPEIT_API USelectionWidget : public UCommonUserWidget
@@ -22,8 +22,11 @@ public:
 	USelectionWidget();
 
 	void Clear();
+	int32 GetOptionCount() const;
 	void AddOption(const FSelectionOption& InOption);
 	void SetCurrentSelection(int InIndex);
+
+	int32 GetCurrentSelection() const;
 
 	UFUNCTION(BlueprintCallable)
 	void SelectPrevious();

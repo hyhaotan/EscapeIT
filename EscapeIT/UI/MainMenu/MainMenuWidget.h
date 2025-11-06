@@ -38,19 +38,6 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UButton> ExitButton;
 
-	// ============= Horror Visual Elements (Optional - Bind if exist) =============
-	UPROPERTY(meta = (BindWidgetOptional))
-	TObjectPtr<UImage> StaticNoiseOverlay;
-
-	UPROPERTY(meta = (BindWidgetOptional))
-	TObjectPtr<UImage> VignetteOverlay;
-
-	UPROPERTY(meta = (BindWidgetOptional))
-	TObjectPtr<UTextBlock> GlitchText;
-
-	UPROPERTY(meta = (BindWidgetOptional))
-	TObjectPtr<UImage> FlashImage;
-
 	// ============= Widget Classes =============
 	UPROPERTY(EditDefaultsOnly, Category = "Widgets")
 	TSubclassOf<UMainMenuSettingWidget> MainMenuSettingWidgetClass;
@@ -151,15 +138,11 @@ private:
 	void OnExitButton();
 
 	// Horror Effect Functions
-	void UpdateStaticNoise(float DeltaTime);
 	void UpdateButtonGlitch(float DeltaTime);
 	void UpdateTextCorruption(float DeltaTime);
-	void UpdateScreenFlash(float DeltaTime);
-	void UpdateVignettePulse(float DeltaTime);
 
 	void TriggerButtonGlitch();
 	void TriggerTextCorruption();
-	void TriggerScreenFlash();
 
 	void SetupButtonHoverEffects();
 
@@ -191,8 +174,6 @@ private:
 
 	// State Variables
 	float TimeElapsed = 0.0f;
-	bool bIsFlashing = false;
-	float FlashTimer = 0.0f;
 	bool bIsButtonGlitching = false;
 	float ButtonGlitchTimer = 0.0f;
 
