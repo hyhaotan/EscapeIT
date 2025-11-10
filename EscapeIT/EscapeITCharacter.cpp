@@ -82,6 +82,19 @@ void AEscapeITCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 void AEscapeITCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	TObjectPtr<APlayerController> PC = UGameplayStatics::GetPlayerController(this, 0);
+	if (PC)
+	{
+		TObjectPtr<AWidgetManager> WidgetMgr = Cast<AWidgetManager>(PC->GetHUD());
+		if (WidgetMgr)
+		{
+			if (SanityComponent)
+			{
+				WidgetMgr->InitializeSanityWidget(SanityComponent);
+			}
+		}
+	}
 }
 
 void AEscapeITCharacter::MoveInput(const FInputActionValue& Value)

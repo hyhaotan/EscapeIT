@@ -7,42 +7,10 @@
 
 ADoorActor::ADoorActor()
 {
-	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bCanEverTick = false;
 
-	// Root component là DoorPivot - điểm quay của cửa
-	DoorPivot = CreateDefaultSubobject<USceneComponent>(TEXT("DoorPivot"));
-	RootComponent = DoorPivot;
-
-	// Door Frame gắn vào DoorPivot
-	DoorFrame = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("DoorFrame"));
-	DoorFrame->SetupAttachment(DoorPivot);
-
-	// Door gắn vào DoorFrame
-	Door = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Door"));
-	Door->SetupAttachment(DoorFrame);
-
-	// Timeline cho animation
-	DoorTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("DoorTimeline"));
-	DoorTimeline->RegisterComponent();
-
+	OpenAngle = 90.0f;
 	bIsOpen = false;
-}
-
-void ADoorActor::BeginPlay()
-{
-	Super::BeginPlay();
-
-	if (DoorTimeline && DoorCurve)
-	{
-		FOnTimelineFloat TimelineCallback;
-		TimelineCallback.BindDynamic(this, &ADoorActor::UpdateDoorRotation);
-		DoorTimeline->AddInterpFloat(DoorCurve, TimelineCallback);
-	}
-}
-
-void ADoorActor::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
 }
 
 void ADoorActor::Interact_Implementation(AActor* Interactor)
@@ -114,45 +82,4 @@ void ADoorActor::CalculateDoorOpenDirection(AActor* Interactor)
 
 	DoorRotationTarget.Pitch = 0.0f;
 	DoorRotationTarget.Roll = 0.0f;
-}
-
-void ADoorActor::OpenDoor()
-{
-	if (!DoorTimeline || DoorTimeline->IsPlaying())
-	{
-		return;
-	}
-
-	bIsOpen = true;
-	DoorTimeline->SetPlayRate(1.0f);
-	DoorTimeline->PlayFromStart();
-}
-
-void ADoorActor::CloseDoor()
-{
-	if (!DoorTimeline || DoorTimeline->IsPlaying())
-	{
-		return;
-	}
-
-	bIsOpen = false;
-	DoorTimeline->SetPlayRate(-1.0f);
-	DoorTimeline->Play();
-}
-
-void ADoorActor::UpdateDoorRotation(float Value)
-{
-	if (!Door)
-	{
-		return;
-	}
-
-	// Interpolate từ 0 đến DoorRotationTarget dựa vào curve value
-	FRotator CurrentRotation = FRotator(
-		DoorRotationTarget.Pitch * Value,
-		DoorRotationTarget.Yaw * Value,
-		DoorRotationTarget.Roll * Value
-	);
-
-	Door->SetRelativeRotation(CurrentRotation);
 }

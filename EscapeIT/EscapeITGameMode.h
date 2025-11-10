@@ -16,6 +16,8 @@ class AEscapeITGameMode : public AGameModeBase
 
 public:
 	AEscapeITGameMode();
+
+	virtual void BeginPlay() override;
 };
 
 

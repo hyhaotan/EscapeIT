@@ -85,11 +85,20 @@ void UMainMenuWidget::OnNewGameButton()
 		UGameplayStatics::PlaySound2D(this, ButtonClickSound, 0.5f);
 	}
 
+	if (APlayerController* PC = GetOwningPlayer())
+	{
+		APlayerCameraManager* CameraManager = PC->PlayerCameraManager;
+		if (CameraManager)
+		{
+			CameraManager->StartCameraFade(0.0f, 1.0f, 1.5f, FLinearColor::Black, false, true);
+		}
+	}
+
 	FTimerHandle TimerHandle;
 	GetWorld()->GetTimerManager().SetTimer(TimerHandle, [this]()
 		{
 			UGameplayStatics::OpenLevel(this, "Room1");
-		}, 0.5f, false);
+		}, 3.0f, false);
 }
 
 void UMainMenuWidget::OnContinueButton()
