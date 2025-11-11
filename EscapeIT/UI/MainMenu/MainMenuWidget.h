@@ -12,6 +12,8 @@ class UImage;
 class UMainMenuSettingWidget;
 class UConfirmExitWidget;
 class USoundBase;
+class UStoryGameWidget;
+class AEscapeITCameraManager;
 
 UCLASS()
 class ESCAPEIT_API UMainMenuWidget : public UUserWidget
@@ -56,6 +58,9 @@ protected:
 
 	UPROPERTY()
 	TObjectPtr<UConfirmExitWidget> ConfirmExitWidget;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	TSubclassOf<UStoryGameWidget> StoryGameWidgetClass;
 
 	// ============= Horror Effect Settings =============
 	UPROPERTY(EditAnywhere, Category = "Horror Effects|Static Noise")
@@ -179,4 +184,5 @@ private:
 
 	TMap<UButton*, FVector2D> OriginalButtonPositions;
 	TMap<UTextBlock*, FText> OriginalButtonTexts;
+	TObjectPtr<APlayerCameraManager> Cam;
 };

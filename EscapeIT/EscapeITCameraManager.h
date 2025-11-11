@@ -6,10 +6,6 @@
 #include "Camera/PlayerCameraManager.h"
 #include "EscapeITCameraManager.generated.h"
 
-/**
- *  Basic First Person camera manager.
- *  Limits min/max look pitch.
- */
 UCLASS()
 class AEscapeITCameraManager : public APlayerCameraManager
 {

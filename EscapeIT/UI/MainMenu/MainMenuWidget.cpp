@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "MainMenuWidget.h"
 #include "Kismet/GameplayStatics.h"
@@ -10,6 +10,9 @@
 #include "EscapeIT/UI/Settings/Main/MainMenuSettingWidget.h"
 #include "EscapeIT/GameInstance/EscapeITSubsystem.h"
 #include "EscapeIT/UI/MainMenu/ConfirmExitWidget.h"
+#include "EscapeIT/EscapeITCameraManager.h"
+#include "EscapeIT/UI/StoryGameWidget.h"
+#include "EscapeIT/UI/HUD/WidgetManager.h"
 
 void UMainMenuWidget::NativeConstruct()
 {
@@ -85,6 +88,7 @@ void UMainMenuWidget::OnNewGameButton()
 		UGameplayStatics::PlaySound2D(this, ButtonClickSound, 0.5f);
 	}
 
+	// Fade to black
 	if (APlayerController* PC = GetOwningPlayer())
 	{
 		APlayerCameraManager* CameraManager = PC->PlayerCameraManager;
@@ -94,11 +98,15 @@ void UMainMenuWidget::OnNewGameButton()
 		}
 	}
 
+	// Sau khi fade to black xong, chuyển level
 	FTimerHandle TimerHandle;
 	GetWorld()->GetTimerManager().SetTimer(TimerHandle, [this]()
 		{
+			// Chuyển level Room1 luôn
 			UGameplayStatics::OpenLevel(this, "Room1");
-		}, 3.0f, false);
+
+			// StoryGameWidget sẽ được hiện trong Room1's BeginPlay
+		}, 1.5f, false);
 }
 
 void UMainMenuWidget::OnContinueButton()

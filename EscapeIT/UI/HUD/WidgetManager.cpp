@@ -306,3 +306,29 @@ void AWidgetManager::HideInventoryScreen()
 		UE_LOG(LogTemp, Log, TEXT("Inventory closed"));
 	}
 }
+
+void AWidgetManager::ShowAllWidgets()
+{
+	// Show lại các widgets cơ bản
+	if (SanityWidget && !SanityWidget->IsInViewport())
+	{
+		SanityWidget->AddToViewport(0);
+	}
+
+	if (QuickbarWidget && !QuickbarWidget->IsInViewport())
+	{
+		QuickbarWidget->AddToViewport(1);
+	}
+
+	if (CrossHair && !CrossHair->IsInViewport())
+	{
+		CrossHair->AddToViewport();
+	}
+
+	// Set input mode về game mode
+	if (PlayerController)
+	{
+		PlayerController->bShowMouseCursor = false;
+		PlayerController->SetInputMode(FInputModeGameOnly());
+	}
+}

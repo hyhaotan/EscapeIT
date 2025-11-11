@@ -114,6 +114,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Widget Manager")
 	void RemoveAllWidgets();
 
+	UFUNCTION(BlueprintCallable, Category = "Widget Manager")
+	void ShowAllWidgets();
+
 	// Getters
 	UFUNCTION(BlueprintCallable, Category = "Widget Manager")
 	USanityWidget* GetSanityWidget() const { return SanityWidget; }

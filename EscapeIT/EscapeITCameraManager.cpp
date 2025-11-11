@@ -2,6 +2,8 @@
 
 
 #include "EscapeITCameraManager.h"
+#include "GameFramework/PlayerController.h"
+#include "Kismet/GameplayStatics.h"
 
 AEscapeITCameraManager::AEscapeITCameraManager()
 {

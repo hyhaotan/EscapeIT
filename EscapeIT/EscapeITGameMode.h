@@ -6,10 +6,9 @@
 #include "GameFramework/GameModeBase.h"
 #include "EscapeITGameMode.generated.h"
 
-/**
- *  Simple GameMode for a first person game
- */
-UCLASS(abstract)
+class UStoryGameWidget;
+
+UCLASS(minimalapi)
 class AEscapeITGameMode : public AGameModeBase
 {
 	GENERATED_BODY()
@@ -17,8 +16,16 @@ class AEscapeITGameMode : public AGameModeBase
 public:
 	AEscapeITGameMode();
 
+protected:
 	virtual void BeginPlay() override;
+
+	void HideAllGameWidgets();
+	void FadeInAndShowStory();
+	void ShowStoryGameWidget();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	TSubclassOf<UStoryGameWidget> StoryGameWidgetClass;
+
+	UPROPERTY()
+	UStoryGameWidget* StoryGameWidget;
 };
-
-
-
