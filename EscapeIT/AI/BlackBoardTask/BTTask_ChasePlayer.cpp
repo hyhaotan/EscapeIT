@@ -28,7 +28,6 @@ EBTNodeResult::Type UBTTask_ChasePlayer::ExecuteTask(UBehaviorTreeComponent& Own
 
     // Cập nhật widget điều tra
     bool bCanSeePlayer = BB->GetValueAsBool(TEXT("CanSeePlayer"));
-    NPC->ToggleInvestigationWidgetVisibility(bCanSeePlayer);
 
     // **Thêm phần fear:**
     if (bCanSeePlayer)

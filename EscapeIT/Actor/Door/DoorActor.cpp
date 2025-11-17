@@ -24,11 +24,11 @@ void ADoorActor::Interact_Implementation(AActor* Interactor)
 	if (!bIsOpen)
 	{
 		CalculateDoorOpenDirection(Interactor);
-		OpenDoor();
+		OpenDoor_Implementation();
 	}
 	else
 	{
-		CloseDoor();
+		CloseDoor_Implementation();
 	}
 }
 
@@ -82,4 +82,32 @@ void ADoorActor::CalculateDoorOpenDirection(AActor* Interactor)
 
 	DoorRotationTarget.Pitch = 0.0f;
 	DoorRotationTarget.Roll = 0.0f;
+}
+
+void ADoorActor::OpenDoor_Implementation()
+{
+	Super::OpenDoor_Implementation();
+
+	if (!DoorTimeline || DoorTimeline->IsPlaying())
+	{
+		return;
+	}
+
+	bIsOpen = true;
+	DoorTimeline->SetPlayRate(1.0f);
+	DoorTimeline->PlayFromStart();
+}
+
+void ADoorActor::CloseDoor_Implementation()
+{
+	Super::CloseDoor_Implementation();
+
+	if (!DoorTimeline || DoorTimeline->IsPlaying())
+	{
+		return;
+	}
+
+	bIsOpen = false;
+	DoorTimeline->SetPlayRate(-1.0f);
+	DoorTimeline->Play();
 }

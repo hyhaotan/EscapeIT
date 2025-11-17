@@ -100,6 +100,5 @@ void ANPC_AIController::OnTargetPerceptionUpdated(AActor* Actor, FAIStimulus Sti
 	if (auto* NPC = Cast<ANPC>(GetPawn()))
 	{
 		const bool bCanSee = Stimulus.WasSuccessfullySensed();
-		NPC->ToggleInvestigationWidgetVisibility(bCanSee);
 	}
 }

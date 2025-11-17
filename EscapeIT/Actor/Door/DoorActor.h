@@ -19,4 +19,7 @@ public:
 
 private:
 	void CalculateDoorOpenDirection(AActor* Interactor);
+
+	virtual void OpenDoor_Implementation() override;
+	virtual void CloseDoor_Implementation() override;
 };

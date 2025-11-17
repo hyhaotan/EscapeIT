@@ -1,7 +1,6 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 #include "EscapeITGameMode.h"
 #include "Kismet/GameplayStatics.h"
-#include "EscapeIT/Actor/Components/SanityComponent.h"
 #include "EscapeIT/UI/HUD/WidgetManager.h"
 #include "EscapeIT/UI/StoryGameWidget.h"
 
@@ -22,9 +21,9 @@ void AEscapeITGameMode::BeginPlay()
 
 void AEscapeITGameMode::HideAllGameWidgets()
 {
-	if (UWorld* World = GetWorld())
+	if (TObjectPtr<UWorld> World = GetWorld())
 	{
-		AWidgetManager* WidgetManager = Cast<AWidgetManager>(
+		TObjectPtr<AWidgetManager> WidgetManager = Cast<AWidgetManager>(
 			UGameplayStatics::GetActorOfClass(World, AWidgetManager::StaticClass()));
 
 		if (WidgetManager)
@@ -38,11 +37,9 @@ void AEscapeITGameMode::HideAllGameWidgets()
 
 void AEscapeITGameMode::FadeInAndShowStory()
 {
-	APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
-	if (PC)
+	if (TObjectPtr<APlayerController> PC = UGameplayStatics::GetPlayerController(this, 0))
 	{
-		APlayerCameraManager* CameraManager = PC->PlayerCameraManager;
-		if (CameraManager)
+		if (TObjectPtr<APlayerCameraManager> CameraManager = PC->PlayerCameraManager)
 		{
 			// Set camera bắt đầu từ black
 			CameraManager->SetManualCameraFade(1.0f, FLinearColor::Black, false);
@@ -50,17 +47,17 @@ void AEscapeITGameMode::FadeInAndShowStory()
 			// Delay nhỏ rồi bắt đầu fade in
 			FTimerHandle FadeTimer;
 			GetWorldTimerManager().SetTimer(FadeTimer, [this, CameraManager]()
+			{
+				if (CameraManager)
 				{
-					if (CameraManager)
-					{
-						// Fade in từ black về bình thường
-						CameraManager->StartCameraFade(1.0f, 0.0f, 2.0f, FLinearColor::Black, false, true);
-					}
+					// Fade in từ black về bình thường
+					CameraManager->StartCameraFade(1.0f, 0.0f, 1.5f, FLinearColor::Black, false, true);
+				}
 
-					// Hiện StoryGameWidget ngay khi bắt đầu fade in
-					ShowStoryGameWidget();
+				// Hiện StoryGameWidget ngay khi bắt đầu fade in
+				ShowStoryGameWidget();
 
-				}, 0.1f, false);
+			}, 0.1f, false);
 		}
 	}
 }
@@ -90,9 +87,8 @@ void AEscapeITGameMode::ShowStoryGameWidget()
 		);
 		StoryGameWidget->SetStoryText(StoryStr);
 		StoryGameWidget->AddToViewport(1000);
-
-		APlayerController* PC = GetWorld()->GetFirstPlayerController();
-		if (PC)
+		
+		if (TObjectPtr<APlayerController> PC = GetWorld()->GetFirstPlayerController())
 		{
 			PC->bShowMouseCursor = true;
 			FInputModeUIOnly InputMode;

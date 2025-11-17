@@ -10,6 +10,7 @@
 #include "EscapeIT/Actor/GhostActor.h"
 #include "Engine/World.h"
 #include "Sound/SoundBase.h"
+#include "EscapeIT/Pawn/LobbyCamera.h"
 
 AFlickLightActor::AFlickLightActor()
 {
@@ -24,7 +25,7 @@ AFlickLightActor::AFlickLightActor()
 	PointLight->SetIntensity(NormalLightIntensity);
 
 	GhostSpawnLocation = FVector(0.0f, 0.0f, -300.0f);
-	GhostSpawnRotation = FRotator(0.0f, 180.0f, 0.0f);
+	GhostSpawnRotation = FRotator(0.0f, 0.0f, 0.0f);
 }
 
 void AFlickLightActor::BeginPlay()
@@ -220,19 +221,33 @@ void AFlickLightActor::SpawnGhost()
 	if (!World)
 		return;
 
-	FVector LightLoc = LightMesh->GetRelativeLocation();
+	// Lấy LobbyCamera
+	TObjectPtr<ALobbyCamera> LobbyCamera = Cast<ALobbyCamera>(UGameplayStatics::GetPlayerPawn(World, 0));
+
+	FVector LightLoc = LightMesh->GetComponentLocation();
 	FVector SpawnLocation = LightLoc + GhostSpawnLocation;
+
+	// Lấy vị trí camera
+	FVector CameraLocation = LobbyCamera->GetActorLocation();
+
+	// Tính toán hướng từ Ghost đến Camera
+	FVector DirectionToCamera = (CameraLocation - SpawnLocation).GetSafeNormal();
+
+	// Chuyển direction thành rotation
+	FRotator SpawnRotator = DirectionToCamera.Rotation();
+
+	SpawnRotator.Yaw += 180.0f;
 
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-	AGhostActor* Ghost = World->SpawnActor<AGhostActor>(GhostActorClass, SpawnLocation, GhostSpawnRotation, SpawnParams);
+	AGhostActor* Ghost = World->SpawnActor<AGhostActor>(GhostActorClass, SpawnLocation, SpawnRotator, SpawnParams);
 
 	if (Ghost)
 	{
-		bHasSpawnedGhost = true;
+		Ghost->SetActorRotation((CameraLocation - SpawnLocation).Rotation());
 
-		// Thêm ghost vào danh sách để quản lý
+		bHasSpawnedGhost = true;
 		SpawnedGhosts.Add(Ghost);
 
 		// Play ghost appear sound
@@ -253,7 +268,7 @@ void AFlickLightActor::SpawnGhost()
 			TriggerCameraShake(GhostAppearCameraShake);
 		}
 
-		UE_LOG(LogTemp, Warning, TEXT("👻 GHOST SPAWNED at location: %s"), *SpawnLocation.ToString());
+		UE_LOG(LogTemp, Warning, TEXT("👻 GHOST SPAWNED at location: %s, facing camera"), *SpawnLocation.ToString());
 	}
 }
 

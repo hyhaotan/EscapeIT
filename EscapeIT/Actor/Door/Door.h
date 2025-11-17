@@ -56,13 +56,13 @@ public:
 	float AnimationDuration;
 
 public:
-	UFUNCTION()
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Door")
 	void UpdateDoorRotation(float Value);
-
-	UFUNCTION()
+	
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Door")
 	void OpenDoor();
 
-	UFUNCTION()
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Door")
 	void CloseDoor();
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Door")

@@ -94,7 +94,7 @@ void UMainMenuWidget::OnNewGameButton()
 		APlayerCameraManager* CameraManager = PC->PlayerCameraManager;
 		if (CameraManager)
 		{
-			CameraManager->StartCameraFade(0.0f, 1.0f, 1.5f, FLinearColor::Black, false, true);
+			CameraManager->StartCameraFade(0.0f, 1.0f, 3.0f, FLinearColor::Black, false, true);
 		}
 	}
 

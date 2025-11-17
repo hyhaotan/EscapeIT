@@ -55,32 +55,9 @@ void ADoor::Tick(float DeltaTime)
 
 }
 
-void ADoor::OpenDoor()
+void ADoor::UpdateDoorRotation_Implementation(float Value)
 {
-	if (!DoorTimeline || DoorTimeline->IsPlaying())
-	{
-		return;
-	}
-
-	bIsOpen = true;
-	DoorTimeline->SetPlayRate(1.0f);
-	DoorTimeline->PlayFromStart();
-}
-
-void ADoor::CloseDoor()
-{
-	if (!DoorTimeline || DoorTimeline->IsPlaying())
-	{
-		return;
-	}
-
-	bIsOpen = false;
-	DoorTimeline->SetPlayRate(-1.0f);
-	DoorTimeline->Play();
-}
-
-void ADoor::UpdateDoorRotation(float Value)
-{
+	
 	if (!Door)
 	{
 		return;
@@ -94,4 +71,14 @@ void ADoor::UpdateDoorRotation(float Value)
 	);
 
 	Door->SetRelativeRotation(CurrentRotation);
+}
+
+void ADoor::OpenDoor_Implementation()
+{
+
+}
+
+void ADoor::CloseDoor_Implementation()
+{
+	
 }
