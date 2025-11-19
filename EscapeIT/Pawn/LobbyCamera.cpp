@@ -4,8 +4,6 @@
 #include "Camera/CameraComponent.h"
 #include "Components/PostProcessComponent.h"
 #include "Kismet/KismetMathLibrary.h"
-#include "EscapeIT/GameSystem/AudioSubsystem.h"
-#include "Kismet/GameplayStatics.h"
 
 ALobbyCamera::ALobbyCamera()
 {
@@ -43,13 +41,6 @@ void ALobbyCamera::BeginPlay()
 
     SetupPostProcessEffects();
 
-    // Get Audio Subsystem
-    AudioSubsystem = GetGameInstance()->GetSubsystem<UAudioSubsystem>();
-    if (AudioSubsystem)
-    {
-        AudioSubsystem->SetupAudioEffects();
-    }
-
     // Store base values for effects
     BaseVignetteIntensity = VignetteIntensity;
     BaseChromaticAberration = ChromaticAberration;
@@ -85,12 +76,6 @@ void ALobbyCamera::Tick(float DeltaTime)
 
     CheckForShadowFlicker(DeltaTime);
     UpdateShadowFlicker(DeltaTime);
-
-    // Update audio through subsystem
-    if (AudioSubsystem)
-    {
-        AudioSubsystem->UpdateAudioEffects(DeltaTime, TimeElapsed);
-    }
 }
 
 // ============= Camera Movement Effects =============
@@ -173,12 +158,6 @@ void ALobbyCamera::TriggerJumpScare()
     if (PostProcess)
     {
         PostProcess->Settings.VignetteIntensity = BaseVignetteIntensity + 0.4f;
-    }
-
-    // Trigger audio through subsystem
-    if (AudioSubsystem)
-    {
-        AudioSubsystem->TriggerJumpScareAudio();
     }
 }
 

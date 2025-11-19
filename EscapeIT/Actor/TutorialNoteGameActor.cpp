@@ -84,12 +84,21 @@ void ATutorialNoteGameActor::ShowDocument(AActor* Document)
 
 void ATutorialNoteGameActor::HideDocument(AActor* Document)
 {
-    HideDocumentWidget();
-    
-    TargetLocation = OriginalLocation;
-    SetActorRotation(OriginalRotation);
-    bIsMoving = true;
-    bMovingToCamera = false;
+    if (DocumentWidget)
+    {
+        DocumentWidget->HideAnimation();
+        
+        FTimerHandle TimerHandle;
+        GetWorldTimerManager().SetTimer(TimerHandle,[this]()
+        {
+            HideDocumentWidget();
+            
+            TargetLocation = OriginalLocation;
+            SetActorRotation(OriginalRotation);
+            bIsMoving = true;
+            bMovingToCamera = false;
+        },0.5f,false);
+    }
 }
 
 void ATutorialNoteGameActor::ShowDocumentWidget()
@@ -113,6 +122,8 @@ void ATutorialNoteGameActor::ShowDocumentWidget()
         
         DocumentWidget->AddToViewport(999);
         DocumentWidget->SetVisibility(ESlateVisibility::Visible);
+        
+        DocumentWidget->ShowAnimation();
     }
 }
 

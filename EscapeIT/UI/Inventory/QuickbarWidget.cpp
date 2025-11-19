@@ -80,7 +80,7 @@ void UQuickbarWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
     }
 }
 
-void UQuickbarWidget::Initialize(UInventoryComponent* InInventoryComp, UFlashlightComponent* InFlashlightComp)
+void UQuickbarWidget::InitQuickBar(UInventoryComponent* InInventoryComp, UFlashlightComponent* InFlashlightComp)
 {
     if (!InInventoryComp)
     {

@@ -44,6 +44,12 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Widgets")
 	TSubclassOf<UInventoryWidget> InventoryWidgetClass;
 
+	UPROPERTY(EditAnywhere,Category = "Widgets")
+	TSubclassOf<UUserWidget> StaminaWidgetClass;
+	
+	UPROPERTY(EditAnywhere,Category = "Widgets")
+	TSubclassOf<UUserWidget> DeathWidgetClass;
+	
 	// Widget Instances
 	UPROPERTY()
 	TObjectPtr<USanityWidget> SanityWidget;
@@ -62,6 +68,12 @@ public:
 
 	UPROPERTY()
 	TObjectPtr<UInventoryWidget> InventoryWidget;
+	
+	UPROPERTY()
+	TObjectPtr<UUserWidget> StaminaWidget;	
+	
+	UPROPERTY()
+	TObjectPtr<UUserWidget> DeathWidget;
 
 	// Initialization
 	UFUNCTION(BlueprintCallable, Category = "Widget Manager")
@@ -123,6 +135,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Widget Manager")
 	bool IsPauseMenuVisible() const;
+	
+	void ShowWidget(UUserWidget* Widget);
+	void HideWidget(UUserWidget* Widget);
 
 private:
 	// Helper function để tạo widget
@@ -133,8 +148,7 @@ private:
 	TObjectPtr<APlayerController> PlayerController;
 
 	// Helper function để show/hide widget
-	void ShowWidget(UUserWidget* Widget);
-	void HideWidget(UUserWidget* Widget);
+
 	bool bIsInventoryOpen = false;
 };
 

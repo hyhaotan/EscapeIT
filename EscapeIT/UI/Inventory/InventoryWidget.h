@@ -113,7 +113,7 @@ public:
     // ============================================
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
-    void Initialize(UInventoryComponent* InInventoryComp);
+    void InitInventory(UInventoryComponent* InInventoryComp);
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     void RefreshInventory();

@@ -1,5 +1,7 @@
-﻿// HeaderBobComponent.cpp
+﻿
 #include "HeaderBobComponent.h"
+
+#include "StaminaComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Camera/CameraShakeBase.h"
 #include "GameFramework/Character.h"
@@ -9,7 +11,6 @@
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundBase.h"
 #include "Components/AudioComponent.h"
-#include "Perception/AIPerceptionComponent.h"
 
 UHeaderBobComponent::UHeaderBobComponent()
 {
@@ -30,6 +31,15 @@ UHeaderBobComponent::UHeaderBobComponent()
 	bIsEntityNear = false;
 
 	HeartbeatTimer = 0.0f;
+	BreathingTimer = 0.0f;
+
+	CurrentFOV = DefaultFOV;
+	TargetFOV = DefaultFOV;
+	CurrentCameraTilt = 0.0f;
+	TargetCameraTilt = 0.0f;
+
+	bIsLandingImpactActive = false;
+	LandingImpactIntensity = 0.0f;
 }
 
 void UHeaderBobComponent::BeginPlay()
@@ -47,8 +57,11 @@ void UHeaderBobComponent::BeginPlay()
 	if (CameraComponent)
 	{
 		OriginalCameraLocation = CameraComponent->GetRelativeLocation();
+		OriginalCameraRotation = CameraComponent->GetRelativeRotation();
+		CurrentFOV = CameraComponent->FieldOfView;
+		DefaultFOV = CurrentFOV;
 
-		// Reset post-process settings khi bắt đầu
+		// Reset post-process settings
 		CameraComponent->PostProcessSettings.bOverride_VignetteIntensity = true;
 		CameraComponent->PostProcessSettings.VignetteIntensity = 0.0f;
 		CameraComponent->PostProcessBlendWeight = 0.0f;
@@ -58,6 +71,12 @@ void UHeaderBobComponent::BeginPlay()
 	if (SanityComponent)
 	{
 		SanityComponent->OnSanityLevelChanged.AddDynamic(this, &UHeaderBobComponent::OnSanityLevelChanged);
+	}
+	
+	StaminaComponent = OwnerCharacter->FindComponentByClass<UStaminaComponent>();
+	if (!StaminaComponent)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("HeaderBobComponent: StaminaComponent not found!"));
 	}
 
 	// Setup heartbeat audio component
@@ -81,10 +100,17 @@ void UHeaderBobComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 
 	float CurrentSanity = GetCurrentSanityPercent();
 
+	// Core updates
 	UpdateHeaderBobType();
 	UpdateCameraShake();
 	ApplyCameraBob(DeltaTime);
 	UpdateShockEffect(DeltaTime);
+
+	// New features
+	UpdateFOVDynamics(DeltaTime);
+	UpdateCameraTilt(DeltaTime);
+	UpdateBreathing(DeltaTime);
+	UpdateLandingImpact(DeltaTime);
 
 	if (bEnableEntityProximity)
 	{
@@ -104,7 +130,7 @@ void UHeaderBobComponent::UpdateHeaderBobType()
 		return;
 	}
 
-	float CurrentSpeed = OwnerCharacter->GetCharacterMovement()->Velocity.Length();
+	float CurrentSpeed = OwnerCharacter->GetCharacterMovement()->Velocity.Size2D();
 	TargetBobType = GetCurrentBobType(CurrentSpeed);
 }
 
@@ -114,9 +140,13 @@ EHeaderBobType UHeaderBobComponent::GetCurrentBobType(float CharacterSpeed) cons
 	{
 		return EHeaderBobType::Idle;
 	}
-	else
+	else if (CharacterSpeed < 400.0f) // Walk threshold
 	{
 		return EHeaderBobType::Walk;
+	}
+	else // Sprint threshold
+	{
+		return EHeaderBobType::Sprint;
 	}
 }
 
@@ -140,7 +170,6 @@ void UHeaderBobComponent::UpdateCameraShake()
 	switch (CurrentBobType)
 	{
 	case EHeaderBobType::Idle:
-		// Ngay cả idle, nếu Sanity rất thấp vẫn có chút vibration
 		if (CurrentSanity < IdleVibrationThreshold && bEnableIdleVibration)
 		{
 			NewTargetIntensity = 0.3f * SanityMultiplier * EntityMultiplier;
@@ -152,7 +181,11 @@ void UHeaderBobComponent::UpdateCameraShake()
 		break;
 
 	case EHeaderBobType::Walk:
-		NewTargetIntensity = 0.5f * SanityMultiplier * EntityMultiplier;
+		NewTargetIntensity = 0.6f * SanityMultiplier * EntityMultiplier;
+		break;
+
+	case EHeaderBobType::Sprint:
+		NewTargetIntensity = 0.9f * SanityMultiplier * EntityMultiplier;
 		break;
 	}
 
@@ -177,7 +210,7 @@ void UHeaderBobComponent::ApplyCameraBob(float DeltaTime)
 	float FrequencyMultiplier = GetFrequencyMultiplier(CurrentSanity);
 	float EntityMultiplier = bIsEntityNear ? EntityProximityMultiplier : 1.0f;
 
-	// Nếu idle và sanity cao, return to original
+	// Nếu idle và sanity cao, chỉ apply breathing
 	if (CurrentBobType == EHeaderBobType::Idle && CurrentSanity >= IdleVibrationThreshold)
 	{
 		CurrentCameraOffset = FMath::VInterpTo(
@@ -202,6 +235,11 @@ void UHeaderBobComponent::ApplyCameraBob(float DeltaTime)
 		Frequency = WalkFrequency * FrequencyMultiplier * EntityMultiplier;
 		break;
 
+	case EHeaderBobType::Sprint:
+		Amplitude = SprintAmplitude * SanityMultiplier * EntityMultiplier;
+		Frequency = SprintFrequency * FrequencyMultiplier * EntityMultiplier;
+		break;
+
 	case EHeaderBobType::Idle:
 		if (CurrentSanity < IdleVibrationThreshold && bEnableIdleVibration)
 		{
@@ -224,6 +262,12 @@ void UHeaderBobComponent::ApplyCameraBob(float DeltaTime)
 	VerticalBob += FMath::Sin(BobTimer * 8.0f) * CurrentShockIntensity * 0.05f;
 	HorizontalBob += FMath::Cos(BobTimer * 8.0f) * CurrentShockIntensity * 0.03f;
 
+	// Add landing impact
+	if (bIsLandingImpactActive)
+	{
+		VerticalBob += -LandingImpactIntensity * 5.0f;
+	}
+
 	TargetCameraOffset = FVector(0.0f, HorizontalBob, VerticalBob);
 	CurrentCameraOffset = FMath::VInterpTo(
 		CurrentCameraOffset,
@@ -233,6 +277,158 @@ void UHeaderBobComponent::ApplyCameraBob(float DeltaTime)
 	);
 
 	CameraComponent->SetRelativeLocation(OriginalCameraLocation + CurrentCameraOffset);
+}
+
+// ==================== FOV DYNAMICS ====================
+
+void UHeaderBobComponent::UpdateFOVDynamics(float DeltaTime)
+{
+	if (!bEnableFOVDynamics || !CameraComponent)
+	{
+		return;
+	}
+
+	// Determine target FOV based on movement state
+	switch (CurrentBobType)
+	{
+	case EHeaderBobType::Idle:
+		TargetFOV = DefaultFOV;
+		break;
+
+	case EHeaderBobType::Walk:
+		TargetFOV = WalkFOV;
+		break;
+
+	case EHeaderBobType::Sprint:
+		TargetFOV = SprintFOV;
+		break;
+	}
+
+	// Apply landing FOV punch
+	if (bIsLandingImpactActive)
+	{
+		TargetFOV += LandingFOVPunch * LandingImpactIntensity;
+	}
+
+	// Smoothly interpolate to target FOV
+	CurrentFOV = FMath::FInterpTo(CurrentFOV, TargetFOV, DeltaTime, FOVInterpSpeed);
+	CameraComponent->SetFieldOfView(CurrentFOV);
+}
+
+// ==================== CAMERA TILT ====================
+
+void UHeaderBobComponent::UpdateCameraTilt(float DeltaTime)
+{
+	if (!bEnableCameraTilt || !OwnerCharacter || !CameraComponent)
+	{
+		return;
+	}
+
+	// Get horizontal velocity (strafe)
+	FVector Velocity = OwnerCharacter->GetVelocity();
+	FVector RightVector = OwnerCharacter->GetActorRightVector();
+	float RightVelocity = FVector::DotProduct(Velocity, RightVector);
+
+	// Calculate target tilt based on strafe speed
+	TargetCameraTilt = -RightVelocity * TiltAmount * 0.01f;
+	TargetCameraTilt = FMath::Clamp(TargetCameraTilt, -MaxTiltAngle, MaxTiltAngle);
+
+	// Smooth interpolation
+	CurrentCameraTilt = FMath::FInterpTo(CurrentCameraTilt, TargetCameraTilt, DeltaTime, TiltInterpSpeed);
+
+	// Apply tilt to camera rotation
+	FRotator NewRotation = OriginalCameraRotation;
+	NewRotation.Roll += CurrentCameraTilt;
+	CameraComponent->SetRelativeRotation(NewRotation);
+}
+
+// ==================== BREATHING ====================
+
+void UHeaderBobComponent::UpdateBreathing(float DeltaTime)
+{
+	if (!bEnableBreathing || !CameraComponent || CurrentBobType != EHeaderBobType::Idle)
+	{
+		return;
+	}
+
+	float CurrentSanity = GetCurrentSanityPercent();
+
+	// NEW: Get breathing intensity from StaminaComponent
+	float BreathMultiplier = 1.0f;
+	
+	// Combine sanity and stamina effects
+	if (CurrentSanity < 50.0f)
+	{
+		// Sanity effect on breathing
+		BreathMultiplier = FMath::Lerp(1.0f, StaminaBreathingMultiplier, (50.0f - CurrentSanity) / 50.0f);
+	}
+
+	if (StaminaComponent)
+	{
+		// Stamina effect on breathing (multiplicative)
+		float StaminaBreathIntensity = StaminaComponent->GetBreathingIntensity();
+		BreathMultiplier *= StaminaBreathIntensity;
+	}
+
+	BreathingTimer += DeltaTime * BreathMultiplier;
+
+	// Calculate breathing offset
+	float BreathOffset = FMath::Sin(BreathingTimer * BreathingFrequency * PI * 2.0f) * BreathingAmplitude;
+
+	// Apply subtle breathing to camera
+	FVector BreathLocation = OriginalCameraLocation;
+	BreathLocation.Z += BreathOffset;
+
+	// Only apply if not moving
+	if (CurrentBobType == EHeaderBobType::Idle && CurrentSanity >= IdleVibrationThreshold)
+	{
+		CameraComponent->SetRelativeLocation(BreathLocation);
+	}
+}
+
+// ==================== LANDING IMPACT ====================
+
+void UHeaderBobComponent::TriggerLandingImpact(float FallSpeed)
+{
+	if (!bEnableLandingImpact || FallSpeed < LandingImpactThreshold)
+	{
+		return;
+	}
+
+	// Calculate impact intensity based on fall speed
+	float ImpactScale = FMath::Clamp((FallSpeed - LandingImpactThreshold) / 600.0f, 0.0f, 1.0f);
+	
+	bIsLandingImpactActive = true;
+	LandingImpactIntensity = ImpactScale * LandingImpactStrength;
+
+	// Trigger camera shake
+	if (LandingCameraShakeClass && OwnerCharacter)
+	{
+		if (APlayerController* PC = Cast<APlayerController>(OwnerCharacter->GetController()))
+		{
+			PC->ClientStartCameraShake(LandingCameraShakeClass, ImpactScale);
+		}
+	}
+
+	// Reset bob timer for impact effect
+	BobTimer = 0.0f;
+}
+
+void UHeaderBobComponent::UpdateLandingImpact(float DeltaTime)
+{
+	if (!bIsLandingImpactActive)
+	{
+		return;
+	}
+
+	// Decay landing impact over time
+	LandingImpactIntensity = FMath::FInterpTo(LandingImpactIntensity, 0.0f, DeltaTime, 5.0f);
+
+	if (LandingImpactIntensity < 0.01f)
+	{
+		bIsLandingImpactActive = false;
+		LandingImpactIntensity = 0.0f;
+	}
 }
 
 // ==================== SANITY MULTIPLIERS ====================
@@ -281,6 +477,12 @@ void UHeaderBobComponent::TriggerShockBob()
 	CurrentShockIntensity = ShockIntensity;
 	ShockElapsedTime = 0.0f;
 	BobTimer = 0.0f;
+
+	// Trigger FOV punch for shock
+	if (CameraComponent)
+	{
+		CurrentFOV = DefaultFOV - 15.0f;
+	}
 }
 
 void UHeaderBobComponent::UpdateShockEffect(float DeltaTime)
@@ -324,7 +526,6 @@ void UHeaderBobComponent::UpdateEntityProximity()
 
 AActor* UHeaderBobComponent::FindNearestEntity() const
 {
-	// Tìm actors với tag "Entity" hoặc "Enemy"
 	TArray<AActor*> FoundActors;
 	UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Entity"), FoundActors);
 
@@ -361,21 +562,55 @@ void UHeaderBobComponent::UpdateHeartbeatAudio(float SanityPercent)
 		return;
 	}
 
-	// Chỉ phát heartbeat khi Sanity < 50%
-	if (SanityPercent < 50.0f)
+	// Check if should play heartbeat (sanity OR stamina low)
+	bool bShouldPlayHeartbeat = SanityPercent < 50.0f;
+	
+	// NEW: Also play heartbeat when stamina is low
+	if (StaminaComponent && StaminaComponent->GetStaminaPercent() < 0.3f)
 	{
-		float BaseRate = 60.0f; // BPM mặc định
-		float MaxRate = 140.0f; // BPM tối đa khi Sanity < 30%
+		bShouldPlayHeartbeat = true;
+	}
 
-		// Calculate heartbeat rate
-		float HeartRate = FMath::Lerp(BaseRate, MaxRate, (50.0f - SanityPercent) / 50.0f);
-		float IntervalBetweenBeats = 60.0f / HeartRate; // Thời gian giữa các nhịp
+	if (bShouldPlayHeartbeat)
+	{
+		float BaseRate = 60.0f;
+		float MaxRate = 140.0f;
+
+		// Calculate heart rate from sanity
+		float SanityHeartRate = FMath::Lerp(BaseRate, MaxRate, (50.0f - SanityPercent) / 50.0f);
+
+		// NEW: Calculate heart rate from stamina
+		float StaminaHeartRate = BaseRate;
+		if (StaminaComponent)
+		{
+			float StaminaPercent = StaminaComponent->GetStaminaPercent() * 100.0f;
+			if (StaminaPercent < 30.0f)
+			{
+				StaminaHeartRate = FMath::Lerp(BaseRate, MaxRate * 0.8f, (30.0f - StaminaPercent) / 30.0f);
+			}
+		}
+
+		// Use the higher heart rate
+		float HeartRate = FMath::Max(SanityHeartRate, StaminaHeartRate);
+		float IntervalBetweenBeats = 60.0f / HeartRate;
 
 		HeartbeatTimer += GetWorld()->DeltaTimeSeconds;
 
 		if (HeartbeatTimer >= IntervalBetweenBeats)
 		{
-			float Volume = FMath::Lerp(0.2f, 1.0f, (50.0f - SanityPercent) / 50.0f) * HeartbeatVolumeMultiplier;
+			// Calculate volume
+			float SanityVolume = FMath::Lerp(0.2f, 1.0f, (50.0f - SanityPercent) / 50.0f);
+			float StaminaVolume = 0.2f;
+			if (StaminaComponent)
+			{
+				float StaminaPercent = StaminaComponent->GetStaminaPercent();
+				if (StaminaPercent < 0.3f)
+				{
+					StaminaVolume = FMath::Lerp(0.8f, 0.2f, StaminaPercent / 0.3f);
+				}
+			}
+
+			float Volume = FMath::Max(SanityVolume, StaminaVolume) * HeartbeatVolumeMultiplier;
 			PlayHeartbeat(Volume);
 			HeartbeatTimer = 0.0f;
 		}
@@ -393,20 +628,17 @@ void UHeaderBobComponent::PlayHeartbeat(float Volume)
 		return;
 	}
 
-	// Setup audio component
 	HeartbeatAudioComponent->SetSound(HeartbeatSFX);
 	HeartbeatAudioComponent->SetVolumeMultiplier(FMath::Clamp(Volume, 0.0f, 1.0f));
 	HeartbeatAudioComponent->bAutoActivate = false;
 	HeartbeatAudioComponent->bAllowSpatialization = false;
 
-	// Nếu chưa phát hoặc đã kết thúc, phát lại
 	if (!HeartbeatAudioComponent->IsPlaying())
 	{
 		HeartbeatAudioComponent->Play(0.0f);
 	}
 	else
 	{
-		// Nếu đang phát, chỉ cập nhật volume
 		HeartbeatAudioComponent->SetVolumeMultiplier(FMath::Clamp(Volume, 0.0f, 1.0f));
 	}
 }
@@ -432,12 +664,26 @@ void UHeaderBobComponent::ApplyScreenEffects(float SanityPercent)
 		return;
 	}
 
-	// Tính intensity dựa trên sanity
-	float EffectIntensity = 0.0f;
+	// Calculate effect intensity from sanity
+	float SanityIntensity = 0.0f;
 	if (SanityPercent < 70.0f)
 	{
-		EffectIntensity = (70.0f - SanityPercent) / 70.0f;
+		SanityIntensity = (70.0f - SanityPercent) / 70.0f;
 	}
+
+	// NEW: Add stamina effect
+	float StaminaIntensity = 0.0f;
+	if (StaminaComponent)
+	{
+		float StaminaPercent = StaminaComponent->GetStaminaPercent();
+		if (StaminaPercent < 0.3f) // Low stamina
+		{
+			StaminaIntensity = (0.3f - StaminaPercent) / 0.3f * 0.5f; // Max 0.5 intensity
+		}
+	}
+
+	// Combine effects (take max)
+	float EffectIntensity = FMath::Max(SanityIntensity, StaminaIntensity);
 
 	if (bEnableVignette)
 	{
@@ -464,15 +710,12 @@ void UHeaderBobComponent::UpdateVignette(float Intensity)
 
 	FPostProcessSettings& PPSettings = CameraComponent->PostProcessSettings;
 
-	// Vignette effect - làm tối các cạnh màn hình khi sanity thấp
 	PPSettings.bOverride_VignetteIntensity = true;
-	PPSettings.VignetteIntensity = Intensity * 1.0f; // 0-1
+	PPSettings.VignetteIntensity = Intensity * 1.0f;
 
-	// Bloom effect để làm tăng cảm giác mềm mại và không tập trung
 	PPSettings.bOverride_BloomIntensity = true;
 	PPSettings.BloomIntensity = Intensity * 2.0f;
 
-	// Color grading khi sanity thấp - colors trở nên nhạt đi
 	PPSettings.bOverride_ColorSaturation = true;
 	PPSettings.ColorSaturation = FVector4(1.0f - Intensity * 0.5f, 1.0f, 1.0f, 1.0f);
 
@@ -488,20 +731,17 @@ void UHeaderBobComponent::UpdateChromaticAberration(float Intensity)
 
 	FPostProcessSettings& PPSettings = CameraComponent->PostProcessSettings;
 
-	// Chromatic aberration - tách màu RGB khi sanity thấp
 	PPSettings.bOverride_ChromaticAberrationStartOffset = true;
 	PPSettings.ChromaticAberrationStartOffset = Intensity * 0.5f;
 
-	// Grain effect - thêm noise để tạo cảm giác rối
 	PPSettings.bOverride_FilmGrainIntensity = true;
 	PPSettings.FilmGrainIntensity = Intensity * 0.5f;
 
-	// Screen tint - thay đổi màu sắc khi hoảng loạn
 	PPSettings.bOverride_SceneColorTint = true;
 	PPSettings.SceneColorTint = FLinearColor(
-		1.0f - Intensity * 0.2f,  // Red - tăng hơn
-		1.0f - Intensity * 0.1f,  // Green
-		1.0f - Intensity * 0.3f   // Blue - tăng hơn để tạo cảm giác lạnh
+		1.0f - Intensity * 0.2f,
+		1.0f - Intensity * 0.1f,
+		1.0f - Intensity * 0.3f
 	);
 
 	CameraComponent->PostProcessBlendWeight = 1.0f;
@@ -514,23 +754,14 @@ void UHeaderBobComponent::ApplyScreenShake(float Intensity)
 		return;
 	}
 
-	// Apply lightweight screen shake thông qua camera post-process
-	// Thay vì dùng CameraShake (quá mạnh), dùng FOV wobble để subtle hơn
-
 	float ShakeScale = Intensity * ScreenShakeIntensity;
 
 	if (ShakeScale > 0.01f)
 	{
 		FPostProcessSettings& PPSettings = CameraComponent->PostProcessSettings;
 
-		// Lens distortion khi entity gần
 		PPSettings.bOverride_LensFlareIntensity = true;
 		PPSettings.LensFlareIntensity = ShakeScale * 0.3f;
-
-		// Slight FOV wobble
-		float CurrentFOV = CameraComponent->FieldOfView;
-		float FOVWobble = 70.0f + FMath::Sin(GetWorld()->GetTimeSeconds() * 5.0f) * ShakeScale * 2.0f;
-		CameraComponent->SetFieldOfView(FOVWobble);
 
 		CameraComponent->PostProcessBlendWeight = 1.0f;
 	}
@@ -543,31 +774,27 @@ void UHeaderBobComponent::OnSanityLevelChanged(ESanityLevel NewSanityLevel)
 	switch (NewSanityLevel)
 	{
 	case ESanityLevel::High:
-		// Sanity cao: reset effects
 		CurrentShockIntensity = 0.0f;
 		HeartbeatTimer = 0.0f;
 		break;
 
 	case ESanityLevel::Medium:
-		// Sanity vừa: không cần action đặc biệt
 		break;
 
 	case ESanityLevel::Low:
-		// Sanity thấp: reset timer để tạo hiệu ứng mới
 		BobTimer = 0.0f;
 		break;
 
 	case ESanityLevel::Critical:
-		// Sanity rất thấp: shock effect bùng nổ
 		BobTimer = 0.0f;
+		TriggerShockBob();
 		break;
 	}
 }
 
 void UHeaderBobComponent::OnSanityRecovered()
 {
-	// Bob sẽ từ từ trở lại bình thường qua UpdateCameraShake()
-	// Có thể thêm hiệu ứng phục hồi ở đây nếu cần
+	// Bob will gradually return to normal through UpdateCameraShake()
 }
 
 // ==================== GETTERS ====================

@@ -21,6 +21,9 @@ private:
 	void InitializeWidget();
 
 	virtual void BeginPlay() override;
+	
+	UPROPERTY(EditAnywhere,Category="Sound")
+	USoundBase* AmbientSound;
 
 public:
 	UPROPERTY(EditAnywhere,Category = "Menu")

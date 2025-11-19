@@ -128,7 +128,7 @@ protected:
     // ========== Functions ==========
     void CheckForInteractables();
     void OnInteractableFound(AActor* Interactable);
-    void OnInteractableLost();
+    void OnInteractableLost(AActor* OldInteractable);
     void OnInteract();
     void Inventory();
     void OnFlashlight();

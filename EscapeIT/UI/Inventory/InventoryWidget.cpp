@@ -60,7 +60,7 @@ void UInventoryWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime
     Super::NativeTick(MyGeometry, InDeltaTime);
 }
 
-void UInventoryWidget::Initialize(UInventoryComponent* InInventoryComp)
+void UInventoryWidget::InitInventory(UInventoryComponent* InInventoryComp)
 {
     InventoryComponent = InInventoryComp;
 

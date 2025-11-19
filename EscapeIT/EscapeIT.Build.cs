@@ -29,7 +29,9 @@ public class EscapeIT : ModuleRules
             "JsonUtilities",
             "RHI",
             "RenderCore",
-            "ApplicationCore"});
+            "ApplicationCore",
+            "PhysicsCore"
+        });
 
         PrivateDependencyModuleNames.AddRange(new string[] { });
 

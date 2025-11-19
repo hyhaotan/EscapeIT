@@ -21,6 +21,7 @@ void UTutorialNoteGameWidget::OnCloseButtonClicked()
 	{
 		NoteActorRef->HideDocument(NoteActorRef);
 	}
+	this->HideAnimation();
 }
 
 void UTutorialNoteGameWidget::SetNoteActorReference(ATutorialNoteGameActor* Actor)

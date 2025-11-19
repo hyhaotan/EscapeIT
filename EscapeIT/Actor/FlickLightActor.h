@@ -72,22 +72,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light Settings")
 	FLinearColor FlickerLightColor = FLinearColor(1.0f, 0.3f, 0.1f, 1.0f); // Đỏ cam
 
-	// Sound effects
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio")
-	class USoundBase* FlickerStartSound;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio")
-	class USoundBase* FlickerSound;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio")
-	class USoundBase* GhostAppearSound;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio")
-	class USoundBase* AmbientDroneSound; // Tiếng drone đáng sợ
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio")
-	float AmbientDroneVolume = 0.3f;
-
 	// Camera shake
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
 	TSubclassOf<class UCameraShakeBase> LightFlickerCameraShake;
@@ -159,7 +143,6 @@ private:
 	void ToggleLight();
 	void SpawnGhost();
 	void StopFlicker();
-	void PlayFlickerSound();
 	void TriggerCameraShake(TSubclassOf<class UCameraShakeBase> ShakeClass);
 	void StartDramaticPause();
 	void UpdateDramaticPause(float DeltaTime);

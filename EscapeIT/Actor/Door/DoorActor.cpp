@@ -3,6 +3,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Curves/CurveFloat.h"
+#include "GameSystem/AudioSubsystem.h"
 #include "Kismet/KismetMathLibrary.h"
 
 ADoorActor::ADoorActor()
@@ -106,7 +107,7 @@ void ADoorActor::CloseDoor_Implementation()
 	{
 		return;
 	}
-
+	
 	bIsOpen = false;
 	DoorTimeline->SetPlayRate(-1.0f);
 	DoorTimeline->Play();

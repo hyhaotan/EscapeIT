@@ -46,8 +46,7 @@ void AWidgetManager::InitializeWidgets()
 			SanityWidget->AddToViewport(0); // Z-Order 0 (nền)
 		}
 	}
-
-	// Tạo Pause Menu (không add vào viewport ngay)
+	
 	if (PauseMenuClass && !PauseMenu)
 	{
 		PauseMenu = CreateWidget<UPauseMenuWidget>(GetWorld(), PauseMenuClass);
@@ -56,8 +55,7 @@ void AWidgetManager::InitializeWidgets()
 			UE_LOG(LogTemp, Log, TEXT("Pause menu created"));
 		}
 	}
-
-	// Tạo Main Menu (không add vào viewport ngay)
+	
 	if (MainMenuClass && !MainMenu)
 	{
 		MainMenu = CreateWidget<UUserWidget>(GetWorld(), MainMenuClass);
@@ -75,21 +73,33 @@ void AWidgetManager::InitializeWidgets()
 			CrossHair->AddToViewport();
 		}
 	}
-
-	// Create quickbar widget
+	
 	if (QuickbarWidgetClass && !QuickbarWidget)
 	{
 		QuickbarWidget = CreateWidget<UQuickbarWidget>(GetWorld(), QuickbarWidgetClass);
 		if (QuickbarWidget)
 		{
-			QuickbarWidget->AddToViewport(1); // Z-order 1
+			QuickbarWidget->AddToViewport(1);
 		}
 	}
-
-	// Create inventory widget (nhưng không hiện ngay)
+	
 	if (InventoryWidgetClass && !InventoryWidget)
 	{
 		InventoryWidget = CreateWidget<UInventoryWidget>(GetWorld(), InventoryWidgetClass);
+	}
+	
+	if (StaminaWidgetClass && !StaminaWidget)
+	{
+		StaminaWidget = CreateWidget<UUserWidget>(GetWorld(), StaminaWidgetClass);
+		if (StaminaWidget)
+		{
+			StaminaWidget->AddToViewport(1);
+		}
+	}
+	
+	if (DeathWidgetClass && !DeathWidget)
+	{
+		DeathWidget = CreateWidget<UUserWidget>(GetWorld(), DeathWidgetClass);
 	}
 }
 
@@ -187,9 +197,9 @@ void AWidgetManager::HideMainMenu()
 
 void AWidgetManager::HideAllWidgets()
 {
-	HideWidget(SanityWidget);
 	HideWidget(PauseMenu);
 	HideWidget(MainMenu);
+	HideWidget(DeathWidget);
 	HideInventoryScreen();
 }
 
@@ -218,6 +228,11 @@ void AWidgetManager::RemoveAllWidgets()
 	if (InventoryWidget && InventoryWidget->IsInViewport())
 	{
 		InventoryWidget->RemoveFromParent();
+	}
+
+	if (StaminaWidget && StaminaWidget->IsInViewport())
+	{
+		StaminaWidget->RemoveFromParent();
 	}
 }
 

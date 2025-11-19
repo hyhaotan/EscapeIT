@@ -22,4 +22,5 @@ private:
 
 	virtual void OpenDoor_Implementation() override;
 	virtual void CloseDoor_Implementation() override;
+	
 };

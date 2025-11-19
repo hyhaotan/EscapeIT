@@ -16,6 +16,14 @@ UAudioSubsystem::UAudioSubsystem()
     HeartbeatAudio->bAutoActivate = false;
 }
 
+void UAudioSubsystem::PlaySound(USoundBase* Sound, float Volume)
+{
+    if (Sound)
+    {
+        UGameplayStatics::PlaySound2D(GetWorld(), Sound, Volume);
+    }
+}
+
 void UAudioSubsystem::SetupAudioEffects()
 {
     // Ambient Wind

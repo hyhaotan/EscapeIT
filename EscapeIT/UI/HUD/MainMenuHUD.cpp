@@ -2,6 +2,8 @@
 
 
 #include "MainMenuHUD.h"
+
+#include "AssetTypeActions/AssetDefinition_SoundBase.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerController.h"
 
@@ -10,7 +12,16 @@
 void AMainMenuHUD::BeginPlay()
 {
 	Super::BeginPlay();
-	InitializeWidget();
+    
+    const auto WidgetMgr = UGameplayStatics::GetPlayerCameraManager(this,0);
+    WidgetMgr->StartCameraFade(1.0f,0.0f,3.0f,FLinearColor::Black);
+	
+    FTimerHandle TimerHandle;
+    GetWorldTimerManager().SetTimer(TimerHandle,[this]()
+    {
+        InitializeWidget();
+        UGameplayStatics::PlaySound2D(this,AmbientSound);
+    },4.0f,false);
 }
 
 

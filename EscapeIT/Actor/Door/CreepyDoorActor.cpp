@@ -46,6 +46,8 @@ ACreepyDoorActor::ACreepyDoorActor()
 	ShadowMoveProgress = 0.0f;
 	bHasPaused = false;
 	OpenAngle = 45.0f;
+	PauseAtProgress = 0.5f; // FIX: Thêm giá trị mặc định
+	ShadowDynamicMaterial = nullptr; // FIX: Khởi tạo pointer
 }
 
 void ACreepyDoorActor::BeginPlay()
@@ -59,19 +61,26 @@ void ACreepyDoorActor::BeginPlay()
 	}
 
 	// Set particle templates nếu có
-	if (DustEffect)
+	if (DustEffect && DustParticles)
 	{
 		DustParticles->SetTemplate(DustEffect);
 	}
-	if (FogEffect)
+	if (FogEffect && FogParticles)
 	{
 		FogParticles->SetTemplate(FogEffect);
 	}
 
-	// Set shadow material nếu có
+	// FIX: Tạo dynamic material CHỈ MỘT LẦN để tránh memory leak
 	if (ShadowFigure && ShadowMaterial)
 	{
-		ShadowFigure->SetMaterial(0, ShadowMaterial);
+		ShadowDynamicMaterial = ShadowFigure->CreateDynamicMaterialInstance(0, ShadowMaterial);
+	}
+
+	// FIX: Kiểm tra DoorTimeline tồn tại
+	if (!DoorTimeline)
+	{
+		UE_LOG(LogTemp, Error, TEXT("DoorTimeline is null! Please setup timeline in parent class."));
+		return;
 	}
 
 	// Tự động mở cửa sau 3 giây với hiệu ứng creepy
@@ -87,13 +96,13 @@ void ACreepyDoorActor::Tick(float DeltaTime)
 	// Update shake effect
 	if (bIsShaking)
 	{
-		UpdateDoorShake();
+		UpdateDoorShake(DeltaTime);
 	}
 
 	// Update shadow movement
 	if (ShadowMoveProgress > 0.0f && ShadowMoveProgress < 1.0f)
 	{
-		UpdateShadowMovement();
+		UpdateShadowMovement(DeltaTime);
 	}
 }
 
@@ -107,11 +116,12 @@ void ACreepyDoorActor::OpenDoorWithCreepyEffects()
 		return;
 	}
 
+	// FIX: Clear tất cả timer cũ trước khi bắt đầu
+	ClearAllTimers();
+
 	bIsOpen = true;
 	bHasPaused = false;
-
-	// Phát âm thanh kẽo kẹt
-	PlayCreepySound(CreakSound);
+	
 
 	// Bắt đầu ánh sáng nhấp nháy
 	StartLightFlicker();
@@ -120,16 +130,17 @@ void ACreepyDoorActor::OpenDoorWithCreepyEffects()
 	ShowShadowFigure();
 
 	// Bắt đầu mở cửa chậm
-	DoorTimeline->SetPlayRate(0.3f); // Chậm hơn bình thường
+	DoorTimeline->SetPlayRate(0.3f);
 	DoorTimeline->PlayFromStart();
 
 	// Kích hoạt particle effects
 	ActivateParticleEffects();
 
 	// Tạm dừng cửa ở giữa chừng
-	if (bEnableRandomBehavior)
+	if (bEnableRandomBehavior && AnimationDuration > 0.0f)
 	{
-		float PauseTime = AnimationDuration * PauseAtProgress / DoorTimeline->GetPlayRate();
+		// FIX: Tính toán thời gian pause chính xác
+		float PauseTime = (AnimationDuration * PauseAtProgress) / DoorTimeline->GetPlayRate();
 		GetWorldTimerManager().SetTimer(PauseTimerHandle, this,
 			&ACreepyDoorActor::PauseDoorAtHalf, PauseTime, false);
 	}
@@ -148,27 +159,29 @@ void ACreepyDoorActor::StartDoorShake()
 	bIsShaking = true;
 	CurrentShakeTime = 0.0f;
 
-	// Phát âm thanh kẹt
-	PlayCreepySound(SqueezeSound);
-
 	// Timer để dừng shake
 	GetWorldTimerManager().SetTimer(ShakeTimerHandle, this,
 		&ACreepyDoorActor::StopDoorShake, ShakeDuration, false);
 }
 
-void ACreepyDoorActor::UpdateDoorShake()
+// FIX: Thêm DeltaTime parameter để tính toán chính xác
+void ACreepyDoorActor::UpdateDoorShake(float DeltaTime)
 {
 	if (!Door || !bIsShaking)
 	{
 		return;
 	}
 
-	CurrentShakeTime += GetWorld()->GetDeltaSeconds();
+	CurrentShakeTime += DeltaTime;
 
-	// Tạo random rotation nhỏ
+	// FIX: Lưu current rotation từ timeline, không ghi đè hoàn toàn
+	FRotator TimelineRotation = Door->GetRelativeRotation();
+	
+	// Tạo random shake nhỏ CHỈ trên trục Yaw
 	float ShakeAmount = FMath::Sin(CurrentShakeTime * 20.0f) * ShakeIntensity;
-	FRotator CurrentRotation = Door->GetRelativeRotation();
-	FRotator ShakeRotation = OriginalDoorRotation;
+	
+	// Áp dụng shake lên rotation hiện tại thay vì OriginalDoorRotation
+	FRotator ShakeRotation = TimelineRotation;
 	ShakeRotation.Yaw += ShakeAmount;
 
 	Door->SetRelativeRotation(ShakeRotation);
@@ -178,9 +191,9 @@ void ACreepyDoorActor::StopDoorShake()
 {
 	bIsShaking = false;
 	CurrentShakeTime = 0.0f;
-
-	// Reset về rotation hiện tại của timeline
 	GetWorldTimerManager().ClearTimer(ShakeTimerHandle);
+	
+	// FIX: Không cần reset rotation, timeline sẽ tự quản lý
 }
 
 void ACreepyDoorActor::PlayCreepySound(USoundBase* Sound)
@@ -223,11 +236,15 @@ void ACreepyDoorActor::UpdateLightFlicker()
 	DoorLight->SetIntensity(RandomIntensity);
 
 	// Transition màu sắc dựa theo progress của cửa
-	float DoorProgress = DoorTimeline ? DoorTimeline->GetPlaybackPosition() / AnimationDuration : 0.0f;
-	TransitionLightColor(DoorProgress);
+	if (DoorTimeline && AnimationDuration > 0.0f)
+	{
+		float DoorProgress = FMath::Clamp(
+			DoorTimeline->GetPlaybackPosition() / AnimationDuration, 0.0f, 1.0f);
+		TransitionLightColor(DoorProgress);
+	}
 
 	// Dừng flicker khi cửa mở xong
-	if (DoorTimeline && !DoorTimeline->IsPlaying())
+	if (DoorTimeline && !DoorTimeline->IsPlaying() && !DoorTimeline->IsReversing())
 	{
 		GetWorldTimerManager().ClearTimer(LightFlickerTimerHandle);
 		DoorLight->SetIntensity(LightIntensityMax);
@@ -261,7 +278,7 @@ void ACreepyDoorActor::ActivateParticleEffects()
 	FTimerHandle FogDelayTimer;
 	GetWorldTimerManager().SetTimer(FogDelayTimer, [this]()
 		{
-			if (FogParticles)
+			if (FogParticles && IsValid(this))
 			{
 				FogParticles->Activate(true);
 			}
@@ -286,9 +303,6 @@ void ACreepyDoorActor::PauseDoorAtHalf()
 	// Bắt đầu shake
 	StartDoorShake();
 
-	// Phát âm thanh thì thầm
-	PlayCreepySound(WhisperSound);
-
 	// Tiếp tục mở sau khi shake xong
 	GetWorldTimerManager().SetTimer(PauseTimerHandle, this,
 		&ACreepyDoorActor::ResumeDoorOpening, ShakeDuration + 0.5f, false);
@@ -301,11 +315,17 @@ void ACreepyDoorActor::ResumeDoorOpening()
 		return;
 	}
 
+	// FIX: Dừng shake trước khi tiếp tục
+	if (bIsShaking)
+	{
+		StopDoorShake();
+	}
+
 	// Tiếp tục mở cửa
 	DoorTimeline->Play();
 
 	// Random: có 30% cơ hội đóng lại và mở lại
-	if (FMath::RandRange(0.0f, 1.0f) < 0.3f)
+	if (bEnableRandomBehavior && FMath::RandRange(0.0f, 1.0f) < 0.3f)
 	{
 		GetWorldTimerManager().SetTimer(RandomCloseTimerHandle, this,
 			&ACreepyDoorActor::CloseDoorRandomly, 2.0f, false);
@@ -319,6 +339,12 @@ void ACreepyDoorActor::CloseDoorRandomly()
 		return;
 	}
 
+	// FIX: Kiểm tra trạng thái trước khi đóng
+	if (DoorTimeline->IsReversing())
+	{
+		return; // Đã đang đóng rồi
+	}
+
 	// Đóng cửa nhanh
 	DoorTimeline->Reverse();
 
@@ -326,9 +352,14 @@ void ACreepyDoorActor::CloseDoorRandomly()
 	FTimerHandle ReopenTimer;
 	GetWorldTimerManager().SetTimer(ReopenTimer, [this]()
 		{
-			if (DoorTimeline)
+			if (DoorTimeline && IsValid(this))
 			{
-				DoorTimeline->Play();
+				// FIX: Chỉ mở lại nếu đang đóng
+				if (DoorTimeline->IsReversing() || 
+					DoorTimeline->GetPlaybackPosition() < AnimationDuration * 0.2f)
+				{
+					DoorTimeline->Play();
+				}
 			}
 		}, 1.0f, false);
 }
@@ -347,19 +378,18 @@ void ACreepyDoorActor::ShowShadowFigure()
 	ShadowFigure->SetRelativeLocation(ShadowStartLocation);
 	ShadowMoveProgress = 0.0f;
 
-	// Bắt đầu di chuyển bóng
-	GetWorldTimerManager().SetTimer(ShadowMoveTimerHandle, this,
-		&ACreepyDoorActor::UpdateShadowMovement, 0.016f, true); // ~60 FPS
+	// FIX: Không cần timer riêng, dùng Tick để update
 }
 
-void ACreepyDoorActor::UpdateShadowMovement()
+// FIX: Thêm DeltaTime parameter
+void ACreepyDoorActor::UpdateShadowMovement(float DeltaTime)
 {
-	if (!ShadowFigure)
+	if (!ShadowFigure || ShadowMoveDuration <= 0.0f)
 	{
 		return;
 	}
 
-	ShadowMoveProgress += GetWorld()->GetDeltaSeconds() / ShadowMoveDuration;
+	ShadowMoveProgress += DeltaTime / ShadowMoveDuration;
 
 	if (ShadowMoveProgress >= 1.0f)
 	{
@@ -369,18 +399,15 @@ void ACreepyDoorActor::UpdateShadowMovement()
 	}
 
 	// Lerp vị trí
-	FVector CurrentLocation = FMath::Lerp(ShadowStartLocation, ShadowEndLocation, ShadowMoveProgress);
+	FVector CurrentLocation = FMath::Lerp(
+		ShadowStartLocation, ShadowEndLocation, ShadowMoveProgress);
 	ShadowFigure->SetRelativeLocation(CurrentLocation);
 
-	// Fade out opacity
-	float Opacity = 1.0f - ShadowMoveProgress;
-	if (ShadowFigure->GetMaterial(0))
+	// FIX: Dùng material đã tạo sẵn, không tạo mới mỗi frame
+	if (ShadowDynamicMaterial)
 	{
-		UMaterialInstanceDynamic* DynMaterial = ShadowFigure->CreateDynamicMaterialInstance(0);
-		if (DynMaterial)
-		{
-			DynMaterial->SetScalarParameterValue(FName("Opacity"), Opacity);
-		}
+		float Opacity = 1.0f - ShadowMoveProgress;
+		ShadowDynamicMaterial->SetScalarParameterValue(FName("Opacity"), Opacity);
 	}
 }
 
@@ -391,7 +418,6 @@ void ACreepyDoorActor::HideShadowFigure()
 		ShadowFigure->SetVisibility(false);
 	}
 
-	GetWorldTimerManager().ClearTimer(ShadowMoveTimerHandle);
 	ShadowMoveProgress = 0.0f;
 }
 
@@ -401,6 +427,7 @@ void ACreepyDoorActor::UpdateDoorRotation_Implementation(float Value)
 
 	if (!Door) return;
 	
+	// FIX: Lưu rotation để shake có thể sử dụng
 	FRotator NewRotation = OriginalDoorRotation;
 	NewRotation.Yaw += (OpenAngle * Value);
 	Door->SetRelativeRotation(NewRotation);
@@ -428,8 +455,19 @@ void ACreepyDoorActor::CloseDoor_Implementation()
 
 	HideShadowFigure();
 
-	// Clear timers
+	// FIX: Clear tất cả timers
+	ClearAllTimers();
+}
+
+// FIX: Thêm helper function để clear tất cả timers
+void ACreepyDoorActor::ClearAllTimers()
+{
 	GetWorldTimerManager().ClearTimer(LightFlickerTimerHandle);
 	GetWorldTimerManager().ClearTimer(ShakeTimerHandle);
 	GetWorldTimerManager().ClearTimer(PauseTimerHandle);
+	GetWorldTimerManager().ClearTimer(RandomCloseTimerHandle);
+	
+	// Reset flags
+	bIsShaking = false;
+	bHasPaused = false;
 }

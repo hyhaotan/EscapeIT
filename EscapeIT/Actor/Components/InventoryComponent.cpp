@@ -400,7 +400,7 @@ bool UInventoryComponent::AttachItemToHand(const FItemData& ItemData)
     EquippedItemMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
     // Attach to hand socket
-    FName SocketName = TEXT("hand_r");
+    FName SocketName = TEXT("Item");
 
     if (!CharacterMesh->DoesSocketExist(SocketName))
     {
@@ -409,10 +409,10 @@ bool UInventoryComponent::AttachItemToHand(const FItemData& ItemData)
     }
 
     EquippedItemMesh->AttachToComponent(
-        CharacterMesh,
-        FAttachmentTransformRules::SnapToTargetNotIncludingScale,
-        SocketName
-    );
+       CharacterMesh,
+       FAttachmentTransformRules::SnapToTargetNotIncludingScale,
+       SocketName
+   );
 
     UE_LOG(LogTemp, Log, TEXT("AttachItemToHand: Successfully attached item to hand"));
     return true;

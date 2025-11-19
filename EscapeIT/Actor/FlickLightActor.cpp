@@ -36,21 +36,6 @@ void AFlickLightActor::BeginPlay()
 	PointLight->SetIntensity(NormalLightIntensity);
 	PointLight->SetLightColor(NormalLightColor);
 
-	// Start ambient drone sound
-	if (AmbientDroneSound)
-	{
-		AmbientDroneAudioComponent = UGameplayStatics::SpawnSoundAttached(
-			AmbientDroneSound,
-			RootComponent,
-			NAME_None,
-			FVector::ZeroVector,
-			EAttachLocation::KeepRelativeOffset,
-			false,
-			AmbientDroneVolume,
-			1.0f
-		);
-	}
-
 	// Auto start flicker sequence
 	GetWorldTimerManager().SetTimer(DelayTimerHandle, this, &AFlickLightActor::StartFlickerSequence, DelayBeforeFlicker, false);
 }
@@ -83,20 +68,7 @@ void AFlickLightActor::StartFlickerSequence()
 	FlickerCount = 0;
 	NextFlickerTime = GetCurrentFlickerInterval();
 	bIsLightOn = true;
-
-	// Play flicker start sound
-	if (FlickerStartSound)
-	{
-		UGameplayStatics::PlaySoundAtLocation(this, FlickerStartSound, GetActorLocation());
-	}
-
-	// Increase ambient drone volume
-	if (AmbientDroneAudioComponent)
-	{
-		AmbientDroneAudioComponent->SetVolumeMultiplier(AmbientDroneVolume * 2.0f);
-	}
-
-	UE_LOG(LogTemp, Warning, TEXT("🔴 Flicker sequence started - Horror mode activated!"));
+	
 }
 
 void AFlickLightActor::UpdateFlicker(float DeltaTime)
@@ -111,9 +83,6 @@ void AFlickLightActor::UpdateFlicker(float DeltaTime)
 		FlickerTimer = 0.0f;
 		FlickerCount++;
 		NextFlickerTime = GetCurrentFlickerInterval();
-
-		// Play flicker sound
-		PlayFlickerSound();
 
 		// Spawn electrical sparks occasionally
 		if (ElectricalSparkParticle && FMath::RandRange(0.0f, 1.0f) > 0.7f)
@@ -154,15 +123,6 @@ void AFlickLightActor::StartDramaticPause()
 	// Turn off light completely
 	PointLight->SetVisibility(false);
 	bIsLightOn = false;
-
-	// Increase tension with audio
-	if (AmbientDroneAudioComponent)
-	{
-		AmbientDroneAudioComponent->SetVolumeMultiplier(AmbientDroneVolume * 3.0f);
-		AmbientDroneAudioComponent->SetPitchMultiplier(0.8f); // Lower pitch for more dread
-	}
-
-	UE_LOG(LogTemp, Warning, TEXT("😱 Dramatic pause - Something is coming..."));
 }
 
 void AFlickLightActor::UpdateDramaticPause(float DeltaTime)
@@ -249,12 +209,7 @@ void AFlickLightActor::SpawnGhost()
 
 		bHasSpawnedGhost = true;
 		SpawnedGhosts.Add(Ghost);
-
-		// Play ghost appear sound
-		if (GhostAppearSound)
-		{
-			UGameplayStatics::PlaySoundAtLocation(this, GhostAppearSound, SpawnLocation, 1.5f);
-		}
+		
 
 		// Spawn ghost appearance particle effect
 		if (GhostAppearParticle)
@@ -267,8 +222,6 @@ void AFlickLightActor::SpawnGhost()
 		{
 			TriggerCameraShake(GhostAppearCameraShake);
 		}
-
-		UE_LOG(LogTemp, Warning, TEXT("👻 GHOST SPAWNED at location: %s, facing camera"), *SpawnLocation.ToString());
 	}
 }
 
@@ -361,22 +314,6 @@ void AFlickLightActor::ResetAllVariables()
 		PointLight->SetIntensity(NormalLightIntensity);
 		PointLight->SetLightColor(NormalLightColor);
 	}
-
-	// Reset ambient drone
-	if (AmbientDroneAudioComponent && AmbientDroneSound)
-	{
-		AmbientDroneAudioComponent->Stop();
-		AmbientDroneAudioComponent = UGameplayStatics::SpawnSoundAttached(
-			AmbientDroneSound,
-			RootComponent,
-			NAME_None,
-			FVector::ZeroVector,
-			EAttachLocation::KeepRelativeOffset,
-			false,
-			AmbientDroneVolume,
-			1.0f
-		);
-	}
 }
 
 void AFlickLightActor::DestroySpawnedGhosts()
@@ -404,17 +341,6 @@ void AFlickLightActor::HandleAutoReset()
 	{
 		UE_LOG(LogTemp, Warning, TEXT("🔄 Auto reset - Resetting to initial state..."));
 		ResetSequence();
-	}
-}
-
-void AFlickLightActor::PlayFlickerSound()
-{
-	if (FlickerSound && FMath::RandRange(0.0f, 1.0f) > 0.5f)
-	{
-		float PitchVariation = FMath::RandRange(0.9f, 1.1f);
-		float VolumeVariation = FMath::RandRange(0.3f, 0.7f);
-		UGameplayStatics::PlaySoundAtLocation(this, FlickerSound, GetActorLocation(),
-			VolumeVariation, PitchVariation);
 	}
 }
 

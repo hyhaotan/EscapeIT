@@ -26,7 +26,7 @@ public:
     // ============================================
 
     UFUNCTION(BlueprintCallable, Category = "Quickbar")
-    void Initialize(class UInventoryComponent* InInventoryComp, class UFlashlightComponent* InFlashlightComp);
+    void InitQuickBar(class UInventoryComponent* InInventoryComp, class UFlashlightComponent* InFlashlightComp);
 
     UFUNCTION(BlueprintCallable, Category = "Quickbar")
     void RefreshQuickbar();

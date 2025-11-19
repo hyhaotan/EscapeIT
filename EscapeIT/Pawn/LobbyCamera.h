@@ -8,7 +8,6 @@
 
 class UCameraComponent;
 class UPostProcessComponent;
-class UAudioSubsystem;
 
 UCLASS()
 class ESCAPEIT_API ALobbyCamera : public APawn
@@ -31,9 +30,6 @@ private:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
     UPostProcessComponent* PostProcess;
-
-    UPROPERTY()
-    TObjectPtr<UAudioSubsystem> AudioSubsystem;
 
     // ============= Camera Movement Parameters =============
     UPROPERTY(EditAnywhere, Category = "Horror Effects|Camera Movement")

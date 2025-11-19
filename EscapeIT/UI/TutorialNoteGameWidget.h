@@ -8,7 +8,7 @@
 
 class UButton;
 class ATutorialNoteGameActor;
-
+class UWidgetAnimation;
 UCLASS()
 class ESCAPEIT_API UTutorialNoteGameWidget : public UUserWidget
 {
@@ -26,7 +26,15 @@ protected:
 private:
 	UPROPERTY()
 	ATutorialNoteGameActor* NoteActorRef;
-
+	
+	UPROPERTY(meta=(BindWidgetAnim),Transient)
+	UWidgetAnimation* FadeInAnim;
+	
+	UPROPERTY(meta=(BindWidgetAnim),Transient)
+	UWidgetAnimation* FadeOutAnim;
 public:
 	void SetNoteActorReference(ATutorialNoteGameActor* Actor);
+	
+	void ShowAnimation(){PlayAnimation(FadeInAnim);};
+	void HideAnimation(){PlayAnimation(FadeOutAnim);};
 };

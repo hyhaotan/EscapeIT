@@ -1,23 +1,20 @@
 ﻿// HeaderBobComponent.h
 #pragma once
+
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "EscapeIT/Actor/Components/SanityComponent.h"
 #include "HeaderBobComponent.generated.h"
 
-class UCameraComponent;
-class AEscapeITCharacter;
-class USanityComponent;
-class UCameraShakeBase;
-
-UENUM()
+UENUM(BlueprintType)
 enum class EHeaderBobType : uint8
 {
 	Idle UMETA(DisplayName = "Idle"),
-	Walk UMETA(DisplayName = "Walk")
+	Walk UMETA(DisplayName = "Walk"),
+	Sprint UMETA(DisplayName = "Sprint")
 };
 
-UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
+UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class ESCAPEIT_API UHeaderBobComponent : public UActorComponent
 {
 	GENERATED_BODY()
@@ -25,191 +22,253 @@ class ESCAPEIT_API UHeaderBobComponent : public UActorComponent
 public:
 	UHeaderBobComponent();
 
-	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	// ==================== CAMERA SHAKE ASSETS ====================
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Shake")
-	TSubclassOf<UCameraShakeBase> IdleShake;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Shake")
-	TSubclassOf<UCameraShakeBase> WalkShake;
-
-	// ==================== HEADER BOB SETTINGS ====================
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Header Bob|Walk")
-	float WalkSpeed = 600.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Header Bob|Walk")
-	float WalkAmplitude = 0.1f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Header Bob|Walk")
-	float WalkFrequency = 2.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Header Bob|Idle")
-	float IdleAmplitude = 0.05f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Header Bob|Idle")
-	float IdleFrequency = 1.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Header Bob|General")
-	float TransitionSpeed = 5.0f;
-
-	// ==================== SANITY MODIFIERS ====================
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity Modifiers|Multipliers")
-	float SanityMultiplier_Medium = 1.0f; // 70-50%
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity Modifiers|Multipliers")
-	float SanityMultiplier_Low = 1.3f; // 50-30%
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity Modifiers|Multipliers")
-	float SanityMultiplier_Critical = 1.8f; // <30%
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity Modifiers|Frequency")
-	float FrequencyMultiplier_Low = 1.2f; // <50%
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sanity Modifiers|Frequency")
-	float FrequencyMultiplier_Critical = 1.5f; // <30%
-
-	// ==================== IDLE STATE WITH LOW SANITY ====================
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Idle Low Sanity")
-	bool bEnableIdleVibration = true;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Idle Low Sanity")
-	float IdleVibrationThreshold = 30.0f; // Kích hoạt khi Sanity < 30%
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Idle Low Sanity")
-	float IdleVibrationAmplitude = 0.05f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Idle Low Sanity")
-	float IdleVibrationFrequency = 3.0f;
-
-	// ==================== SHOCK BOB SETTINGS ====================
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Shock Effect")
-	float ShockIntensity = 1.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Shock Effect")
-	float ShockDuration = 0.5f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Shock Effect")
-	float ShockDecayRate = 2.0f;
-
-	// ==================== ENTITY PROXIMITY SETTINGS ====================
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Entity Proximity")
-	bool bEnableEntityProximity = true;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Entity Proximity")
-	float EntityProximityThreshold = 500.0f; // cm
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Entity Proximity")
-	float EntityProximityMultiplier = 2.0f;
-
-	// ==================== AUDIO SETTINGS ====================
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio")
-	bool bEnableHeartbeatAudio = true;
-
-	// You can keep this as a direct pointer (asset reference) or use TSoftObjectPtr<USoundBase> for deferred loading.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio")
-	USoundBase* HeartbeatSFX;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio")
-	float HeartbeatVolumeMultiplier = 1.0f;
-
-	// ==================== VIGNETTE & SCREEN EFFECTS ====================
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Screen Effects")
-	bool bEnableVignette = true;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Screen Effects")
-	bool bEnableChromaticAberration = true;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Screen Effects")
-	bool bEnableScreenShake = true;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Screen Effects")
-	float ScreenShakeIntensity = 0.5f;
-
-	// ==================== PUBLIC FUNCTIONS ====================
-	// Called when jumpscare appears
 	UFUNCTION(BlueprintCallable, Category = "Header Bob")
 	void TriggerShockBob();
 
-	// Called when the character recover sanity
 	UFUNCTION(BlueprintCallable, Category = "Header Bob")
-	void OnSanityRecovered();
+	void TriggerLandingImpact(float FallSpeed);
 
-	// Take current sanity value
-	UFUNCTION(BlueprintCallable, Category = "Header Bob")
-	float GetCurrentSanityPercent() const;
-
-	// Take current bob type
-	UFUNCTION(BlueprintCallable, Category = "Header Bob")
-	EHeaderBobType GetCurrentBobType() const { return CurrentBobType; }
-
-	// Check the entity
-	UFUNCTION(BlueprintCallable, Category = "Header Bob")
-	void UpdateEntityProximity();
+protected:
+	virtual void BeginPlay() override;
 
 private:
-	// ==================== PRIVATE COMPONENTS ====================
+	// ==================== REFERENCES ====================
 	UPROPERTY()
-	TObjectPtr<AEscapeITCharacter> OwnerCharacter;
-
-	UPROPERTY()
-	TObjectPtr<UCameraComponent> CameraComponent;
+	class AEscapeITCharacter* OwnerCharacter;
 
 	UPROPERTY()
-	TObjectPtr<USanityComponent> SanityComponent;
+	class UCameraComponent* CameraComponent;
 
-	// ==================== PRIVATE VARIABLES ====================
-	EHeaderBobType CurrentBobType;
-	EHeaderBobType TargetBobType;
+	UPROPERTY()
+	class USanityComponent* SanityComponent;
 
-	float BobTimer;
+	UPROPERTY()
+	class UAudioComponent* HeartbeatAudioComponent;
+	
+	UPROPERTY()
+	class UStaminaComponent* StaminaComponent;
+
+	// ==================== BOB SETTINGS ====================
+	UPROPERTY(EditAnywhere, Category = "Header Bob|Idle")
+	float IdleAmplitude = 0.3f;
+
+	UPROPERTY(EditAnywhere, Category = "Header Bob|Idle")
+	float IdleFrequency = 1.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Header Bob|Walk")
+	float WalkAmplitude = 2.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Header Bob|Walk")
+	float WalkFrequency = 2.5f;
+
+	UPROPERTY(EditAnywhere, Category = "Header Bob|Sprint")
+	float SprintAmplitude = 3.5f;
+
+	UPROPERTY(EditAnywhere, Category = "Header Bob|Sprint")
+	float SprintFrequency = 3.5f;
+
+	UPROPERTY(EditAnywhere, Category = "Header Bob|General")
+	float TransitionSpeed = 5.0f;
+
+	// ==================== FOV DYNAMICS ====================
+	UPROPERTY(EditAnywhere, Category = "Camera|FOV")
+	float DefaultFOV = 90.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Camera|FOV")
+	float WalkFOV = 92.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Camera|FOV")
+	float SprintFOV = 100.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Camera|FOV")
+	float FOVInterpSpeed = 8.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Camera|FOV")
+	bool bEnableFOVDynamics = true;
+
+	float CurrentFOV = 90.0f;
+	float TargetFOV = 90.0f;
+
+	// ==================== CAMERA TILT ====================
+	UPROPERTY(EditAnywhere, Category = "Camera|Tilt")
+	bool bEnableCameraTilt = true;
+
+	UPROPERTY(EditAnywhere, Category = "Camera|Tilt")
+	float TiltAmount = 1.5f;
+
+	UPROPERTY(EditAnywhere, Category = "Camera|Tilt")
+	float TiltInterpSpeed = 4.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Camera|Tilt")
+	float MaxTiltAngle = 3.0f;
+
+	float CurrentCameraTilt = 0.0f;
+	float TargetCameraTilt = 0.0f;
+
+	// ==================== LANDING IMPACT ====================
+	UPROPERTY(EditAnywhere, Category = "Camera|Landing")
+	bool bEnableLandingImpact = true;
+
+	UPROPERTY(EditAnywhere, Category = "Camera|Landing")
+	float LandingImpactThreshold = 400.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Camera|Landing")
+	float LandingImpactStrength = 15.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Camera|Landing")
+	float LandingFOVPunch = -10.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Camera|Landing")
+	TSubclassOf<class UCameraShakeBase> LandingCameraShakeClass;
+
+	bool bIsLandingImpactActive = false;
+	float LandingImpactIntensity = 0.0f;
+
+	// ==================== BREATHING ====================
+	UPROPERTY(EditAnywhere, Category = "Camera|Breathing")
+	bool bEnableBreathing = true;
+
+	UPROPERTY(EditAnywhere, Category = "Camera|Breathing")
+	float BreathingAmplitude = 0.15f;
+
+	UPROPERTY(EditAnywhere, Category = "Camera|Breathing")
+	float BreathingFrequency = 0.3f;
+
+	UPROPERTY(EditAnywhere, Category = "Camera|Breathing")
+	float StaminaBreathingMultiplier = 2.5f;
+
+	float BreathingTimer = 0.0f;
+
+	// ==================== SANITY EFFECTS ====================
+	UPROPERTY(EditAnywhere, Category = "Sanity")
+	float SanityMultiplier_Medium = 1.3f;
+
+	UPROPERTY(EditAnywhere, Category = "Sanity")
+	float SanityMultiplier_Low = 1.8f;
+
+	UPROPERTY(EditAnywhere, Category = "Sanity")
+	float SanityMultiplier_Critical = 2.5f;
+
+	UPROPERTY(EditAnywhere, Category = "Sanity")
+	float FrequencyMultiplier_Low = 1.2f;
+
+	UPROPERTY(EditAnywhere, Category = "Sanity")
+	float FrequencyMultiplier_Critical = 1.5f;
+
+	UPROPERTY(EditAnywhere, Category = "Sanity|Idle Vibration")
+	bool bEnableIdleVibration = true;
+
+	UPROPERTY(EditAnywhere, Category = "Sanity|Idle Vibration")
+	float IdleVibrationThreshold = 50.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Sanity|Idle Vibration")
+	float IdleVibrationAmplitude = 0.8f;
+
+	UPROPERTY(EditAnywhere, Category = "Sanity|Idle Vibration")
+	float IdleVibrationFrequency = 4.0f;
+
+	// ==================== SHOCK EFFECT ====================
+	UPROPERTY(EditAnywhere, Category = "Shock")
+	float ShockIntensity = 5.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Shock")
+	float ShockDuration = 1.5f;
+
+	float CurrentShockIntensity = 0.0f;
+	float ShockElapsedTime = 0.0f;
+	bool bIsInShock = false;
+
+	// ==================== ENTITY PROXIMITY ====================
+	UPROPERTY(EditAnywhere, Category = "Entity Proximity")
+	bool bEnableEntityProximity = true;
+
+	UPROPERTY(EditAnywhere, Category = "Entity Proximity")
+	float EntityProximityThreshold = 1000.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Entity Proximity")
+	float EntityProximityMultiplier = 1.8f;
+
+	float DistanceToEntity = 10000.0f;
+	bool bIsEntityNear = false;
+
+	// ==================== HEARTBEAT AUDIO ====================
+	UPROPERTY(EditAnywhere, Category = "Audio|Heartbeat")
+	bool bEnableHeartbeatAudio = true;
+
+	UPROPERTY(EditAnywhere, Category = "Audio|Heartbeat")
+	USoundBase* HeartbeatSFX;
+
+	UPROPERTY(EditAnywhere, Category = "Audio|Heartbeat")
+	float HeartbeatVolumeMultiplier = 0.5f;
+
+	float HeartbeatTimer = 0.0f;
+
+	// ==================== SCREEN EFFECTS ====================
+	UPROPERTY(EditAnywhere, Category = "Screen Effects")
+	bool bEnableVignette = true;
+
+	UPROPERTY(EditAnywhere, Category = "Screen Effects")
+	bool bEnableChromaticAberration = true;
+
+	UPROPERTY(EditAnywhere, Category = "Screen Effects")
+	bool bEnableScreenShake = true;
+
+	UPROPERTY(EditAnywhere, Category = "Screen Effects")
+	float ScreenShakeIntensity = 1.0f;
+
+	// ==================== INTERNAL STATE ====================
 	FVector OriginalCameraLocation;
 	FVector CurrentCameraOffset;
 	FVector TargetCameraOffset;
+	FRotator OriginalCameraRotation;
 
+	float BobTimer;
+	EHeaderBobType CurrentBobType;
+	EHeaderBobType TargetBobType;
 	float CurrentShakeIntensity;
 	float TargetShakeIntensity;
 
-	// Shock bob variables
-	float CurrentShockIntensity;
-	float ShockElapsedTime;
-	bool bIsInShock;
-
-	float DistanceToEntity;
-	bool bIsEntityNear;
-
-	UPROPERTY()
-	TObjectPtr<UAudioComponent> HeartbeatAudioComponent;
-	float HeartbeatTimer;
-
-	// ==================== PRIVATE FUNCTIONS ====================
+	// ==================== FUNCTIONS ====================
 	void UpdateHeaderBobType();
+	EHeaderBobType GetCurrentBobType(float CharacterSpeed) const;
 	void UpdateCameraShake();
 	void ApplyCameraBob(float DeltaTime);
-	EHeaderBobType GetCurrentBobType(float CharacterSpeed) const;
 
+	// FOV & Camera
+	void UpdateFOVDynamics(float DeltaTime);
+	void UpdateCameraTilt(float DeltaTime);
+	void UpdateBreathing(float DeltaTime);
+
+	// Landing
+	void UpdateLandingImpact(float DeltaTime);
+
+	// Sanity
 	float GetSanityMultiplier(float SanityPercent) const;
 	float GetFrequencyMultiplier(float SanityPercent) const;
+	float GetCurrentSanityPercent() const;
 
-	// Sanity event handler
-	UFUNCTION()
-	void OnSanityLevelChanged(ESanityLevel NewSanityLevel);
+	// Shock
+	void UpdateShockEffect(float DeltaTime);
 
-	// Audio functions
+	// Entity
+	void UpdateEntityProximity();
+	AActor* FindNearestEntity() const;
+
+	// Audio
 	void UpdateHeartbeatAudio(float SanityPercent);
 	void PlayHeartbeat(float Volume);
 	void StopHeartbeat();
 
-	// Screen effects
+	// Screen Effects
 	void ApplyScreenEffects(float SanityPercent);
 	void UpdateVignette(float Intensity);
 	void UpdateChromaticAberration(float Intensity);
 	void ApplyScreenShake(float Intensity);
 
-	// Shock effect
-	void UpdateShockEffect(float DeltaTime);
-
-	// Helper
-	AActor* FindNearestEntity() const;
+	// Events
+	UFUNCTION()
+	void OnSanityLevelChanged(ESanityLevel NewSanityLevel);
+	void OnSanityRecovered();
 };

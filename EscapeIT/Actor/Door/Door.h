@@ -10,6 +10,7 @@ class UTimelineComponent;
 class UStaticMeshComponent;
 class USceneComponent;
 class UCurveFloat;
+class UAudioSubsystem;
 
 UCLASS()
 class ESCAPEIT_API ADoor : public AActor
@@ -67,4 +68,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Door")
 	bool IsOpen() const { return bIsOpen; }
+	
+private:
+	UPROPERTY()
+	TObjectPtr<UAudioSubsystem> AudioSubsystem;
 };

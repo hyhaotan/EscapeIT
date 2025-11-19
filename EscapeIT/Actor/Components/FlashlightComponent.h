@@ -10,6 +10,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBatteryChanged, float, BatteryPer
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBatteryDepleted);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnFlashlightToggled, bool, bIsOn);
 
+class UAnimMontage;
+
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class ESCAPEIT_API UFlashlightComponent : public UActorComponent
 {
@@ -139,4 +141,10 @@ protected:
 private:
     float FlickerTimer = 0.0f;
     bool bLowBatterySoundPlayed = false;
+    
+    UPROPERTY(EditAnywhere,Category=Animation)
+    TObjectPtr<UAnimMontage> EquipFlashlightAnim;
+    
+    UPROPERTY(EditAnywhere,Category=Animation)
+    TObjectPtr<UAnimMontage> UnEquipFlashlightAnim;
 };

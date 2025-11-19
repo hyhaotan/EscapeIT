@@ -1,12 +1,14 @@
 ﻿#include "FlashlightComponent.h"
 #include "Components/SpotLightComponent.h"
 #include "EscapeIT/Actor/Item/Flashlight.h"
+#include "GameFramework/Character.h"
 #include "Kismet/GameplayStatics.h"
 
 UFlashlightComponent::UFlashlightComponent()
 {
     PrimaryComponentTick.bCanEverTick = true;
     CurrentBattery = MaxBatteryDuration;
+    
 }
 
 void UFlashlightComponent::BeginPlay()
@@ -73,6 +75,13 @@ void UFlashlightComponent::SetLightEnabled(bool bEnabled)
     if (SpotLight)
     {
         SpotLight->SetVisibility(bIsLightOn);
+        float CurrentIntensity = SpotLight->Intensity;
+        UE_LOG(LogTemp, Warning, TEXT(">>> SUCCESS: Light %s, Intensity: %f"), 
+            bIsLightOn ? TEXT("ON") : TEXT("OFF"), CurrentIntensity);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT(">>> FAILED: SpotLight is NULL!"));
     }
 
     // Play sound
@@ -86,8 +95,33 @@ void UFlashlightComponent::SetLightEnabled(bool bEnabled)
 
 void UFlashlightComponent::EquipFlashlight()
 {
-    bIsEquipped = true;
-    UE_LOG(LogTemp, Log, TEXT("Flashlight: Equipped"));
+    ACharacter* Char = Cast<ACharacter>(GetOwner());
+    if (!Char)
+    {
+        // fallback: try GetPlayerCharacter
+        Char = UGameplayStatics::GetPlayerCharacter(this, 0);
+    }
+
+    if (!bIsEquipped && Char)
+    {
+        if (EquipFlashlightAnim == nullptr)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("EquipFlashlightAnim is null"));
+        }
+
+        bIsEquipped = true;
+        
+        if (EquipFlashlightAnim)
+        {
+            float Played = Char->PlayAnimMontage(EquipFlashlightAnim, 1.0f);
+            if (Played <= 0.f)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Failed to play EquipFlashlightAnim"));
+            }
+        }
+
+        UE_LOG(LogTemp, Log, TEXT("Flashlight: Equipped"));
+    }
 }
 
 void UFlashlightComponent::UnequipFlashlight()
@@ -96,9 +130,35 @@ void UFlashlightComponent::UnequipFlashlight()
     {
         SetLightEnabled(false);
     }
-    bIsEquipped = false;
-    UE_LOG(LogTemp, Log, TEXT("Flashlight: Unequipped"));
+
+    ACharacter* Char = Cast<ACharacter>(GetOwner());
+    if (!Char)
+    {
+        Char = UGameplayStatics::GetPlayerCharacter(this, 0);
+    }
+
+    if (bIsEquipped && Char)
+    {
+        if (UnEquipFlashlightAnim == nullptr)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("UnEquipFlashlightAnim is null"));
+        }
+
+        bIsEquipped = false;
+
+        if (UnEquipFlashlightAnim)
+        {
+            float Played = Char->PlayAnimMontage(UnEquipFlashlightAnim, 1.0f);
+            if (Played <= 0.f)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Failed to play UnEquipFlashlightAnim"));
+            }
+        }
+
+        UE_LOG(LogTemp, Log, TEXT("Flashlight: Unequipped"));
+    }
 }
+
 
 // ============================================
 // BATTERY MANAGEMENT

@@ -25,6 +25,9 @@ public:
     void TriggerJumpScareAudio();
     void TriggerWhisper();
     void TriggerStaticNoiseSpike();
+    
+    UFUNCTION(BlueprintCallable, Category = "Audio")
+    void PlaySound(USoundBase* Sound, float Volume = 1.0f);
 
     // ============= Ambient Audio =============
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio|Ambient")
@@ -82,7 +85,13 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio|Heartbeat")
     bool bEnableHeartbeatAudio = true;
-
+    
+    // ============== Door Audio ================
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio|Door")
+    USoundBase* OpenDoorSound;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio|Door")
+    USoundBase* CloseDoorSound;
 private:
     UPROPERTY()
     UAudioComponent* AmbientAudio;

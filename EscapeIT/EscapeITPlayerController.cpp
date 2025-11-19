@@ -15,6 +15,8 @@
 #include "EscapeIT/UI/HUD/WidgetManager.h"
 #include <EnhancedInputSubsystems.h>
 
+#include "EscapeITCharacter.h"
+
 AEscapeITPlayerController::AEscapeITPlayerController()
     : MouseSensitivity(1.0f)
     , GamepadSensitivity(1.0f)
@@ -106,7 +108,7 @@ void AEscapeITPlayerController::BeginPlay()
         if (QuickbarWidget)
         {
             QuickbarWidget->AddToViewport(5); // Lower than interaction prompt
-            QuickbarWidget->Initialize(InventoryComponent, FlashlightComponent);
+            QuickbarWidget->InitQuickBar(InventoryComponent, FlashlightComponent);
 
             UE_LOG(LogTemp, Log, TEXT("QuickbarWidget created and initialized"));
         }
@@ -214,19 +216,22 @@ void AEscapeITPlayerController::CheckForInteractables()
     }
 
     AActor* HitActor = bHit ? HitResult.GetActor() : nullptr;
-
-    // Update current interactable
+    
     if (HitActor != CurrentInteractable)
     {
+        AActor* OldInteractable = CurrentInteractable;
+        
+        // Update sang actor mới
         CurrentInteractable = HitActor;
-
+        
+        if (OldInteractable)
+        {
+            OnInteractableLost(OldInteractable);
+        }
+        
         if (CurrentInteractable)
         {
             OnInteractableFound(CurrentInteractable);
-        }
-        else
-        {
-            OnInteractableLost();
         }
     }
 }
@@ -239,7 +244,7 @@ void AEscapeITPlayerController::OnInteractableFound(AActor* Interactable)
     }
 
     // Check if it's an item pickup
-    AItemPickupActor* PickupActor = Cast<AItemPickupActor>(Interactable);
+    const auto PickupActor = Cast<AItemPickupActor>(Interactable);
     if (PickupActor)
     {
         FItemData ItemData;
@@ -252,6 +257,8 @@ void AEscapeITPlayerController::OnInteractableFound(AActor* Interactable)
             );
 
             InteractionPromptWidget->ShowPrompt(ActionText, TargetText, nullptr);
+            PickupActor->MeshComponent->SetRenderCustomDepth(true);
+            PickupActor->MeshComponent->SetCustomDepthStencilValue(1.0f);
         }
         return;
     }
@@ -260,11 +267,21 @@ void AEscapeITPlayerController::OnInteractableFound(AActor* Interactable)
     InteractionPromptWidget->UpdatePromptForActor(Interactable);
 }
 
-void AEscapeITPlayerController::OnInteractableLost()
+void AEscapeITPlayerController::OnInteractableLost(AActor* OldInteractable)
 {
     if (InteractionPromptWidget)
     {
         InteractionPromptWidget->HidePrompt();
+    }
+    
+    if (OldInteractable)
+    {
+        const auto PickupActor = Cast<AItemPickupActor>(OldInteractable);
+        if (PickupActor && PickupActor->MeshComponent)
+        {
+            PickupActor->MeshComponent->SetRenderCustomDepth(false);
+            PickupActor->MeshComponent->SetCustomDepthStencilValue(0);
+        }
     }
 }
 
@@ -318,7 +335,7 @@ void AEscapeITPlayerController::Inventory()
             {
                 if (InventoryComponent)
                 {
-                    InvWidget->Initialize(InventoryComponent);
+                    InvWidget->InitInventory(InventoryComponent);
                 }
             }
 
@@ -431,11 +448,17 @@ void AEscapeITPlayerController::EquipQuickbarSlot(int32 SlotIndex)
     {
         CurrentEquippedSlotIndex = SlotIndex;
 
-        // If equipped item is flashlight, mark it as equipped in FlashlightComponent
-        if (bHasItem && ItemData.ItemName.ToString().Contains(TEXT("Flashlight")))
+        if (const auto Char = GetPawn<AEscapeITCharacter>())
         {
-            if (FlashlightComponent)
+            bool bIsFlashlight = (bHasItem && 
+                                  ItemData.ItemType == EItemType::Tool && 
+                                  ItemData.ItemCategory == EItemCategory::Flashlight);
+            
+            Char->bIsHoldingFlashlight = bIsFlashlight;
+            
+            if (bIsFlashlight && FlashlightComponent)
             {
+                
                 FlashlightComponent->EquipFlashlight();
                 UE_LOG(LogTemp, Log, TEXT("Flashlight equipped and ready to use"));
             }

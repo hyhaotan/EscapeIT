@@ -3,9 +3,9 @@
 #include "Door.h"
 #include "Components/TimelineComponent.h"
 #include "Components/StaticMeshComponent.h"
-#include "Kismet/GameplayStatics.h"
 #include "Curves/CurveFloat.h"
-#include "Kismet/KismetMathLibrary.h"
+#include "EscapeIT//GameSystem/AudioSubsystem.h"
+#include "Kismet/GameplayStatics.h"
 
 // Sets default values
 ADoor::ADoor()
@@ -46,6 +46,18 @@ void ADoor::BeginPlay()
 		TimelineCallback.BindDynamic(this, &ADoor::UpdateDoorRotation);
 		DoorTimeline->AddInterpFloat(DoorCurve, TimelineCallback);
 	}
+	
+	AudioSubsystem = GetGameInstance()->GetSubsystem<UAudioSubsystem>();
+	
+	if (AudioSubsystem)
+	{
+		AudioSubsystem->SetupAudioEffects();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("AudioSubsystem NOT found!"));
+	}
+	
 }
 
 // Called every frame
@@ -75,10 +87,16 @@ void ADoor::UpdateDoorRotation_Implementation(float Value)
 
 void ADoor::OpenDoor_Implementation()
 {
-
+	if (AudioSubsystem && AudioSubsystem->OpenDoorSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this,AudioSubsystem->OpenDoorSound,GetActorLocation(), 1.0f);
+	}
 }
 
 void ADoor::CloseDoor_Implementation()
 {
-	
+	if (AudioSubsystem && AudioSubsystem->CloseDoorSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this,AudioSubsystem->CloseDoorSound,GetActorLocation(), 1.0f);
+	}
 }
