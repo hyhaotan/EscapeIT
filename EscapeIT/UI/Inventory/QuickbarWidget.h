@@ -32,7 +32,7 @@ public:
     void RefreshQuickbar();
 
     // ============================================
-    // SLOT WIDGETS - SLOT 1 (Flashlight)
+    // SLOT WIDGETS - SLOT 1
     // ============================================
 
     UPROPERTY(meta = (BindWidget))
@@ -61,7 +61,7 @@ public:
     UTextBlock* Slot2_Quantity;
 
     UPROPERTY(meta = (BindWidget))
-    UProgressBar* Slot2_Cooldown;
+    UProgressBar* Slot2_Battery;
 
     UPROPERTY(meta = (BindWidget))
     UBorder* Slot2_Border;
@@ -80,7 +80,7 @@ public:
     UTextBlock* Slot3_Quantity;
 
     UPROPERTY(meta = (BindWidget))
-    UProgressBar* Slot3_Cooldown;
+    UProgressBar* Slot3_Battery;
 
     UPROPERTY(meta = (BindWidget))
     UBorder* Slot3_Border;
@@ -99,7 +99,7 @@ public:
     UTextBlock* Slot4_Quantity;
 
     UPROPERTY(meta = (BindWidget))
-    UProgressBar* Slot4_Cooldown;
+    UProgressBar* Slot4_Battery;
 
     UPROPERTY(meta = (BindWidget))
     UBorder* Slot4_Border;
@@ -139,10 +139,10 @@ protected:
     // ============================================
 
     UPROPERTY(BlueprintReadOnly, Category = "Components")
-    TObjectPtr<UInventoryComponent> InventoryComponent;
+    TObjectPtr<class UInventoryComponent> InventoryComponent;
 
     UPROPERTY(BlueprintReadOnly, Category = "Components")
-    TObjectPtr<UFlashlightComponent> FlashlightComponent;
+    TObjectPtr<class UFlashlightComponent> FlashlightComponent;
 
     UPROPERTY(BlueprintReadOnly, Category = "Data")
     TObjectPtr<UDataTable> ItemDataTable;
@@ -179,6 +179,11 @@ private:
     // ============================================
 
     void UpdateSlotVisuals(int32 SlotIndex, const struct FInventorySlot& SlotData);
-    void UpdateBatteryDisplay(float Percentage);
-    void UpdateCooldownDisplay(int32 SlotIndex, float CooldownPercent);
+    void UpdateBatteryDisplay(int32 SlotIndex, float Percentage);
+    
+    // Helper functions
+    int32 FindFlashlightSlot();
+    bool IsFlashlightItem(FName ItemID);
+    UProgressBar* GetBatteryBarForSlot(int32 SlotIndex);
+    UBorder* GetBorderForSlot(int32 SlotIndex);
 };

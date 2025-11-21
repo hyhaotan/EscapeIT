@@ -89,12 +89,6 @@ void AFlickLightActor::UpdateFlicker(float DeltaTime)
 		{
 			UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), ElectricalSparkParticle, GetActorLocation());
 		}
-
-		// Trigger camera shake
-		if (LightFlickerCameraShake && FMath::RandRange(0.0f, 1.0f) > 0.6f)
-		{
-			TriggerCameraShake(LightFlickerCameraShake);
-		}
 	}
 
 	// Start dramatic pause before ghost spawn
@@ -216,12 +210,6 @@ void AFlickLightActor::SpawnGhost()
 		{
 			UGameplayStatics::SpawnEmitterAtLocation(World, GhostAppearParticle, SpawnLocation);
 		}
-
-		// Trigger strong camera shake
-		if (GhostAppearCameraShake)
-		{
-			TriggerCameraShake(GhostAppearCameraShake);
-		}
 	}
 }
 
@@ -235,12 +223,6 @@ void AFlickLightActor::StopFlicker()
 	PointLight->SetIntensity(NormalLightIntensity);
 	PointLight->SetLightColor(NormalLightColor);
 	bIsLightOn = true;
-
-	// Fade out ambient drone
-	if (AmbientDroneAudioComponent)
-	{
-		AmbientDroneAudioComponent->FadeOut(2.0f, 0.0f);
-	}
 
 	// Handle auto reset or loop
 	if (bAutoResetAfterComplete || bLoopSequence)
@@ -259,11 +241,6 @@ void AFlickLightActor::StopSequenceImmediately()
 	// Clear all timers
 	GetWorldTimerManager().ClearTimer(AutoResetTimerHandle);
 	GetWorldTimerManager().ClearTimer(DelayTimerHandle);
-
-	if (AmbientDroneAudioComponent)
-	{
-		AmbientDroneAudioComponent->Stop();
-	}
 
 	// Destroy all spawned ghosts
 	DestroySpawnedGhosts();
@@ -341,18 +318,6 @@ void AFlickLightActor::HandleAutoReset()
 	{
 		UE_LOG(LogTemp, Warning, TEXT("🔄 Auto reset - Resetting to initial state..."));
 		ResetSequence();
-	}
-}
-
-void AFlickLightActor::TriggerCameraShake(TSubclassOf<UCameraShakeBase> ShakeClass)
-{
-	if (!ShakeClass)
-		return;
-
-	APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
-	if (PC)
-	{
-		PC->ClientStartCameraShake(ShakeClass, CameraShakeScale);
 	}
 }
 

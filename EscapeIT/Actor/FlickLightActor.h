@@ -61,26 +61,16 @@ public:
 	float NormalLightIntensity = 3000.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light Settings")
-	float FlickerLightIntensity = 5000.0f; // Đèn sáng hơn khi chớp
+	float FlickerLightIntensity = 5000.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light Settings")
 	bool bEnableLightColorChange = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light Settings")
-	FLinearColor NormalLightColor = FLinearColor(1.0f, 0.9f, 0.8f, 1.0f); // Vàng nhạt
+	FLinearColor NormalLightColor = FLinearColor(1.0f, 0.9f, 0.8f, 1.0f);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light Settings")
-	FLinearColor FlickerLightColor = FLinearColor(1.0f, 0.3f, 0.1f, 1.0f); // Đỏ cam
-
-	// Camera shake
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
-	TSubclassOf<class UCameraShakeBase> LightFlickerCameraShake;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
-	TSubclassOf<class UCameraShakeBase> GhostAppearCameraShake;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
-	float CameraShakeScale = 1.0f;
+	FLinearColor FlickerLightColor = FLinearColor(1.0f, 0.3f, 0.1f, 1.0f); 
 
 	// Particle effects
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VFX")
@@ -91,13 +81,13 @@ public:
 
 	// Dramatic pause
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Advanced")
-	bool bEnableDramaticPause = true; // Tạm dừng trước khi ghost xuất hiện
+	bool bEnableDramaticPause = true;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Advanced")
+	float DramaticPauseDuration = 0.8f; 
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Advanced")
-	float DramaticPauseDuration = 0.8f; // Tắt đèn hoàn toàn trước khi ghost xuất hiện
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Advanced")
-	int32 NumberOfFlickersBeforeGhost = 8; // Số lần chớp trước khi ghost xuất hiện
+	int32 NumberOfFlickersBeforeGhost = 8;
 
 	UFUNCTION(BlueprintCallable, Category = "Light Control")
 	void StartFlickerSequence();
@@ -106,20 +96,20 @@ public:
 	void StopSequenceImmediately();
 
 	UFUNCTION(BlueprintCallable, Category = "Light Control")
-	void ResetSequence(); // Reset về trạng thái ban đầu
+	void ResetSequence(); 
 
 	UFUNCTION(BlueprintCallable, Category = "Light Control")
-	void RestartSequence(); // Reset và bắt đầu lại ngay
+	void RestartSequence(); 
 
 	// Auto reset settings
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Advanced")
-	bool bAutoResetAfterComplete = false; // Tự động reset sau khi hoàn thành
+	bool bAutoResetAfterComplete = false; 
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Advanced")
-	float AutoResetDelay = 10.0f; // Thời gian chờ trước khi reset tự động
+	float AutoResetDelay = 10.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Advanced")
-	bool bLoopSequence = false; // Lặp lại sequence liên tục
+	bool bLoopSequence = false; 
 
 private:
 	bool bIsFlickering = false;
@@ -132,8 +122,7 @@ private:
 	bool bInDramaticPause = false;
 	float DramaticPauseTimer = 0.0f;
 	int32 FlickerCount = 0;
-
-	class UAudioComponent* AmbientDroneAudioComponent;
+	
 	class UParticleSystemComponent* SparkParticleComponent;
 	TArray<AActor*> SpawnedGhosts; // Theo dõi ghost đã spawn
 	FTimerHandle AutoResetTimerHandle;
@@ -143,7 +132,6 @@ private:
 	void ToggleLight();
 	void SpawnGhost();
 	void StopFlicker();
-	void TriggerCameraShake(TSubclassOf<class UCameraShakeBase> ShakeClass);
 	void StartDramaticPause();
 	void UpdateDramaticPause(float DeltaTime);
 	float GetCurrentFlickerInterval();

@@ -118,7 +118,6 @@ bool UInventoryComponent::AddItem(FName ItemID, int32 Quantity)
     OnItemAdded.Broadcast(ItemID, Quantity);
 
     bool bAlreadyInQuickbar = false;
-    int32 ExistingSlotIndex = -1;
 
     // Check if item already in quickbar
     for (int32 i = 0; i < QuickbarSize; i++)
@@ -126,7 +125,6 @@ bool UInventoryComponent::AddItem(FName ItemID, int32 Quantity)
         if (QuickbarSlots[i].ItemID == ItemID)
         {
             bAlreadyInQuickbar = true;
-            ExistingSlotIndex = i;
             UE_LOG(LogTemp, Log, TEXT("AddItem: Item '%s' already in quickbar slot %d"),
                 *ItemID.ToString(), i);
             break;
@@ -135,38 +133,21 @@ bool UInventoryComponent::AddItem(FName ItemID, int32 Quantity)
 
     if (!bAlreadyInQuickbar)
     {
-        // SPECIAL CASE: Flashlight always goes to slot 0
-        if (ItemData.ItemType == EItemType::Tool)
+        for (int i = 0; i < QuickbarSize; ++i)
         {
-            if (ItemData.ItemCategory == EItemCategory::Flashlight)
+            if (!QuickbarSlots[i].IsValid())
             {
-                bool bAssigned = AssignToQuickbar(ItemID, 0);
-                if (bAssigned)
+                if (bool bAssigned = AssignToQuickbar(ItemID,i))
                 {
-                    UE_LOG(LogTemp, Log, TEXT("AddItem: Auto-assigned Flashlight '%s' to quickbar slot 0"),
-                        *ItemID.ToString());
+                    UE_LOG(LogTemp, Log, TEXT("AddItem: Auto-assigned '%s' to quickbar slot %d"),
+                        *ItemID.ToString(), i);
                 }
                 else
                 {
-                    UE_LOG(LogTemp, Warning, TEXT("AddItem: Failed to assign Flashlight to slot 0"));
+                    UE_LOG(LogTemp, Warning, TEXT("AddItem: Failed to assign '%s' to quickbar slot %d"),
+                        *ItemID.ToString(), i);
                 }
-            }
-        }
-        // Other items: auto-assign to slots 1-3
-        else
-        {
-            for (int32 i = 1; i < QuickbarSize; i++)
-            {
-                if (!QuickbarSlots[i].IsValid())
-                {
-                    bool bAssigned = AssignToQuickbar(ItemID, i);
-                    if (bAssigned)
-                    {
-                        UE_LOG(LogTemp, Log, TEXT("AddItem: Auto-assigned '%s' to quickbar slot %d"),
-                            *ItemID.ToString(), i);
-                    }
-                    break;
-                }
+                break;
             }
         }
     }

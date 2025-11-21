@@ -23,57 +23,47 @@ void UQuickbarWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
     Super::NativeTick(MyGeometry, InDeltaTime);
 
-    if (!bIsInitialized)
+    if (!bIsInitialized || !FlashlightComponent)
     {
         return;
     }
 
-    // Update battery bar every frame for smooth animation
-    if (FlashlightComponent && Slot1_Battery)
+    // Tìm slot nào có flashlight
+    int32 FlashlightSlotIndex = FindFlashlightSlot();
+    
+    if (FlashlightSlotIndex != -1)
     {
-        float BatteryPercent = FlashlightComponent->GetBatteryPercentage();
-        UpdateBatteryDisplay(BatteryPercent);
-
-        // Low battery warning pulse
-        if (BatteryPercent < 10.0f && FlashlightComponent->IsLightOn())
+        UProgressBar* BatteryBar = GetBatteryBarForSlot(FlashlightSlotIndex);
+        UBorder* SlotBorder = GetBorderForSlot(FlashlightSlotIndex);
+        
+        if (BatteryBar)
         {
-            if (!bLowBatteryWarningActive)
-            {
-                bLowBatteryWarningActive = true;
-            }
+            float BatteryPercent = FlashlightComponent->GetBatteryPercentage();
+            UpdateBatteryDisplay(FlashlightSlotIndex, BatteryPercent);
 
-            // Pulsing effect
-            float PulseValue = FMath::Sin(GetWorld()->GetTimeSeconds() * 5.0f) * 0.5f + 0.5f;
-            FLinearColor PulseColor = FMath::Lerp(LowBatteryColor, FLinearColor::Black, PulseValue);
-
-            if (Slot1_Border)
+            // Low battery warning pulse
+            if (BatteryPercent < 10.0f && FlashlightComponent->IsLightOn())
             {
-                Slot1_Border->SetBrushColor(PulseColor);
-            }
-        }
-        else if (bLowBatteryWarningActive && BatteryPercent >= 10.0f)
-        {
-            bLowBatteryWarningActive = false;
-            if (Slot1_Border)
-            {
-                Slot1_Border->SetBrushColor(NormalBorderColor);
-            }
-        }
-    }
-
-    // Update cooldowns for slots 2, 3, 4
-    if (InventoryComponent)
-    {
-        for (int32 i = 1; i < 4; i++)
-        {
-            FInventorySlot SlotData = InventoryComponent->GetQuickbarSlot(i);
-            if (SlotData.IsValid() && SlotData.CooldownRemaining > 0.0f)
-            {
-                FItemData ItemData;
-                if (InventoryComponent->GetItemData(SlotData.ItemID, ItemData))
+                if (!bLowBatteryWarningActive)
                 {
-                    float CooldownPercent = SlotData.CooldownRemaining / ItemData.UsageCooldown;
-                    UpdateCooldownDisplay(i, CooldownPercent);
+                    bLowBatteryWarningActive = true;
+                }
+
+                // Pulsing effect
+                float PulseValue = FMath::Sin(GetWorld()->GetTimeSeconds() * 5.0f) * 0.5f + 0.5f;
+                FLinearColor PulseColor = FMath::Lerp(LowBatteryColor, FLinearColor::Black, PulseValue);
+
+                if (SlotBorder)
+                {
+                    SlotBorder->SetBrushColor(PulseColor);
+                }
+            }
+            else if (bLowBatteryWarningActive && BatteryPercent >= 10.0f)
+            {
+                bLowBatteryWarningActive = false;
+                if (SlotBorder)
+                {
+                    SlotBorder->SetBrushColor(NormalBorderColor);
                 }
             }
         }
@@ -151,11 +141,11 @@ void UQuickbarWidget::UpdateSlot(int32 SlotIndex)
 
     FInventorySlot SlotData = InventoryComponent->GetQuickbarSlot(SlotIndex);
 
-    // Debug log CHI TIẾT
+    // Debug log
     if (SlotData.IsValid())
     {
-        UE_LOG(LogTemp, Log, TEXT("UpdateSlot %d: Item=%s, Quantity=%d, Cooldown=%.2f"),
-            SlotIndex, *SlotData.ItemID.ToString(), SlotData.Quantity, SlotData.CooldownRemaining);
+        UE_LOG(LogTemp, Log, TEXT("UpdateSlot %d: Item=%s, Quantity=%d"),
+            SlotIndex, *SlotData.ItemID.ToString(), SlotData.Quantity);
     }
     else
     {
@@ -184,37 +174,27 @@ void UQuickbarWidget::UpdateSlotVisuals(int32 SlotIndex, const FInventorySlot& S
     case 1:
         Icon = Slot2_Icon;
         Quantity = Slot2_Quantity;
-        ProgressBar = Slot2_Cooldown;
+        ProgressBar = Slot2_Battery;
         Border = Slot2_Border;
         break;
     case 2:
         Icon = Slot3_Icon;
         Quantity = Slot3_Quantity;
-        ProgressBar = Slot3_Cooldown;
+        ProgressBar = Slot3_Battery;
         Border = Slot3_Border;
         break;
     case 3:
         Icon = Slot4_Icon;
         Quantity = Slot4_Quantity;
-        ProgressBar = Slot4_Cooldown;
+        ProgressBar = Slot4_Battery;
         Border = Slot4_Border;
         break;
     }
 
     // Validate widget references
-    if (!Icon)
+    if (!Icon || !Quantity || !Border)
     {
-        UE_LOG(LogTemp, Error, TEXT("UpdateSlotVisuals: Icon widget is NULL for slot %d"), SlotIndex);
-        return;
-    }
-    if (!Quantity)
-    {
-        UE_LOG(LogTemp, Error, TEXT("UpdateSlotVisuals: Quantity widget is NULL for slot %d"), SlotIndex);
-        return;
-    }
-    if (!Border)
-    {
-        UE_LOG(LogTemp, Error, TEXT("UpdateSlotVisuals: Border widget is NULL for slot %d"), SlotIndex);
+        UE_LOG(LogTemp, Error, TEXT("UpdateSlotVisuals: Widget is NULL for slot %d"), SlotIndex);
         return;
     }
 
@@ -265,6 +245,11 @@ void UQuickbarWidget::UpdateSlotVisuals(int32 SlotIndex, const FInventorySlot& S
         Quantity->SetText(FText::FromString("?"));
         Quantity->SetVisibility(ESlateVisibility::Visible);
         Border->SetBrushColor(FLinearColor::Red);
+        
+        if (ProgressBar)
+        {
+            ProgressBar->SetVisibility(ESlateVisibility::Collapsed);
+        }
         return;
     }
 
@@ -273,18 +258,16 @@ void UQuickbarWidget::UpdateSlotVisuals(int32 SlotIndex, const FInventorySlot& S
     {
         Icon->SetBrushFromTexture(ItemData.Icon);
         Icon->SetColorAndOpacity(FLinearColor::White);
-        UE_LOG(LogTemp, Log, TEXT("UpdateSlotVisuals: Set icon for slot %d"), SlotIndex);
     }
     else
     {
         Icon->SetBrushFromTexture(nullptr);
         Icon->SetColorAndOpacity(FLinearColor::Gray);
-        UE_LOG(LogTemp, Warning, TEXT("UpdateSlotVisuals: No icon for item '%s'"),
-            *ItemData.ItemName.ToString());
     }
+    
+    bool bIsFlashlight = IsFlashlightItem(SlotData.ItemID);
 
-    // Set quantity
-    if (SlotData.Quantity > 1)
+    if (!bIsFlashlight && SlotData.Quantity > 1)
     {
         Quantity->SetText(FText::AsNumber(SlotData.Quantity));
         Quantity->SetVisibility(ESlateVisibility::Visible);
@@ -297,22 +280,10 @@ void UQuickbarWidget::UpdateSlotVisuals(int32 SlotIndex, const FInventorySlot& S
     // Update progress bar
     if (ProgressBar)
     {
-        if (SlotIndex == 0 && FlashlightComponent)
+        if (bIsFlashlight && FlashlightComponent)
         {
-            // Battery bar for flashlight
             ProgressBar->SetVisibility(ESlateVisibility::Visible);
-            UpdateBatteryDisplay(FlashlightComponent->GetBatteryPercentage());
-        }
-        else if (SlotData.CooldownRemaining > 0.0f)
-        {
-            // Cooldown bar for other items
-            ProgressBar->SetVisibility(ESlateVisibility::Visible);
-
-            if (ItemData.UsageCooldown > 0.0f)
-            {
-                float CooldownPercent = SlotData.CooldownRemaining / ItemData.UsageCooldown;
-                UpdateCooldownDisplay(SlotIndex, CooldownPercent);
-            }
+            UpdateBatteryDisplay(SlotIndex,FlashlightComponent->GetBatteryPercentage());
         }
         else
         {
@@ -321,58 +292,36 @@ void UQuickbarWidget::UpdateSlotVisuals(int32 SlotIndex, const FInventorySlot& S
     }
 
     // Set border color
-    if (!bLowBatteryWarningActive || SlotIndex != 0)
+    if (!bLowBatteryWarningActive || !bIsFlashlight)
     {
         Border->SetBrushColor(NormalBorderColor);
     }
 }
 
-void UQuickbarWidget::UpdateBatteryDisplay(float Percentage)
+void UQuickbarWidget::UpdateBatteryDisplay(int32 SlotIndex,float Percentage)
 {
-    if (!Slot1_Battery)
-    {
-        return;
-    }
+    const auto BatteryBar = GetBatteryBarForSlot(SlotIndex);
 
-    Slot1_Battery->SetPercent(Percentage / 100.0f);
-
-    // Color coding
+    if (!BatteryBar) return;
+    
+    BatteryBar->SetPercent(Percentage);
+    
     FLinearColor BatteryColor;
     if (Percentage > 50.0f)
     {
         BatteryColor = FLinearColor::Green;
     }
-    else if (Percentage > 20.0f)
+    else if (Percentage > 25.0f)
     {
         BatteryColor = FLinearColor::Yellow;
     }
     else if (Percentage > 10.0f)
     {
-        BatteryColor = FLinearColor(1.0f, 0.5f, 0.0f, 1.0f); // Orange
+        BatteryColor = FLinearColor(1.0f, 0.5f, 0.0f, 1.0f); 
     }
     else
     {
-        BatteryColor = LowBatteryColor; // Red
-    }
-
-    Slot1_Battery->SetFillColorAndOpacity(BatteryColor);
-}
-
-void UQuickbarWidget::UpdateCooldownDisplay(int32 SlotIndex, float CooldownPercent)
-{
-    UProgressBar* ProgressBar = nullptr;
-
-    switch (SlotIndex)
-    {
-    case 1: ProgressBar = Slot2_Cooldown; break;
-    case 2: ProgressBar = Slot3_Cooldown; break;
-    case 3: ProgressBar = Slot4_Cooldown; break;
-    }
-
-    if (ProgressBar)
-    {
-        ProgressBar->SetPercent(CooldownPercent);
-        ProgressBar->SetFillColorAndOpacity(FLinearColor(0.5f, 0.5f, 1.0f, 0.8f)); // Blue tint
+        BatteryColor = LowBatteryColor;
     }
 }
 
@@ -381,14 +330,7 @@ void UQuickbarWidget::HighlightSlot(int32 SlotIndex)
     // Reset previous selection
     if (CurrentSelectedSlot >= 0 && CurrentSelectedSlot < 4)
     {
-        UBorder* PrevBorder = nullptr;
-        switch (CurrentSelectedSlot)
-        {
-        case 0: PrevBorder = Slot1_Border; break;
-        case 1: PrevBorder = Slot2_Border; break;
-        case 2: PrevBorder = Slot3_Border; break;
-        case 3: PrevBorder = Slot4_Border; break;
-        }
+        UBorder* PrevBorder = GetBorderForSlot(CurrentSelectedSlot);
         if (PrevBorder && !bLowBatteryWarningActive)
         {
             PrevBorder->SetBrushColor(NormalBorderColor);
@@ -397,14 +339,8 @@ void UQuickbarWidget::HighlightSlot(int32 SlotIndex)
 
     // Highlight new slot
     CurrentSelectedSlot = SlotIndex;
-    UBorder* NewBorder = nullptr;
-    switch (SlotIndex)
-    {
-    case 0: NewBorder = Slot1_Border; break;
-    case 1: NewBorder = Slot2_Border; break;
-    case 2: NewBorder = Slot3_Border; break;
-    case 3: NewBorder = Slot4_Border; break;
-    }
+    UBorder* NewBorder = GetBorderForSlot(SlotIndex);
+    
     if (NewBorder)
     {
         NewBorder->SetBrushColor(SelectedBorderColor);
@@ -421,24 +357,79 @@ void UQuickbarWidget::OnInventoryUpdated()
 
 void UQuickbarWidget::OnBatteryChanged(float Percentage)
 {
-    UpdateBatteryDisplay(Percentage);
+    int32 FlashlightSlotIndex = FindFlashlightSlot();
+    if (FlashlightSlotIndex != -1)
+    {
+        UpdateBatteryDisplay(FlashlightSlotIndex, Percentage);
+    }
 }
 
 void UQuickbarWidget::OnFlashlightToggled(bool bIsOn)
 {
-    // Visual feedback when flashlight toggles
-    if (Slot1_Border)
+    // Tìm slot có flashlight
+    int32 FlashlightSlotIndex = FindFlashlightSlot();
+    
+    if (FlashlightSlotIndex != -1)
     {
-        if (bIsOn)
+        UBorder* FlashlightBorder = GetBorderForSlot(FlashlightSlotIndex);
+        
+        if (FlashlightBorder)
         {
-            HighlightSlot(0);
-        }
-        else if (CurrentSelectedSlot == 0)
-        {
-            Slot1_Border->SetBrushColor(NormalBorderColor);
-            CurrentSelectedSlot = -1;
+            if (bIsOn)
+            {
+                HighlightSlot(FlashlightSlotIndex);
+            }
+            else if (CurrentSelectedSlot == FlashlightSlotIndex)
+            {
+                FlashlightBorder->SetBrushColor(NormalBorderColor);
+                CurrentSelectedSlot = -1;
+            }
         }
     }
 
     UE_LOG(LogTemp, Log, TEXT("Flashlight toggled: %s"), bIsOn ? TEXT("ON") : TEXT("OFF"));
+}
+
+int32 UQuickbarWidget::FindFlashlightSlot()
+{
+    if (!InventoryComponent) return -1;
+    
+    for (int32 i = 0; i < 4 ;i++)
+    {
+        FInventorySlot SlotData = InventoryComponent->GetQuickbarSlot(i);
+        if (SlotData.IsValid() && IsFlashlightItem(SlotData.ItemID))
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
+bool UQuickbarWidget::IsFlashlightItem(FName ItemID)
+{
+    return ItemID.ToString().Contains(TEXT("Flashlight"),ESearchCase::IgnoreCase);
+}
+
+UProgressBar* UQuickbarWidget::GetBatteryBarForSlot(int32 SlotIndex)
+{
+    switch (SlotIndex)
+    {
+        case 0: return Slot1_Battery;
+        case 1: return Slot2_Battery;
+        case 2: return Slot3_Battery;
+        case 3: return Slot4_Battery;
+        default:return nullptr;
+    }
+}
+
+UBorder* UQuickbarWidget::GetBorderForSlot(int32 SlotIndex)
+{
+    switch (SlotIndex)
+    {
+        case 0: return Slot1_Border;
+        case 1: return Slot2_Border;
+        case 2: return Slot3_Border;
+        case 3: return Slot4_Border;
+        default: return nullptr;
+    }
 }
