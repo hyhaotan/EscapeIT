@@ -98,6 +98,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Visual")
     void ShowPrompt(bool bShow);
+    
+    UFUNCTION(BlueprintNativeEvent,Category="Use")
+    void UseItem();
 
     virtual void Interact_Implementation(AActor* Interactor) override;
 
@@ -127,6 +130,9 @@ protected:
     // ============================================
 
     void InitializeFromDataTable();
+    
+    UFUNCTION(BlueprintCallable, Category = "Use")
+    APawn* GetPlayerPawn() const;
 
 private:
     FVector InitialLocation;

@@ -256,7 +256,17 @@ void AItemPickupActor::ShowPrompt(bool bShow)
     }
 }
 
+void AItemPickupActor::UseItem_Implementation()
+{
+    
+}
+
 FText AItemPickupActor::GetItemName() const
 {
     return CachedItemName;
+}
+
+APawn* AItemPickupActor::GetPlayerPawn() const
+{
+    return UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
 }

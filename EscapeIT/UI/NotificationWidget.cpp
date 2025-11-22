@@ -10,7 +10,10 @@ void UNotificationWidget::ShowSuccess(const FText& SuccessText)
     if (NotificationText)
     {
         NotificationText->SetText(SuccessText);
+        ShowAnimWidget();
     }
+    
+    SetDelayNotification(3.0f);
 }
 
 void UNotificationWidget::ShowError(const FText& ErrorText)
@@ -18,5 +21,30 @@ void UNotificationWidget::ShowError(const FText& ErrorText)
     if (NotificationText)
     {
         NotificationText->SetText(ErrorText);
+        ShowAnimWidget();
     }
+    
+    SetDelayNotification(3.0f);
+}
+
+void UNotificationWidget::ShowNotification(const FText& Text)
+{
+    this->AddToViewport(999);
+    this->SetVisibility(ESlateVisibility::Visible);
+    if (NotificationText)
+    {
+        NotificationText->SetText(Text);
+        ShowAnimWidget();
+    }
+    SetDelayNotification(3.0f);
+
+}
+
+float UNotificationWidget::SetDelayNotification(float Delay)
+{
+    GetWorld()->GetTimerManager().SetTimer(TimerHandle,[this]()
+    {
+        HideAnimWidget();
+    },Delay,false);
+    return Delay;
 }

@@ -1,134 +1,70 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "EscapeIT/Actor/Chest.h"
+#include "Components/InventoryComponent.h"
 #include "Components/StaticMeshComponent.h"
-#include "Components/SphereComponent.h"
-#include "Components/WidgetComponent.h"
-#include "EscapeIT/Actor/Components/InventoryComponent.h"
-#include "Kismet/GameplayStatics.h"
-#include "Sound/SoundBase.h"
-#include "TimerManager.h"
+#include "Components/BoxComponent.h"
 #include "Components/TimelineComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "Curves/CurveFloat.h"
+#include "GameFramework/Character.h"
+#include "EscapeIT/UI/NotificationWidget.h"
 
 AChest::AChest()
 {
     PrimaryActorTick.bCanEverTick = true;
-
-    // Create root component
-    RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
-
-    // Create chest base mesh
-    ChestBaseMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ChestBaseMesh"));
-    ChestBaseMesh->SetupAttachment(RootComponent);
-    ChestBaseMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-    ChestBaseMesh->SetCollisionResponseToAllChannels(ECR_Block);
-
-    // Create chest lid mesh
-    ChestLidMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ChestLidMesh"));
-    ChestLidMesh->SetupAttachment(ChestBaseMesh);
-    ChestLidMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-
-    // Create interaction sphere
-    InteractionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("InteractionSphere"));
-    InteractionSphere->SetupAttachment(RootComponent);
-    InteractionSphere->SetSphereRadius(150.0f);
-    InteractionSphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-    InteractionSphere->SetCollisionResponseToAllChannels(ECR_Ignore);
-    InteractionSphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
-
-    // Create prompt widget
-    PromptWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("PromptWidget"));
-    PromptWidget->SetupAttachment(RootComponent);
-    PromptWidget->SetWidgetSpace(EWidgetSpace::Screen);
-    PromptWidget->SetDrawSize(FVector2D(200.0f, 50.0f));
-    PromptWidget->SetVisibility(false);
+    
+    ChestMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ChestMesh"));
+    RootComponent = ChestMesh;
+    
+    LidMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("LidMesh"));
+    LidMesh->SetupAttachment(ChestMesh);
+    
+    InteractionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("InteractionBox"));
+    InteractionBox->SetupAttachment(ChestMesh);
+    InteractionBox->SetBoxExtent(FVector(100.0f, 100.0f, 100.0f));
+    
+    // ✅ Setup collision cho interaction
+    InteractionBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    InteractionBox->SetCollisionObjectType(ECollisionChannel::ECC_WorldDynamic);
+    InteractionBox->SetCollisionResponseToAllChannels(ECR_Ignore);
+    InteractionBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
     
     OpenTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("OpenTimeline"));
-
-    // Default settings
-    bRequiresKey = true;
-    RequiredKeyType = EKeyType::RustyKey;
-    RequiredKeyID = FName("Key_Rusty");
-    bConsumeKeyOnUse = false;
-    bIsOpen = false;
-    bIsLocked = true;
     
-    // Animation settings
-    OpenAngle = 90.0f;
-    OpenSpeed = 2.0f;
-    
-    // Internal state
-    bIsAnimating = false;
-    CurrentLidAngle = 0.0f;
-    AnimationProgress = 0.0f;
-    bPlayerNearby = false;
-    NearbyPlayer = nullptr;
+    RequiredKeyType = EKeysType::Key1;
 }
 
 void AChest::BeginPlay()
 {
     Super::BeginPlay();
     
-    InitializeChest();
-    
-    if (OpenCurve)
+    if (ChestCurve && OpenTimeline)
     {
-        FOnTimelineFloat ProgressFunction;
-        ProgressFunction.BindUFunction(this, FName("HandleOpenTimelineProgress"));
-        OpenTimeline->AddInterpFloat(OpenCurve, ProgressFunction);
-        
-        FOnTimelineEvent FinishedEvent;
-        FinishedEvent.BindUFunction(this, FName("OnOpenTimelineFinished"));
-        OpenTimeline->SetTimelineFinishedFunc(FinishedEvent);
-        OpenTimeline->SetLooping(false);
-        OpenTimeline->SetPlayRate(OpenSpeed > 0.f ? OpenSpeed : 1.f);
+        FOnTimelineFloat TimelineCallback;
+        TimelineCallback.BindUFunction(this, FName("UpdateLidRotation"));
+        OpenTimeline->AddInterpFloat(ChestCurve, TimelineCallback);
+
+        FOnTimelineEvent TimelineFinishedCallback;
+        TimelineFinishedCallback.BindUFunction(this, FName("OnOpenFinished"));
+        OpenTimeline->SetTimelineFinishedFunc(TimelineFinishedCallback);
+    }
+
+    // ✅ Tạo và thêm widget vào viewport
+    if (NotificationWidgetClass)
+    {
+        NotificationWidget = CreateWidget<UNotificationWidget>(GetWorld(), NotificationWidgetClass);
+        if (NotificationWidget)
+        {
+            NotificationWidget->AddToViewport();
+            NotificationWidget->SetVisibility(ESlateVisibility::Hidden);
+        }
     }
 }
 
 void AChest::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
-
-    // Handle chest opening animation
-    if (bIsAnimating)
-    {
-        AnimationProgress += DeltaTime * OpenSpeed;
-        
-        if (AnimationProgress >= 1.0f)
-        {
-            AnimationProgress = 1.0f;
-            bIsAnimating = false;
-        }
-
-        // Calculate rotation with curve if available
-        float Alpha = AnimationProgress;
-        if (OpenCurve)
-        {
-            Alpha = OpenCurve->GetFloatValue(AnimationProgress);
-        }
-
-        CurrentLidAngle = FMath::Lerp(0.0f, OpenAngle, Alpha);
-        
-        // Apply rotation to lid
-        FRotator NewRotation = InitialLidRotation;
-        NewRotation.Pitch += CurrentLidAngle;
-        ChestLidMesh->SetRelativeRotation(NewRotation);
-    }
-}
-
-void AChest::InitializeChest()
-{
-    // Store initial lid rotation
-    if (ChestLidMesh)
-    {
-        InitialLidRotation = ChestLidMesh->GetRelativeRotation();
-    }
-
-    // Set initial lock state
-    if (!bRequiresKey)
-    {
-        bIsLocked = false;
-    }
 }
 
 void AChest::Interact_Implementation(AActor* Interactor)
@@ -138,263 +74,200 @@ void AChest::Interact_Implementation(AActor* Interactor)
         return;
     }
 
-    TryOpenChest(Interactor);
-}
-
-bool AChest::TryOpenChest(AActor* Opener)
-{
-    // Already open
     if (bIsOpen)
     {
+        if (NotificationWidget)
+        {
+            NotificationWidget->ShowNotification(FText::FromString("Chest đã được mở rồi!"));
+        }
+        return;
+    }
+    
+    FString FailReason;
+    if (CheckCanOpenChest(Interactor, FailReason))
+    {
+        OpenChest(Interactor);
+    }
+    else
+    {
+        PlayChestSound(LockedSound);
+        // ✅ Hiển thị lý do fail
+        if (NotificationWidget && !FailReason.IsEmpty())
+        {
+            NotificationWidget->ShowNotification(FText::FromString(FailReason));
+        }
+    }
+}
+
+bool AChest::CheckCanOpenChest(AActor* Interactor, FString& OutFailReason)
+{
+    UInventoryComponent* Inventory = GetInventoryFromActor(Interactor);
+    if (!Inventory)
+    {
+        OutFailReason = TEXT("Không tìm thấy Inventory!");
         return false;
     }
-
-    // Check if locked and requires key
-    if (bIsLocked && bRequiresKey)
+    
+    if (!bRequiresKey)
     {
-        if (HasRequiredKey(Opener))
+        return true;
+    }
+    
+    FName RequiredKeyItemID = NAME_None;
+    
+    if (Inventory->ItemDataTable)
+    {
+        TArray<FName> RowNames = Inventory->ItemDataTable->GetRowNames();
+        
+        for (const FName& RowName : RowNames)
         {
-            // Unlock and open
-            UnlockChest();
-            
-            // Play unlock sound
-            if (UnlockSound)
+            FItemData* ItemData = Inventory->ItemDataTable->FindRow<FItemData>(RowName, TEXT(""));
+            if (ItemData && 
+                ItemData->ItemType == EItemType::Tool && 
+                ItemData->ItemCategory == EItemCategory::MasterKey &&
+                ItemData->KeysType == RequiredKeyType)
             {
-                UGameplayStatics::PlaySoundAtLocation(this, UnlockSound, GetActorLocation());
+                RequiredKeyItemID = ItemData->ItemID;
+                break;
             }
-            
-            // Consume key if needed
-            if (bConsumeKeyOnUse)
-            {
-                ConsumeKeyFromInventory(Opener);
-            }
-            
-            OpenChest(Opener);
-            return true;
         }
-        else
+    }
+
+    if (RequiredKeyItemID.IsNone())
+    {
+        OutFailReason = TEXT("Không tìm thấy dữ liệu key trong DataTable!");
+        return false;
+    }
+    
+    if (!Inventory->HasItem(RequiredKeyItemID, 1))
+    {
+        OutFailReason = TEXT("Bạn không có key phù hợp để mở chest này!");
+        return false;
+    }
+    
+    if (bRequireKeyEquipped)
+    {
+        FName EquippedItemID = Inventory->GetCurrentEquippedItemID();
+        
+        if (EquippedItemID != RequiredKeyItemID)
         {
-            // Play locked sound and broadcast event
-            if (LockedSound)
-            {
-                UGameplayStatics::PlaySoundAtLocation(this, LockedSound, GetActorLocation());
-            }
-            
-            OnChestLocked.Broadcast(this, Opener);
-            
-            // Show message to player (you can implement UI feedback here)
-            if (GEngine)
-            {
-                GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, 
-                    FString::Printf(TEXT("Chest is locked! Requires: %s"), 
-                    *RequiredKeyID.ToString()));
-            }
-            
+            OutFailReason = TEXT("Bạn cần trang bị key để mở chest!");
             return false;
         }
     }
-
-    // Not locked, open directly
-    OpenChest(Opener);
+    
     return true;
 }
 
-bool AChest::HasRequiredKey(AActor* Interactor) const
+void AChest::OpenChest(AActor* Interactor)
 {
-    if (!Interactor)
+    UInventoryComponent* Inventory = GetInventoryFromActor(Interactor);
+    if (!Inventory)
     {
-        return false;
+        return;
     }
-
-    // Get inventory component from interactor
-    UInventoryComponent* InventoryComp = Interactor->FindComponentByClass<UInventoryComponent>();
-    if (!InventoryComp)
-    {
-        return false;
-    }
-
-    // Check if player has the required key
-    return InventoryComp->HasItem(RequiredKeyID, 1);
-}
-
-void AChest::UnlockChest()
-{
-    bIsLocked = false;
     
-    if (GEngine)
-    {
-        GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Green, TEXT("Chest Unlocked!"));
-    }
-}
-
-void AChest::OpenChest(AActor* Opener)
-{
-    if (bIsOpen || bIsAnimating)
-    {
-        return;
-    }
-
-    bIsOpen = true;
-    bIsAnimating = true;
-
-    if (OpenTimeline)
-    {
-        OpenTimeline->PlayFromStart();
-    }
-
-    if (OpenSound)
-    {
-        UGameplayStatics::PlaySoundAtLocation(this, OpenSound, GetActorLocation());
-    }
-
-    GiveLootToPlayer(Opener);
-    OnChestOpened.Broadcast(this, Opener);
-    ShowPrompt(false);
-}
-
-void AChest::SpawnLoot()
-{
-    // This method spawns loot in the world
-    // You can implement this if you want items to physically drop
+    PlayChestSound(UnlockSound);
     
-    for (const FName& ItemID : LootItems)
+    if (bConsumeKeyOnOpen && bRequiresKey)
     {
-        // Spawn item pickup actor
-        // Implementation depends on your game's needs
-    }
-}
-
-void AChest::GiveLootToPlayer(AActor* Player)
-{
-    if (!Player)
-    {
-        return;
-    }
-
-    UInventoryComponent* InventoryComp = Player->FindComponentByClass<UInventoryComponent>();
-    if (!InventoryComp)
-    {
-        return;
-    }
-
-    // Add items from LootItemsWithQuantity map
-    for (const TPair<FName, int32>& LootPair : LootItemsWithQuantity)
-    {
-        bool bSuccess = InventoryComp->AddItem(LootPair.Key, LootPair.Value);
+        FName RequiredKeyItemID = NAME_None;
         
-        if (bSuccess)
+        if (Inventory->ItemDataTable)
         {
-            if (GEngine)
+            TArray<FName> RowNames = Inventory->ItemDataTable->GetRowNames();
+            
+            for (const FName& RowName : RowNames)
             {
-                GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Cyan, 
-                    FString::Printf(TEXT("Received: %s x%d"), 
-                    *LootPair.Key.ToString(), LootPair.Value));
+                FItemData* ItemData = Inventory->ItemDataTable->FindRow<FItemData>(RowName, TEXT(""));
+                if (ItemData && 
+                    ItemData->ItemType == EItemType::Tool && 
+                    ItemData->ItemCategory == EItemCategory::MasterKey &&
+                    ItemData->KeysType == RequiredKeyType)
+                {
+                    RequiredKeyItemID = ItemData->ItemID;
+                    break;
+                }
+            }
+        }
+
+        if (!RequiredKeyItemID.IsNone())
+        {
+            Inventory->RemoveItem(RequiredKeyItemID, 1);
+            UE_LOG(LogTemp, Log, TEXT("Key đã bị tiêu hao!"));
+        }
+    }
+    
+    for (const FName& ItemID : ChestItems)
+    {
+        if (!ItemID.IsNone())
+        {
+            bool bAdded = Inventory->AddItem(ItemID, 1);
+            if (bAdded)
+            {
+                UE_LOG(LogTemp, Log, TEXT("Đã nhận item: %s"), *ItemID.ToString());
+            }
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Inventory đầy, không thể nhận item: %s"), *ItemID.ToString());
             }
         }
     }
-
-    // Add items from LootItems array (quantity = 1)
-    for (const FName& ItemID : LootItems)
+    
+    bIsOpen = true;
+    bIsLocked = false;
+    
+    if (OpenTimeline && ChestCurve)
     {
-        InventoryComp->AddItem(ItemID, 1);
-    }
-}
-
-void AChest::ConsumeKeyFromInventory(AActor* Player)
-{
-    if (!Player)
-    {
-        return;
-    }
-
-    UInventoryComponent* InventoryComp = Player->FindComponentByClass<UInventoryComponent>();
-    if (InventoryComp)
-    {
-        InventoryComp->RemoveItem(RequiredKeyID, 1);
-        
-        if (GEngine)
-        {
-            GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Yellow, 
-                FString::Printf(TEXT("Used key: %s"), *RequiredKeyID.ToString()));
-        }
-    }
-}
-
-void AChest::ShowPrompt(bool bShow)
-{
-    if (PromptWidget)
-    {
-        PromptWidget->SetVisibility(bShow);
-    }
-}
-
-FText AChest::GetInteractionPrompt() const
-{
-    if (bIsOpen)
-    {
-        return FText::FromString(TEXT("Chest (Empty)"));
+        OpenTimeline->PlayFromStart();
     }
     
-    if (bIsLocked && bRequiresKey)
+    PlayChestSound(OpenSound);
+
+    if (NotificationWidget)
     {
-        return FText::FromString(FString::Printf(TEXT("Locked Chest [Requires: %s]"), 
-            *RequiredKeyID.ToString()));
+        NotificationWidget->ShowNotification(FText::FromString("Chest đã được mở!"));
+    }
+}
+
+void AChest::UpdateLidRotation(float Value)
+{
+    if (LidMesh)
+    {
+        FRotator NewRotation = FRotator(Value * MaxLidRotation, 0.0f, 0.0f);
+        LidMesh->SetRelativeRotation(NewRotation);
+    }
+}
+
+void AChest::OnOpenFinished()
+{
+    UE_LOG(LogTemp, Log, TEXT("Animation mở chest hoàn tất!"));
+}
+
+void AChest::PlayChestSound(USoundBase* Sound)
+{
+    if (Sound)
+    {
+        UGameplayStatics::PlaySoundAtLocation(this, Sound, GetActorLocation());
+    }
+}
+
+UInventoryComponent* AChest::GetInventoryFromActor(AActor* Actor) const
+{
+    if (!Actor)
+    {
+        return nullptr;
     }
     
-    return FText::FromString(TEXT("Press E to Open Chest"));
-}
-
-void AChest::OnInteractionBeginOverlap(UPrimitiveComponent* OverlappedComponent, 
-    AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, 
-    bool bFromSweep, const FHitResult& SweepResult)
-{
-    if (!OtherActor)
+    UInventoryComponent* Inventory = Actor->FindComponentByClass<UInventoryComponent>();
+    
+    if (!Inventory)
     {
-        return;
-    }
-
-    // Check if it's the player (you might want to add a player tag check)
-    if (OtherActor->ActorHasTag(FName("Player")))
-    {
-        bPlayerNearby = true;
-        NearbyPlayer = OtherActor;
-        
-        if (!bIsOpen)
+        if (ACharacter* Character = Cast<ACharacter>(Actor))
         {
-            ShowPrompt(true);
+            Inventory = Character->FindComponentByClass<UInventoryComponent>();
         }
     }
-}
 
-void AChest::OnInteractionEndOverlap(UPrimitiveComponent* OverlappedComponent, 
-    AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
-{
-    if (OtherActor == NearbyPlayer)
-    {
-        bPlayerNearby = false;
-        NearbyPlayer = nullptr;
-        ShowPrompt(false);
-    }
-}
-
-void AChest::HandleOpenTimelineProgress(float Value)
-{
-    float Angle = FMath::Lerp(0.0f, OpenAngle, Value);
-
-    if (ChestLidMesh)
-    {
-        FRotator Rot = InitialLidRotation;
-        Rot.Pitch += Angle;
-        ChestLidMesh->SetRelativeRotation(Rot);
-    }
-}
-
-void AChest::OnOpenTimelineFinished()
-{
-    bIsAnimating = false;
-
-    // Đảm bảo set góc cuối cùng chính xác
-    FRotator Rot = InitialLidRotation;
-    Rot.Pitch += OpenAngle;
-    ChestLidMesh->SetRelativeRotation(Rot);
+    return Inventory;
 }

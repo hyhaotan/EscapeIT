@@ -6,9 +6,8 @@
 #include "Blueprint/UserWidget.h"
 #include "NotificationWidget.generated.h"
 
-/**
- * 
- */
+class UWidgetAnimation;
+
 UCLASS()
 class ESCAPEIT_API UNotificationWidget : public UUserWidget
 {
@@ -19,8 +18,28 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Notification")
     void ShowError(const FText& ErrorText);
+	
+	UFUNCTION(BlueprintCallable, Category = "Notification")
+	void ShowNotification(const FText& Text);
+	
+	UFUNCTION()
+	void ShowAnimWidget(){PlayAnimation(DisplayAnim);}
+	
+	UFUNCTION()
+	void HideAnimWidget(){PlayAnimation(HiddenAnim);}
 
 protected:
 	UPROPERTY(meta = (BindWidget))
 	class UTextBlock* NotificationText;
+	
+	float SetDelayNotification(float Delay);
+	
+private:
+	UPROPERTY(meta=(BindWidgetAnim),Transient)
+	TObjectPtr<UWidgetAnimation> DisplayAnim;
+	
+	UPROPERTY(meta=(BindWidgetAnim),Transient)
+	TObjectPtr<UWidgetAnimation> HiddenAnim;
+	
+	FTimerHandle TimerHandle;
 };

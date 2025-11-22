@@ -114,6 +114,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Inventory|Equipment")
     bool DropEquippedItem();
+    
+    UFUNCTION()
+    bool ExecuteItemUseLogic(const FItemData& ItemData);
 
     UFUNCTION(BlueprintCallable, Category = "Inventory|Equipment")
     void UnequipCurrentItem();

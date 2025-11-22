@@ -24,9 +24,19 @@ UENUM(BlueprintType)
 enum class EItemCategory : uint8
 {
     Flashlight      UMETA(DisplayName = "Flashlight"),
+    Medicien        UMETA(DisplayName = "Medicien"),
     MasterKey       UMETA(DisplayName = "Master Key"),
     Wrench          UMETA(DisplayName = "Wrench"),
     Other           UMETA(DisplayName = "Other")
+};
+
+UENUM(BlueprintType)
+enum class EKeysType : uint8
+{
+    Key1 UMETA(DisplayName="Key1"),
+    Key2 UMETA(DisplayName="Key2"),
+    Key3 UMETA(DisplayName="Key3"),
+    Key4 UMETA(DisplayName="Key4"),
 };
 
 USTRUCT(BlueprintType)
@@ -52,7 +62,11 @@ struct FItemData : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Basic",
         meta = (EditCondition = "ItemType == EItemType::Tool", EditConditionHides))
     EItemCategory ItemCategory;
-
+    
+    UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="Key",
+        meta=(EditCondition="ItemCategory == EItemCategory::MasterKey",EditConditionHides))
+    EKeysType KeysType;
+    
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stack")
     int32 MaxStackSize;
 
@@ -60,7 +74,10 @@ struct FItemData : public FTableRowBase
     bool bIsConsumable;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Usage")
-    bool bCanBeDropped;
+    bool bCanBeDropped;   
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Usage")
+    bool bCanBeUse;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
     float SanityRestoreAmount;

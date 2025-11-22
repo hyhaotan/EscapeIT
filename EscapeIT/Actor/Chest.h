@@ -3,209 +3,121 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Components/TimelineComponent.h"
 #include "GameFramework/Actor.h"
 #include "EscapeIT/Interface/Interact.h"
-#include "EscapeIT/Actor/Item/Keys.h"
+#include "EscapeIT/Data/ItemData.h"
 #include "Chest.generated.h"
 
 class UStaticMeshComponent;
-class USphereComponent;
-class UWidgetComponent;
-class UDataTable;
-class USoundBase;
-class UParticleSystem;
-
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnChestOpened, AChest*, Chest, AActor*, Opener);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnChestLocked, AChest*, Chest, AActor*, Interactor);
+class UBoxComponent;
+class UCurveFloat;
+class UTimelineComponent;
+class UInventoryComponent;
+class UNotificationWidget;
 
 UCLASS()
 class ESCAPEIT_API AChest : public AActor, public IInteract
 {
     GENERATED_BODY()
     
-public: 
+public:    
     AChest();
 
 protected:
     virtual void BeginPlay() override;
 
-public: 
+public:    
     virtual void Tick(float DeltaTime) override;
+
+    // Interface Interact
+    virtual void Interact_Implementation(AActor* Interactor) override;
 
     // ============================================
     // COMPONENTS
     // ============================================
-    
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-    TObjectPtr<UStaticMeshComponent> ChestBaseMesh;
-    
+    TObjectPtr<UStaticMeshComponent> ChestMesh;
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-    TObjectPtr<UStaticMeshComponent> ChestLidMesh;
-    
+    TObjectPtr<UStaticMeshComponent> LidMesh;
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-    TObjectPtr<USphereComponent> InteractionSphere;
-    
+    TObjectPtr<UBoxComponent> InteractionBox;
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-    TObjectPtr<UWidgetComponent> PromptWidget;
+    TObjectPtr<UTimelineComponent> OpenTimeline;
 
     // ============================================
     // CHEST SETTINGS
     // ============================================
     
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Lock Settings")
-    bool bRequiresKey;
-    
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Lock Settings", 
-        meta = (EditCondition = "bRequiresKey", EditConditionHides))
-    EKeyType RequiredKeyType;
-    
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Lock Settings", 
-        meta = (EditCondition = "bRequiresKey", EditConditionHides))
-    FName RequiredKeyID;
-    
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Lock Settings")
-    bool bConsumeKeyOnUse;
-    
+    // Loại key yêu cầu để mở chest này
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Settings")
+    EKeysType RequiredKeyType;
+
+    // Có cần key để mở không (một số chest không cần key)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Settings")
+    bool bRequiresKey = true;
+
+    // Có cần cầm key trên tay không (nếu false thì chỉ cần có trong inventory)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Settings")
+    bool bRequireKeyEquipped = true;
+
+    // Có tiêu hao key sau khi mở không
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Settings")
+    bool bConsumeKeyOnOpen = false;
+
+    // Curve cho animation mở nắp
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Animation")
+    TObjectPtr<UCurveFloat> ChestCurve;
+
+    // Góc xoay tối đa của nắp (độ)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Animation")
+    float MaxLidRotation = 90.0f;
+
+    // Các item bên trong chest (thiết lập trong editor)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Contents")
+    TArray<FName> ChestItems;
+
+    // ============================================
+    // STATE
+    // ============================================
     UPROPERTY(BlueprintReadOnly, Category = "Chest|State")
-    bool bIsOpen;
-    
+    bool bIsOpen = false;
+
     UPROPERTY(BlueprintReadOnly, Category = "Chest|State")
-    bool bIsLocked;
+    bool bIsLocked = true;
 
     // ============================================
-    // LOOT SETTINGS
+    // SOUNDS
     // ============================================
-    
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Loot")
-    TArray<FName> LootItems;
-    
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Loot")
-    TMap<FName, int32> LootItemsWithQuantity;
-    
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Loot")
-    TObjectPtr<UDataTable> ItemDataTable;
-
-    // ============================================
-    // ANIMATION SETTINGS
-    // ============================================
-    
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Animation")
-    float OpenAngle;
-    
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Animation")
-    float OpenSpeed;
-    
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Animation")
-    UCurveFloat* OpenCurve;
-
-    // ============================================
-    // AUDIO & EFFECTS
-    // ============================================
-    
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Audio")
     TObjectPtr<USoundBase> OpenSound;
-    
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Audio")
     TObjectPtr<USoundBase> LockedSound;
-    
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Audio")
     TObjectPtr<USoundBase> UnlockSound;
 
-    // ============================================
-    // DELEGATES
-    // ============================================
-    
-    UPROPERTY(BlueprintAssignable, Category = "Chest|Events")
-    FOnChestOpened OnChestOpened;
-    
-    UPROPERTY(BlueprintAssignable, Category = "Chest|Events")
-    FOnChestLocked OnChestLocked;
-
-    // ============================================
-    // INTERACTION INTERFACE
-    // ============================================
-    
-    virtual void Interact_Implementation(AActor* Interactor) override;
-
-    // ============================================
-    // PUBLIC FUNCTIONS
-    // ============================================
-    
-    UFUNCTION(BlueprintCallable, Category = "Chest")
-    bool TryOpenChest(AActor* Opener);
-    
-    UFUNCTION(BlueprintCallable, Category = "Chest")
-    bool HasRequiredKey(AActor* Interactor) const;
-    
-    UFUNCTION(BlueprintCallable, Category = "Chest")
-    void UnlockChest();
-    
-    UFUNCTION(BlueprintCallable, Category = "Chest")
-    void OpenChest(AActor* Opener);
-    
-    UFUNCTION(BlueprintCallable, Category = "Chest")
-    void SpawnLoot();
-    
-    UFUNCTION(BlueprintCallable, Category = "Chest")
-    void GiveLootToPlayer(AActor* Player);
-    
-    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Chest")
-    bool IsChestOpen() const { return bIsOpen; }
-    
-    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Chest")
-    bool IsChestLocked() const { return bIsLocked; }
-    
-    UFUNCTION(BlueprintCallable, Category = "Chest")
-    void ShowPrompt(bool bShow);
-    
-    UFUNCTION(BlueprintCallable, Category = "Chest")
-    FText GetInteractionPrompt() const;
-
-protected:
-    // ============================================
-    // OVERLAP CALLBACKS
-    // ============================================
-    
-    UFUNCTION()
-    void OnInteractionBeginOverlap(
-        UPrimitiveComponent* OverlappedComponent,
-        AActor* OtherActor,
-        UPrimitiveComponent* OtherComp,
-        int32 OtherBodyIndex,
-        bool bFromSweep,
-        const FHitResult& SweepResult);
-
-    UFUNCTION()
-    void OnInteractionEndOverlap(
-        UPrimitiveComponent* OverlappedComponent,
-        AActor* OtherActor,
-        UPrimitiveComponent* OtherComp,
-        int32 OtherBodyIndex);
-    
-    // ============================================
-    // PROTECTED FUNCTIONS
-    // ============================================
-    
-    void InitializeChest();
-    void PlayOpenAnimation();
-    void ConsumeKeyFromInventory(AActor* Player);
-    
-    UFUNCTION()
-    void HandleOpenTimelineProgress(float Value);
-    
-    UFUNCTION()
-    void OnOpenTimelineFinished();
-
 private:
-    // Animation state
-    bool bIsAnimating;
-    float CurrentLidAngle;
-    float AnimationProgress;
-    FRotator InitialLidRotation;
-    UTimelineComponent* OpenTimeline;
+    bool CheckCanOpenChest(AActor* Interactor, FString& OutFailReason);
     
-    // Player tracking
-    bool bPlayerNearby;
-    AActor* NearbyPlayer;
+    void OpenChest(AActor* Interactor);
+    
+    UFUNCTION()
+    void UpdateLidRotation(float Value);
+
+    UFUNCTION()
+    void OnOpenFinished();
+    
+    void PlayChestSound(USoundBase* Sound);
+    
+    UInventoryComponent* GetInventoryFromActor(AActor* Actor) const;
+    
+    UPROPERTY()
+    TObjectPtr<UNotificationWidget> NotificationWidget;
+    
+    UPROPERTY(EditAnywhere,Category="Chest")
+    TSubclassOf<UNotificationWidget> NotificationWidgetClass;
 };

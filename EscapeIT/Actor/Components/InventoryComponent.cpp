@@ -445,6 +445,14 @@ bool UInventoryComponent::UseEquippedItem()
         return false;
     }
 
+    // CHECK: Kiểm tra xem item có thể sử dụng được không
+    if (!ItemData.bCanBeUse)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UseEquippedItem: Item '%s' cannot be used (bCanBeUse = false)"),
+            *ItemData.ItemName.ToString());
+        return false;
+    }
+
     // Check cooldown
     FInventorySlot* Slot = FindItemSlot(CurrentEquippedItemID);
     if (Slot && Slot->CooldownRemaining > 0.0f)
@@ -454,8 +462,17 @@ bool UInventoryComponent::UseEquippedItem()
         return false;
     }
 
-    // Apply effect
-    ApplyItemEffect(ItemData);
+    // ============================================
+    // GỌI LOGIC TỪ ItemPickupActor CLASS
+    // ============================================
+    bool bUsedSuccessfully = ExecuteItemUseLogic(ItemData);
+    
+    if (!bUsedSuccessfully)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UseEquippedItem: Failed to execute use logic for '%s'"),
+            *ItemData.ItemName.ToString());
+        return false;
+    }
 
     // Play sound
     PlayItemSound(ItemData.UseSound);
@@ -500,6 +517,68 @@ bool UInventoryComponent::UseEquippedItem()
     OnInventoryUpdated.Broadcast();
 
     UE_LOG(LogTemp, Log, TEXT("UseEquippedItem: Used '%s'"), *ItemData.ItemName.ToString());
+    return true;
+}
+
+bool UInventoryComponent::ExecuteItemUseLogic(const FItemData& ItemData)
+{
+    if (!ItemData.PickupActorClass)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ExecuteItemUseLogic: No PickupActorClass defined for '%s'"),
+            *ItemData.ItemName.ToString());
+        
+        // Fallback: Apply effect nếu là consumable
+        if (ItemData.bIsConsumable)
+        {
+            ApplyItemEffect(ItemData);
+            return true;
+        }
+        return false;
+    }
+
+    // Spawn temporary actor để gọi UseItem
+    APawn* OwnerPawn = Cast<APawn>(GetOwner());
+    if (!OwnerPawn)
+    {
+        return false;
+    }
+
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.Owner = OwnerPawn;
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+    // Spawn ở vị trí player (không hiển thị)
+    FVector SpawnLocation = OwnerPawn->GetActorLocation();
+    FRotator SpawnRotation = OwnerPawn->GetActorRotation();
+
+    AItemPickupActor* TempItemActor = GetWorld()->SpawnActor<AItemPickupActor>(
+        ItemData.PickupActorClass,
+        SpawnLocation,
+        SpawnRotation,
+        SpawnParams
+    );
+
+    if (!TempItemActor)
+    {
+        UE_LOG(LogTemp, Error, TEXT("ExecuteItemUseLogic: Failed to spawn temp actor"));
+        return false;
+    }
+
+    // Ẩn mesh (không cần hiển thị)
+    if (TempItemActor->MeshComponent)
+    {
+        TempItemActor->MeshComponent->SetVisibility(false);
+    }
+
+    // Set ItemID để actor biết mình là item gì
+    TempItemActor->SetItemID(ItemData.ItemID);
+
+    // Gọi UseItem_Implementation
+    TempItemActor->UseItem();
+
+    // Destroy ngay sau khi dùng
+    TempItemActor->Destroy();
+
     return true;
 }
 

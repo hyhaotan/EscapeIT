@@ -1,26 +1,10 @@
-// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "EscapeIT/Actor/ItemPickupActor.h"
+#include "EscapeIT/Data/ItemData.h"
 #include "Keys.generated.h"
-
-/**
- * Key types that match with chest lock types
- */
-UENUM(BlueprintType)
-enum class EKeyType : uint8
-{
-	RustyKey        UMETA(DisplayName = "Rusty Key"),
-	GoldenKey       UMETA(DisplayName = "Golden Key"),
-	SilverKey       UMETA(DisplayName = "Silver Key"),
-	MasterKey       UMETA(DisplayName = "Master Key"),
-	SpecialKey      UMETA(DisplayName = "Special Key"),
-	RedKey          UMETA(DisplayName = "Red Key"),
-	BlueKey         UMETA(DisplayName = "Blue Key"),
-	GreenKey        UMETA(DisplayName = "Green Key")
-};
 
 UCLASS()
 class ESCAPEIT_API AKeys : public AItemPickupActor
@@ -30,38 +14,20 @@ class ESCAPEIT_API AKeys : public AItemPickupActor
 public: 
 	AKeys();
 
-	// ============================================
-	// KEY PROPERTIES
-	// ============================================
-    
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Key Settings")
-	EKeyType KeyType;
-    
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Key Settings")
-	FName KeyID;
-    
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Key Settings")
-	bool bIsSingleUse;
-    
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Key Settings")
-	int32 MaxUses;
-
-	// ============================================
-	// KEY FUNCTIONS
-	// ============================================
-    
-	UFUNCTION(BlueprintCallable, Category = "Key")
-	EKeyType GetKeyType() const { return KeyType; }
-    
-	UFUNCTION(BlueprintCallable, Category = "Key")
-	FName GetKeyID() const { return KeyID; }
-    
-	UFUNCTION(BlueprintCallable, Category = "Key")
-	bool CanBeUsed() const;
-
+	virtual void UseItem_Implementation() override;
 protected:
 	virtual void BeginPlay() override;
 
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Key")
+	EKeysType KeyType;
+	
+	UFUNCTION(BlueprintCallable, Category = "Key")
+	EKeysType GetKeyType() const { return KeyType; }
+	
+	
 private:
-	int32 CurrentUses;
+	bool TryUnlockDoor();
+	
+	AActor* FindDoorInRange();
 };
