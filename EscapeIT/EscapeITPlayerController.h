@@ -131,8 +131,9 @@ protected:
     void OnInteractableLost(AActor* OldInteractable);
     void OnInteract();
     void Inventory();
-    void OnFlashlight();
+    void OnToggleFlashlight();
     void OnPauseMenu();
+    void UnequipCurrentItem();
 
     virtual void AddYawInput(float Val) override;
     virtual void AddPitchInput(float Val) override;

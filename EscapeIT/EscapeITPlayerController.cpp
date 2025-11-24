@@ -1,5 +1,4 @@
-﻿
-#include "EscapeITPlayerController.h"
+﻿#include "EscapeITPlayerController.h"
 #include "EscapeIT/Actor/ItemPickupActor.h"
 #include "EscapeIT/Actor/Components/InventoryComponent.h"
 #include "EscapeIT/Actor/Components/FlashlightComponent.h"
@@ -14,7 +13,6 @@
 #include "Engine/LocalPlayer.h"
 #include "EscapeIT/UI/HUD/WidgetManager.h"
 #include <EnhancedInputSubsystems.h>
-
 #include "EscapeITCharacter.h"
 
 AEscapeITPlayerController::AEscapeITPlayerController()
@@ -23,6 +21,7 @@ AEscapeITPlayerController::AEscapeITPlayerController()
     , bInvertPitch(false)
     , bLastInputWasGamepad(false)
     , LastInputNotifyTime(0.0)
+    , CurrentEquippedSlotIndex(-1)
 {
     bShowMouseCursor = false;
 }
@@ -32,7 +31,6 @@ void AEscapeITPlayerController::AddYawInput(float Val)
     if (FMath::IsNearlyZero(Val)) return;
 
     const float Sensitivity = bLastInputWasGamepad ? GamepadSensitivity : MouseSensitivity;
-
     const float Scaled = Val * Sensitivity;
 
     Super::AddYawInput(Scaled);
@@ -69,26 +67,28 @@ void AEscapeITPlayerController::BeginPlay()
 {
     Super::BeginPlay();
 
-    if (!FlashlightComponent)
-    {
-        // Nếu không có trong Controller, thử tìm từ Pawn
-        if (GetPawn())
-        {
-            FlashlightComponent = GetPawn()->FindComponentByClass<UFlashlightComponent>();
-            if (FlashlightComponent)
-            {
-                UE_LOG(LogTemp, Log, TEXT("FlashlightComponent found on Pawn"));
-            }
-        }
-    }
     LastInputNotifyTime = FPlatformTime::Seconds();
 
-    FlashlightComponent->SetLightEnabled(true);
-
-    // Get inventory component
+    // Get references from Pawn
     if (GetPawn())
     {
+        // Get Inventory Component
         InventoryComponent = GetPawn()->FindComponentByClass<UInventoryComponent>();
+        if (!InventoryComponent)
+        {
+            UE_LOG(LogTemp, Error, TEXT("PlayerController: InventoryComponent not found on Pawn!"));
+        }
+
+        // Get Flashlight Component
+        FlashlightComponent = GetPawn()->FindComponentByClass<UFlashlightComponent>();
+        if (!FlashlightComponent)
+        {
+            UE_LOG(LogTemp, Error, TEXT("PlayerController: FlashlightComponent not found on Pawn!"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Log, TEXT("PlayerController: FlashlightComponent found"));
+        }
     }
 
     // Create interaction prompt widget
@@ -102,6 +102,7 @@ void AEscapeITPlayerController::BeginPlay()
         }
     }
 
+    // Create quickbar widget
     if (QuickbarWidgetClass)
     {
         QuickbarWidget = CreateWidget<UQuickbarWidget>(this, QuickbarWidgetClass);
@@ -146,20 +147,22 @@ void AEscapeITPlayerController::SetupInputComponent()
 
         if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(InputComponent))
         {
-            // Bind quickbar keys to EQUIP instead of USE
+            // Bind quickbar keys to EQUIP
             if (Quickbar1) EnhancedInputComponent->BindAction(Quickbar1, ETriggerEvent::Completed, this, &AEscapeITPlayerController::EquipQuickbarSlot1);
             if (Quickbar2) EnhancedInputComponent->BindAction(Quickbar2, ETriggerEvent::Completed, this, &AEscapeITPlayerController::EquipQuickbarSlot2);
             if (Quickbar3) EnhancedInputComponent->BindAction(Quickbar3, ETriggerEvent::Completed, this, &AEscapeITPlayerController::EquipQuickbarSlot3);
             if (Quickbar4) EnhancedInputComponent->BindAction(Quickbar4, ETriggerEvent::Completed, this, &AEscapeITPlayerController::EquipQuickbarSlot4);
-            if (ToggleFlashlight) EnhancedInputComponent->BindAction(ToggleFlashlight, ETriggerEvent::Completed, this, &AEscapeITPlayerController::OnFlashlight);
+
+            // Toggle flashlight (F key)
+            if (ToggleFlashlight) EnhancedInputComponent->BindAction(ToggleFlashlight, ETriggerEvent::Completed, this, &AEscapeITPlayerController::OnToggleFlashlight);
+
+            // Use equipped item (Right-click)
+            if (UseEquippedItem) EnhancedInputComponent->BindAction(UseEquippedItem, ETriggerEvent::Completed, this, &AEscapeITPlayerController::UseCurrentEquippedItem);
+
+            // Other actions
             if (ToggleInventory) EnhancedInputComponent->BindAction(ToggleInventory, ETriggerEvent::Completed, this, &AEscapeITPlayerController::Inventory);
             if (Interact) EnhancedInputComponent->BindAction(Interact, ETriggerEvent::Completed, this, &AEscapeITPlayerController::OnInteract);
             if (PauseMenu) EnhancedInputComponent->BindAction(PauseMenu, ETriggerEvent::Completed, this, &AEscapeITPlayerController::OnPauseMenu);
-
-            // Add right-click to USE equipped item
-            if (UseEquippedItem) EnhancedInputComponent->BindAction(UseEquippedItem, ETriggerEvent::Completed, this, &AEscapeITPlayerController::UseCurrentEquippedItem);
-
-            // Drop equipped item
             if (DropItem) EnhancedInputComponent->BindAction(DropItem, ETriggerEvent::Completed, this, &AEscapeITPlayerController::DropCurrentItem);
         }
     }
@@ -172,6 +175,10 @@ void AEscapeITPlayerController::PlayerTick(float DeltaTime)
     // Update interaction detection
     CheckForInteractables();
 }
+
+// ============================================
+// INTERACTION SYSTEM
+// ============================================
 
 void AEscapeITPlayerController::CheckForInteractables()
 {
@@ -244,8 +251,7 @@ void AEscapeITPlayerController::OnInteractableFound(AActor* Interactable)
     }
 
     // Check if it's an item pickup
-    const auto PickupActor = Cast<AItemPickupActor>(Interactable);
-    if (PickupActor)
+    if (AItemPickupActor* PickupActor = Cast<AItemPickupActor>(Interactable))
     {
         FItemData ItemData;
         if (PickupActor->GetItemData(ItemData))
@@ -257,8 +263,12 @@ void AEscapeITPlayerController::OnInteractableFound(AActor* Interactable)
             );
 
             InteractionPromptWidget->ShowPrompt(ActionText, TargetText, nullptr);
-            PickupActor->MeshComponent->SetRenderCustomDepth(true);
-            PickupActor->MeshComponent->SetCustomDepthStencilValue(1.0f);
+            
+            if (PickupActor->MeshComponent)
+            {
+                PickupActor->MeshComponent->SetRenderCustomDepth(true);
+                PickupActor->MeshComponent->SetCustomDepthStencilValue(1);
+            }
         }
         return;
     }
@@ -276,11 +286,13 @@ void AEscapeITPlayerController::OnInteractableLost(AActor* OldInteractable)
     
     if (OldInteractable)
     {
-        const auto PickupActor = Cast<AItemPickupActor>(OldInteractable);
-        if (PickupActor && PickupActor->MeshComponent)
+        if (AItemPickupActor* PickupActor = Cast<AItemPickupActor>(OldInteractable))
         {
-            PickupActor->MeshComponent->SetRenderCustomDepth(false);
-            PickupActor->MeshComponent->SetCustomDepthStencilValue(0);
+            if (PickupActor->MeshComponent)
+            {
+                PickupActor->MeshComponent->SetRenderCustomDepth(false);
+                PickupActor->MeshComponent->SetCustomDepthStencilValue(0);
+            }
         }
     }
 }
@@ -302,9 +314,12 @@ void AEscapeITPlayerController::OnInteract()
         }
 
         CurrentInteractable = nullptr;
-        return;
     }
 }
+
+// ============================================
+// INVENTORY SYSTEM
+// ============================================
 
 void AEscapeITPlayerController::Inventory()
 {
@@ -330,7 +345,7 @@ void AEscapeITPlayerController::Inventory()
         {
             InventoryWidget->AddToViewport(20);
 
-            // Initialize if it has Initialize function
+            // Initialize inventory widget
             if (UInventoryWidget* InvWidget = Cast<UInventoryWidget>(InventoryWidget))
             {
                 if (InventoryComponent)
@@ -349,53 +364,73 @@ void AEscapeITPlayerController::Inventory()
     }
 }
 
-void AEscapeITPlayerController::OnFlashlight()
+// ============================================
+// FLASHLIGHT SYSTEM (CONTROLLED BY PLAYER)
+// ============================================
+
+void AEscapeITPlayerController::OnToggleFlashlight()
 {
+    // Validate components
     if (!FlashlightComponent)
     {
-        UE_LOG(LogTemp, Warning, TEXT("Cannot toggle flashlight - FlashlightComponent is null!"));
+        UE_LOG(LogTemp, Warning, TEXT("OnToggleFlashlight: FlashlightComponent is null!"));
         return;
     }
 
-    // Check if flashlight is currently equipped
     if (!InventoryComponent)
     {
-        UE_LOG(LogTemp, Warning, TEXT("Cannot toggle flashlight - InventoryComponent is null!"));
+        UE_LOG(LogTemp, Warning, TEXT("OnToggleFlashlight: InventoryComponent is null!"));
         return;
     }
 
-    // Get currently equipped item
-    FItemData EquippedItem;
-    bool bHasEquippedItem = InventoryComponent->GetEquippedItem(EquippedItem);
-
-    if (!bHasEquippedItem)
+    // Check if any item is equipped
+    if (!InventoryComponent->IsItemEquipped())
     {
-        UE_LOG(LogTemp, Warning, TEXT("No item equipped!"));
+        UE_LOG(LogTemp, Warning, TEXT("OnToggleFlashlight: No item equipped!"));
         return;
     }
 
-    // Check if equipped item is a flashlight using ItemCategory
-    if (EquippedItem.ItemType == EItemType::Tool)
+    // Get currently equipped item data
+    FItemData EquippedItemData;
+    if (!InventoryComponent->GetEquippedItem(EquippedItemData))
     {
-        if (EquippedItem.ItemCategory == EItemCategory::Flashlight)
-        {
-            FlashlightComponent->ToggleLight();
-            UE_LOG(LogTemp, Log, TEXT("Flashlight toggled"));
-        }
+        UE_LOG(LogTemp, Warning, TEXT("OnToggleFlashlight: Cannot get equipped item data!"));
+        return;
+    }
+
+    // Check if equipped item is a flashlight
+    if (EquippedItemData.ItemCategory != EItemCategory::Flashlight)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("OnToggleFlashlight: Equipped item is not a flashlight! Current: %s"),
+            *EquippedItemData.ItemName.ToString());
+        return;
+    }
+
+    // Check if flashlight is equipped in FlashlightComponent
+    if (!FlashlightComponent->IsEquipped())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("OnToggleFlashlight: Flashlight not equipped in FlashlightComponent!"));
+        return;
+    }
+
+    // Toggle the flashlight
+    bool bSuccess = FlashlightComponent->ToggleLight();
+
+    if (bSuccess)
+    {
+        UE_LOG(LogTemp, Log, TEXT("Flashlight toggled: %s (Battery: %.1f%%)"),
+            FlashlightComponent->IsLightOn() ? TEXT("ON") : TEXT("OFF"),
+            FlashlightComponent->GetBatteryPercentage());
     }
     else
     {
-        UE_LOG(LogTemp, Warning, TEXT("Equipped item is not a flashlight! Current item: %s"),
-            *EquippedItem.ItemName.ToString());
+        UE_LOG(LogTemp, Warning, TEXT("Failed to toggle flashlight (possibly no battery)"));
     }
 }
 
-void AEscapeITPlayerController::OnPauseMenu()
-{
-    AHUD* HUD = GetHUD();
-    WidgetManagerHUD = Cast<AWidgetManager>(HUD);
-    WidgetManagerHUD->TogglePauseMenu();
-}
+// ============================================
+// QUICKBAR SYSTEM
+// ============================================
 
 void AEscapeITPlayerController::EquipQuickbarSlot1()
 {
@@ -421,6 +456,17 @@ void AEscapeITPlayerController::EquipQuickbarSlot(int32 SlotIndex)
 {
     if (!InventoryComponent)
     {
+        UE_LOG(LogTemp, Warning, TEXT("EquipQuickbarSlot: InventoryComponent is null!"));
+        return;
+    }
+
+    // Check if trying to equip same slot (toggle unequip)
+    if (CurrentEquippedSlotIndex == SlotIndex)
+    {
+        UE_LOG(LogTemp, Log, TEXT("Unequipping slot %d"), SlotIndex + 1);
+        
+        // This will handle unequipping including flashlight
+        UnequipCurrentItem();
         return;
     }
 
@@ -428,43 +474,39 @@ void AEscapeITPlayerController::EquipQuickbarSlot(int32 SlotIndex)
     FItemData ItemData;
     bool bHasItem = InventoryComponent->GetQuickbarSlotItem(SlotIndex, ItemData);
 
-    // Unequip flashlight if currently equipped
-    if (CurrentEquippedSlotIndex >= 0 && FlashlightComponent)
+    if (!bHasItem)
     {
-        FItemData CurrentItem;
-        if (InventoryComponent->GetEquippedItem(CurrentItem))
-        {
-            if (CurrentItem.ItemName.ToString().Contains(TEXT("Flashlight")))
-            {
-                FlashlightComponent->UnequipFlashlight();
-            }
-        }
+        UE_LOG(LogTemp, Warning, TEXT("EquipQuickbarSlot: Slot %d is empty"), SlotIndex + 1);
+        return;
     }
 
-    // Equip new item
+    // Unequip current item first (if any)
+    if (CurrentEquippedSlotIndex >= 0)
+    {
+        UnequipCurrentItem();
+    }
+
+    // Equip new item through InventoryComponent
     bool bSuccess = InventoryComponent->EquipQuickbarSlot(SlotIndex);
 
     if (bSuccess)
     {
         CurrentEquippedSlotIndex = SlotIndex;
 
-        if (const auto Char = GetPawn<AEscapeITCharacter>())
+        // Check if it's a flashlight
+        bool bIsFlashlight = (ItemData.ItemCategory == EItemCategory::Flashlight);
+
+        // Update character animation state
+        if (AEscapeITCharacter* Char = GetPawn<AEscapeITCharacter>())
         {
-            bool bIsFlashlight = (bHasItem && 
-                                  ItemData.ItemType == EItemType::Tool && 
-                                  ItemData.ItemCategory == EItemCategory::Flashlight);
-            
             Char->bIsHoldingFlashlight = bIsFlashlight;
-            
-            if (bIsFlashlight && FlashlightComponent)
-            {
-                
-                FlashlightComponent->EquipFlashlight();
-                UE_LOG(LogTemp, Log, TEXT("Flashlight equipped and ready to use"));
-            }
         }
 
-        UE_LOG(LogTemp, Log, TEXT("Equipped item from quickbar slot %d"), SlotIndex + 1);
+        UE_LOG(LogTemp, Log, TEXT("Equipped '%s' from quickbar slot %d"),
+            *ItemData.ItemName.ToString(), SlotIndex + 1);
+
+        // Note: FlashlightComponent->EquipFlashlight() is called by InventoryComponent->EquipQuickbarSlot()
+        // FlashlightComponent->SetLightEnabled(true) is also called automatically
     }
     else
     {
@@ -472,21 +514,51 @@ void AEscapeITPlayerController::EquipQuickbarSlot(int32 SlotIndex)
     }
 }
 
-// ========== USE EQUIPPED ITEM (Right-click) ==========
+void AEscapeITPlayerController::UnequipCurrentItem()
+{
+    if (!InventoryComponent || CurrentEquippedSlotIndex < 0)
+    {
+        return;
+    }
+
+    // Get current equipped item data
+    FItemData CurrentItemData;
+    bool bHasEquippedItem = InventoryComponent->GetEquippedItem(CurrentItemData);
+
+    // Unequip through InventoryComponent (will handle FlashlightComponent automatically)
+    InventoryComponent->UnequipCurrentItem();
+
+    // Update character animation state
+    if (AEscapeITCharacter* Characters = GetPawn<AEscapeITCharacter>())
+    {
+        Characters->bIsHoldingFlashlight = false;
+    }
+
+    CurrentEquippedSlotIndex = -1;
+
+    UE_LOG(LogTemp, Log, TEXT("Unequipped item"));
+}
+
+// ============================================
+// USE EQUIPPED ITEM
+// ============================================
 
 void AEscapeITPlayerController::UseCurrentEquippedItem()
 {
     if (!InventoryComponent)
     {
+        UE_LOG(LogTemp, Warning, TEXT("UseCurrentEquippedItem: InventoryComponent is null!"));
         return;
     }
 
     if (CurrentEquippedSlotIndex < 0)
     {
+        UE_LOG(LogTemp, Warning, TEXT("UseCurrentEquippedItem: No item equipped!"));
         return;
     }
 
-    // Sử dụng item đang equipped
+    // Use equipped item through InventoryComponent
+    // InventoryComponent will delegate to FlashlightComponent if it's a flashlight
     bool bSuccess = InventoryComponent->UseEquippedItem();
 
     if (bSuccess)
@@ -499,7 +571,66 @@ void AEscapeITPlayerController::UseCurrentEquippedItem()
     }
 }
 
-// ========== DEPRECATED (Giữ lại cho tương thích) ==========
+// ============================================
+// DROP ITEM
+// ============================================
+
+void AEscapeITPlayerController::DropCurrentItem()
+{
+    if (!InventoryComponent)
+    {
+        return;
+    }
+
+    if (CurrentEquippedSlotIndex < 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("DropCurrentItem: No item equipped!"));
+        return;
+    }
+
+    // Get current equipped item before dropping
+    FItemData CurrentItemData;
+    bool bHasEquippedItem = InventoryComponent->GetEquippedItem(CurrentItemData);
+
+    // Drop through InventoryComponent (will handle FlashlightComponent automatically)
+    bool bSuccess = InventoryComponent->DropEquippedItem();
+
+    if (bSuccess)
+    {
+        // Update character animation state
+        if (AEscapeITCharacter* Charac = GetPawn<AEscapeITCharacter>())
+        {
+            Charac->bIsHoldingFlashlight = false;
+        }
+
+        CurrentEquippedSlotIndex = -1;
+
+        UE_LOG(LogTemp, Log, TEXT("Dropped equipped item"));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Failed to drop item"));
+    }
+}
+
+// ============================================
+// PAUSE MENU
+// ============================================
+
+void AEscapeITPlayerController::OnPauseMenu()
+{
+    if (AHUD* HUD = GetHUD())
+    {
+        if (AWidgetManager* WidgetManager = Cast<AWidgetManager>(HUD))
+        {
+            WidgetManager->TogglePauseMenu();
+        }
+    }
+}
+
+// ============================================
+// DEPRECATED FUNCTIONS (For backward compatibility)
+// ============================================
 
 void AEscapeITPlayerController::UseQuickbarSlot1()
 {
@@ -524,26 +655,4 @@ void AEscapeITPlayerController::UseQuickbarSlot4()
 void AEscapeITPlayerController::UseQuickbarSlot(int32 SlotIndex)
 {
     EquipQuickbarSlot(SlotIndex);
-}
-
-void AEscapeITPlayerController::DropCurrentItem()
-{
-    if (InventoryComponent)
-    {
-        // Unequip flashlight before dropping
-        if (CurrentEquippedSlotIndex >= 0 && FlashlightComponent)
-        {
-            FItemData CurrentItem;
-            if (InventoryComponent->GetEquippedItem(CurrentItem))
-            {
-                if (CurrentItem.ItemName.ToString().Contains(TEXT("Flashlight")))
-                {
-                    FlashlightComponent->UnequipFlashlight();
-                }
-            }
-        }
-
-        InventoryComponent->DropEquippedItem();
-        CurrentEquippedSlotIndex = -1;
-    }
 }

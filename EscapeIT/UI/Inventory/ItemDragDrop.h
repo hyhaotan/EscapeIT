@@ -24,11 +24,15 @@ public:
 
 	UPROPERTY()
 	FName ItemID;
+	
+	UPROPERTY()
+	int32 Quantity;
 
 	UItemDragDrop()
 		: SourceSlot(nullptr)
 		, SlotIndex(-1)
 		, bIsQuickbarSlot(false)
+		, Quantity(1)
 		, ItemID(NAME_None)
 	{
 	}

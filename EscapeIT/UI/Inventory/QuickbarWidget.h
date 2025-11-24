@@ -1,4 +1,3 @@
-// QuickbarWidget.h
 #pragma once
 
 #include "CoreMinimal.h"
@@ -6,19 +5,19 @@
 #include "EscapeIT/Data/ItemData.h"
 #include "QuickbarWidget.generated.h"
 
+// Forward declarations
+class UInventoryComponent;
+class UFlashlightComponent;
 class UImage;
 class UTextBlock;
 class UProgressBar;
 class UBorder;
+class UDataTable;
 
 UCLASS()
 class ESCAPEIT_API UQuickbarWidget : public UUserWidget
 {
     GENERATED_BODY()
-
-protected:
-    virtual void NativeConstruct() override;
-    virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 public:
     // ============================================
@@ -26,106 +25,10 @@ public:
     // ============================================
 
     UFUNCTION(BlueprintCallable, Category = "Quickbar")
-    void InitQuickBar(class UInventoryComponent* InInventoryComp, class UFlashlightComponent* InFlashlightComp);
+    void InitQuickBar(UInventoryComponent* InInventoryComp, UFlashlightComponent* InFlashlightComp);
 
     UFUNCTION(BlueprintCallable, Category = "Quickbar")
     void RefreshQuickbar();
-
-    // ============================================
-    // SLOT WIDGETS - SLOT 1
-    // ============================================
-
-    UPROPERTY(meta = (BindWidget))
-    UImage* Slot1_Icon;
-
-    UPROPERTY(meta = (BindWidget))
-    UTextBlock* Slot1_Quantity;
-
-    UPROPERTY(meta = (BindWidget))
-    UProgressBar* Slot1_Battery;
-
-    UPROPERTY(meta = (BindWidget))
-    UBorder* Slot1_Border;
-
-    UPROPERTY(meta = (BindWidget))
-    UTextBlock* Slot1_Hotkey;
-
-    // ============================================
-    // SLOT WIDGETS - SLOT 2
-    // ============================================
-
-    UPROPERTY(meta = (BindWidget))
-    UImage* Slot2_Icon;
-
-    UPROPERTY(meta = (BindWidget))
-    UTextBlock* Slot2_Quantity;
-
-    UPROPERTY(meta = (BindWidget))
-    UProgressBar* Slot2_Battery;
-
-    UPROPERTY(meta = (BindWidget))
-    UBorder* Slot2_Border;
-
-    UPROPERTY(meta = (BindWidget))
-    UTextBlock* Slot2_Hotkey;
-
-    // ============================================
-    // SLOT WIDGETS - SLOT 3
-    // ============================================
-
-    UPROPERTY(meta = (BindWidget))
-    UImage* Slot3_Icon;
-
-    UPROPERTY(meta = (BindWidget))
-    UTextBlock* Slot3_Quantity;
-
-    UPROPERTY(meta = (BindWidget))
-    UProgressBar* Slot3_Battery;
-
-    UPROPERTY(meta = (BindWidget))
-    UBorder* Slot3_Border;
-
-    UPROPERTY(meta = (BindWidget))
-    UTextBlock* Slot3_Hotkey;
-
-    // ============================================
-    // SLOT WIDGETS - SLOT 4
-    // ============================================
-
-    UPROPERTY(meta = (BindWidget))
-    UImage* Slot4_Icon;
-
-    UPROPERTY(meta = (BindWidget))
-    UTextBlock* Slot4_Quantity;
-
-    UPROPERTY(meta = (BindWidget))
-    UProgressBar* Slot4_Battery;
-
-    UPROPERTY(meta = (BindWidget))
-    UBorder* Slot4_Border;
-
-    UPROPERTY(meta = (BindWidget))
-    UTextBlock* Slot4_Hotkey;
-
-    // ============================================
-    // COLORS
-    // ============================================
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Colors")
-    FLinearColor NormalBorderColor = FLinearColor(0.2f, 0.2f, 0.2f, 0.8f);
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Colors")
-    FLinearColor SelectedBorderColor = FLinearColor(1.0f, 0.8f, 0.0f, 1.0f);
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Colors")
-    FLinearColor EmptySlotColor = FLinearColor(0.1f, 0.1f, 0.1f, 0.5f);
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Colors")
-    FLinearColor LowBatteryColor = FLinearColor::Red;
-
-    // ============================================
-    // PUBLIC FUNCTIONS
-    // ============================================
 
     UFUNCTION(BlueprintCallable, Category = "Quickbar")
     void UpdateSlot(int32 SlotIndex);
@@ -134,56 +37,144 @@ public:
     void HighlightSlot(int32 SlotIndex);
 
 protected:
+    virtual void NativeConstruct() override;
+    virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+
+    // ============================================
+    // SLOT 1 WIDGETS
+    // ============================================
+    
+    UPROPERTY(meta = (BindWidget))
+    UImage* Slot1_Icon;
+
+    UPROPERTY(meta = (BindWidget))
+    UTextBlock* Slot1_Quantity;
+
+    UPROPERTY(meta = (BindWidget))
+    UTextBlock* Slot1_Hotkey;
+
+    UPROPERTY(meta = (BindWidget))
+    UProgressBar* Slot1_Battery;
+
+    UPROPERTY(meta = (BindWidget))
+    UBorder* Slot1_Border;
+
+    // ============================================
+    // SLOT 2 WIDGETS
+    // ============================================
+    
+    UPROPERTY(meta = (BindWidget))
+    UImage* Slot2_Icon;
+
+    UPROPERTY(meta = (BindWidget))
+    UTextBlock* Slot2_Quantity;
+
+    UPROPERTY(meta = (BindWidget))
+    UTextBlock* Slot2_Hotkey;
+
+    UPROPERTY(meta = (BindWidget))
+    UProgressBar* Slot2_Battery;
+
+    UPROPERTY(meta = (BindWidget))
+    UBorder* Slot2_Border;
+
+    // ============================================
+    // SLOT 3 WIDGETS
+    // ============================================
+    
+    UPROPERTY(meta = (BindWidget))
+    UImage* Slot3_Icon;
+
+    UPROPERTY(meta = (BindWidget))
+    UTextBlock* Slot3_Quantity;
+
+    UPROPERTY(meta = (BindWidget))
+    UTextBlock* Slot3_Hotkey;
+
+    UPROPERTY(meta = (BindWidget))
+    UProgressBar* Slot3_Battery;
+
+    UPROPERTY(meta = (BindWidget))
+    UBorder* Slot3_Border;
+
+    // ============================================
+    // SLOT 4 WIDGETS
+    // ============================================
+    
+    UPROPERTY(meta = (BindWidget))
+    UImage* Slot4_Icon;
+
+    UPROPERTY(meta = (BindWidget))
+    UTextBlock* Slot4_Quantity;
+
+    UPROPERTY(meta = (BindWidget))
+    UTextBlock* Slot4_Hotkey;
+
+    UPROPERTY(meta = (BindWidget))
+    UProgressBar* Slot4_Battery;
+
+    UPROPERTY(meta = (BindWidget))
+    UBorder* Slot4_Border;
+
+    // ============================================
+    // STYLE PROPERTIES
+    // ============================================
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Quickbar|Style")
+    FLinearColor NormalBorderColor = FLinearColor(0.1f, 0.1f, 0.1f, 1.0f);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Quickbar|Style")
+    FLinearColor SelectedBorderColor = FLinearColor(1.0f, 1.0f, 0.0f, 1.0f);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Quickbar|Style")
+    FLinearColor EmptySlotColor = FLinearColor(0.3f, 0.3f, 0.3f, 0.5f);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Quickbar|Style")
+    FLinearColor LowBatteryColor = FLinearColor(1.0f, 0.0f, 0.0f, 1.0f);
+
+private:
     // ============================================
     // COMPONENT REFERENCES
     // ============================================
+    
+    UPROPERTY()
+    UInventoryComponent* InventoryComponent = nullptr;
 
-    UPROPERTY(BlueprintReadOnly, Category = "Components")
-    TObjectPtr<class UInventoryComponent> InventoryComponent;
+    UPROPERTY()
+    UFlashlightComponent* FlashlightComponent = nullptr;
 
-    UPROPERTY(BlueprintReadOnly, Category = "Components")
-    TObjectPtr<class UFlashlightComponent> FlashlightComponent;
-
-    UPROPERTY(BlueprintReadOnly, Category = "Data")
-    TObjectPtr<UDataTable> ItemDataTable;
+    UPROPERTY()
+    UDataTable* ItemDataTable = nullptr;
 
     // ============================================
-    // STATE
+    // STATE TRACKING
     // ============================================
 
-    UPROPERTY(BlueprintReadOnly, Category = "State")
+    bool bIsInitialized = false;
     int32 CurrentSelectedSlot = -1;
-
-    UPROPERTY(BlueprintReadOnly, Category = "State")
     bool bLowBatteryWarningActive = false;
 
-    UPROPERTY(BlueprintReadOnly, Category = "State")
-    bool bIsInitialized = false;
+    // ============================================
+    // INTERNAL FUNCTIONS
+    // ============================================
+
+    void UpdateSlotVisuals(int32 SlotIndex, const FInventorySlot& SlotData);
+    void UpdateBatteryDisplay(int32 SlotIndex, float Percentage);
+    int32 FindFlashlightSlot();
+    bool IsFlashlightItem(const FItemData& ItemData);
+    UProgressBar* GetBatteryBarForSlot(int32 SlotIndex);
+    UBorder* GetBorderForSlot(int32 SlotIndex);
 
     // ============================================
-    // EVENT HANDLERS
+    // EVENT CALLBACKS
     // ============================================
 
     UFUNCTION()
     void OnInventoryUpdated();
 
     UFUNCTION()
-    void OnBatteryChanged(float Percentage);
+    void OnBatteryChanged(float CurrentBattery, float MaxBattery);
 
     UFUNCTION()
     void OnFlashlightToggled(bool bIsOn);
-
-private:
-    // ============================================
-    // INTERNAL FUNCTIONS
-    // ============================================
-
-    void UpdateSlotVisuals(int32 SlotIndex, const struct FInventorySlot& SlotData);
-    void UpdateBatteryDisplay(int32 SlotIndex, float Percentage);
-    
-    // Helper functions
-    int32 FindFlashlightSlot();
-    bool IsFlashlightItem(FName ItemID);
-    UProgressBar* GetBatteryBarForSlot(int32 SlotIndex);
-    UBorder* GetBorderForSlot(int32 SlotIndex);
 };

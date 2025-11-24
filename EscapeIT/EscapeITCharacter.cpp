@@ -144,8 +144,15 @@ void AEscapeITCharacter::BindComponentEvents()
 		StaminaComponent->OnStaminaExhausted.AddDynamic(this, &AEscapeITCharacter::OnStaminaExhausted);
 		StaminaComponent->OnStaminaRecovered.AddDynamic(this, &AEscapeITCharacter::OnStaminaRecovered);
 	}
-
-	// TODO: Bind other component events here if needed
+	
+	if (FlashlightComponent)
+	{
+		// Listen to flashlight events
+		FlashlightComponent->OnFlashlightToggled.AddDynamic(this, &AEscapeITCharacter::OnFlashlightToggled);
+		FlashlightComponent->OnBatteryChanged.AddDynamic(this, &AEscapeITCharacter::OnBatteryChanged);
+		FlashlightComponent->OnBatteryLow.AddDynamic(this, &AEscapeITCharacter::OnBatteryLow);
+		FlashlightComponent->OnBatteryDepleted.AddDynamic(this, &AEscapeITCharacter::OnBatteryDepleted);
+	}
 }
 
 // ==================== INPUT SETUP ====================
@@ -558,4 +565,25 @@ void AEscapeITCharacter::CheckCharacterDeath()
 			}
 		},3.0f,false);
 	}
+}
+
+void AEscapeITCharacter::OnFlashlightToggled(bool bIsOn)
+{
+	UE_LOG(LogTemp, Log, TEXT("Flashlight toggled: %s"), bIsOn ? TEXT("ON") : TEXT("OFF"));
+}
+
+void AEscapeITCharacter::OnBatteryChanged(float Current, float Max)
+{
+	float Percentage = (Current / Max) * 100.0f;
+	UE_LOG(LogTemp, Log, TEXT("Battery: %.1f%%"), Percentage);
+}
+
+void AEscapeITCharacter::OnBatteryLow()
+{
+	UE_LOG(LogTemp, Warning, TEXT("LOW BATTERY WARNING!"));
+}
+
+void AEscapeITCharacter::OnBatteryDepleted()
+{
+	UE_LOG(LogTemp, Error, TEXT("BATTERY DEPLETED!"));
 }

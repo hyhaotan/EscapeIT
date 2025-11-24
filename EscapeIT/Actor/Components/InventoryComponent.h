@@ -1,16 +1,19 @@
-﻿// InventoryComponent.h
+﻿
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Engine/DataTable.h"
-#include "EscapeIT/Data/ItemData.h"
+#include "EscapeIT/Data//ItemData.h"
 #include "InventoryComponent.generated.h"
 
-class UStaticMesh;
 class USoundBase;
-class USkeletalMeshComponent;
 class UStaticMeshComponent;
+class USkeletalMeshComponent;
+
+// ============================================================================
+// DELEGATES
+// ============================================================================
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnInventoryUpdated);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnItemAdded, FName, ItemID, int32, Quantity);
@@ -18,9 +21,14 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnItemRemoved, FName, ItemID, int3
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnItemUsed, FName, ItemID, bool, bSuccess);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemEquipped, FName, ItemID);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemUnequipped, FName, ItemID);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnItemCooldownUpdated, FName, ItemID, float, CooldownRemaining, float, MaxCooldown);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnItemCooldownUpdated, FName, ItemID, float, CurrentCooldown, float, MaxCooldown);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnItemDurabilityChanged, FName, ItemID, int32, CurrentUses, int32, MaxUses);
 
-UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
+UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class ESCAPEIT_API UInventoryComponent : public UActorComponent
 {
     GENERATED_BODY()
@@ -30,34 +38,53 @@ public:
 
     virtual void BeginPlay() override;
     virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
-
-    // ============================================
-    // PUBLIC PROPERTIES
-    // ============================================
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory|Settings")
-    int32 MaxInventorySlots = 12;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory|Settings")
-    int32 QuickbarSize = 4;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory|Data")
-    UDataTable* ItemDataTable;
-
-    UPROPERTY(BlueprintReadOnly, Category = "Inventory|State")
+    
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory")
     TArray<FInventorySlot> InventorySlots;
 
-    UPROPERTY(BlueprintReadOnly, Category = "Inventory|State")
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory")
     TArray<FInventorySlot> QuickbarSlots;
+    
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory")
+    FName CurrentEquippedItemID = NAME_None;
 
-    UPROPERTY(BlueprintReadOnly, Category = "Inventory|State")
-    FName CurrentEquippedItemID;
-
-    UPROPERTY(BlueprintReadOnly, Category = "Inventory|State")
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory")
     int32 CurrentEquippedSlotIndex = -1;
+    
+    // ========================================================================
+    // DATA TABLE
+    // ========================================================================
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory|Settings")
+    UDataTable* ItemDataTable;
 
-    // ============================================
-    // DELEGATES
-    // ============================================
+    // ========================================================================
+    // INVENTORY SETTINGS
+    // ========================================================================
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory|Settings", meta = (ClampMin = "1", ClampMax = "50"))
+    int32 MaxInventorySlots = 12;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory|Settings", meta = (ClampMin = "1", ClampMax = "10"))
+    int32 QuickbarSize = 4;
+
+    // ========================================================================
+    // HORROR: AUDIO
+    // ========================================================================
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Horror|Audio")
+    USoundBase* InventoryFullSound;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Horror|Audio")
+    USoundBase* ItemBreakSound;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Horror|Audio")
+    USoundBase* CannotDropSound;
+
+    // ========================================================================
+    // DELEGATES / EVENTS
+    // ========================================================================
+    
     UPROPERTY(BlueprintAssignable, Category = "Inventory|Events")
     FOnInventoryUpdated OnInventoryUpdated;
 
@@ -79,11 +106,13 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Inventory|Events")
     FOnItemCooldownUpdated OnItemCooldownUpdated;
 
-    // ============================================
-    // PUBLIC FUNCTIONS
-    // ============================================
+    UPROPERTY(BlueprintAssignable, Category = "Inventory|Events")
+    FOnItemDurabilityChanged OnItemDurabilityChanged;
 
-    // Core inventory functions
+    // ========================================================================
+    // ADD / REMOVE ITEMS
+    // ========================================================================
+    
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     bool AddItem(FName ItemID, int32 Quantity = 1);
 
@@ -91,63 +120,103 @@ public:
     bool RemoveItem(FName ItemID, int32 Quantity = 1);
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
+    bool HasItem(FName ItemID, int32 Quantity = 1) const;
+
+    UFUNCTION(BlueprintPure, Category = "Inventory")
+    int32 GetItemQuantity(FName ItemID) const;
+
+    UFUNCTION(BlueprintPure, Category = "Inventory")
+    bool GetItemData(FName ItemID, FItemData& OutItemData) const;
+
+    // ========================================================================
+    // USE ITEMS
+    // ========================================================================
+    
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
     bool UseItem(FName ItemID);
 
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    bool UseEquippedItem();
+
+    // ========================================================================
+    // EQUIP / UNEQUIP
+    // ========================================================================
+    
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    bool EquipQuickbarSlot(int32 QuickbarIndex);
+
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    void UnequipCurrentItem();
+
+    UFUNCTION(BlueprintPure, Category = "Inventory")
+    FName GetCurrentEquippedItemID() const;
+
+    UFUNCTION(BlueprintPure, Category = "Inventory")
+    bool IsItemEquipped() const;
+
+    UFUNCTION(BlueprintPure, Category = "Inventory")
+    bool GetEquippedItem(FItemData& OutItemData) const;
+
+    // ========================================================================
+    // DROP ITEMS
+    // ========================================================================
+    
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     bool DropItem(FName ItemID, int32 Quantity = 1);
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
-    bool HasItem(FName ItemID, int32 Quantity = 1) const;
-
-    UFUNCTION(BlueprintCallable, Category = "Inventory")
-    int32 GetItemQuantity(FName ItemID) const;
-
-    UFUNCTION(BlueprintCallable, Category = "Inventory")
-    bool GetItemData(FName ItemID, FItemData& OutItemData) const;
-
-    // Equipment functions
-    UFUNCTION(BlueprintCallable, Category = "Inventory|Equipment")
-    bool EquipQuickbarSlot(int32 QuickbarIndex);
-
-    UFUNCTION(BlueprintCallable, Category = "Inventory|Equipment")
-    bool UseEquippedItem();
-
-    UFUNCTION(BlueprintCallable, Category = "Inventory|Equipment")
     bool DropEquippedItem();
+
+    // ========================================================================
+    // QUICKBAR
+    // ========================================================================
     
-    UFUNCTION()
-    bool ExecuteItemUseLogic(const FItemData& ItemData);
-
-    UFUNCTION(BlueprintCallable, Category = "Inventory|Equipment")
-    void UnequipCurrentItem();
-
-    UFUNCTION(BlueprintCallable, Category = "Inventory|Equipment")
-    FName GetCurrentEquippedItemID() const;
-
-    UFUNCTION(BlueprintCallable, Category = "Inventory|Equipment")
-    bool IsItemEquipped() const;
-
-    UFUNCTION(BlueprintCallable, Category = "Inventory|Equipment")
-    bool GetEquippedItem(FItemData& OutItemData) const;
-
-    // Quickbar functions
     UFUNCTION(BlueprintCallable, Category = "Inventory|Quickbar")
     bool AssignToQuickbar(FName ItemID, int32 QuickbarIndex);
 
     UFUNCTION(BlueprintCallable, Category = "Inventory|Quickbar")
     bool RemoveFromQuickbar(int32 QuickbarIndex);
 
-    UFUNCTION(BlueprintCallable, Category = "Inventory|Quickbar")
+    UFUNCTION(BlueprintPure, Category = "Inventory|Quickbar")
     FInventorySlot GetQuickbarSlot(int32 Index) const;
 
-    UFUNCTION(BlueprintCallable, Category = "Inventory|Quickbar")
+    UFUNCTION(BlueprintPure, Category = "Inventory|Quickbar")
     bool GetQuickbarSlotItem(int32 SlotIndex, FItemData& OutItemData) const;
 
     UFUNCTION(BlueprintCallable, Category = "Inventory|Quickbar")
     void SyncQuickbarSlot(int32 QuickbarIndex);
 
-    // Utility functions
-    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    UFUNCTION(BlueprintCallable, Category = "Inventory|Quickbar")
+    void SyncAllQuickbarSlots();
+
+    // Legacy support
+    UFUNCTION(BlueprintCallable, Category = "Inventory|Quickbar", meta = (DeprecatedFunction, DeprecationMessage = "Use EquipQuickbarSlot instead"))
+    bool UseQuickbarSlot(int32 QuickbarIndex) { return EquipQuickbarSlot(QuickbarIndex); }
+
+    // ========================================================================
+    // DRAG & DROP
+    // ========================================================================
+    
+    UFUNCTION(BlueprintCallable, Category = "Inventory|DragDrop")
+    bool SwapInventorySlots(int32 SlotA, int32 SlotB);
+
+    UFUNCTION(BlueprintCallable, Category = "Inventory|DragDrop")
+    bool SwapQuickbarSlots(int32 SlotA, int32 SlotB);
+
+    UFUNCTION(BlueprintCallable, Category = "Inventory|DragDrop")
+    bool MoveInventoryToQuickbar(int32 InventoryIndex, int32 QuickbarIndex);
+
+    UFUNCTION(BlueprintCallable, Category = "Inventory|DragDrop")
+    bool MoveQuickbarToInventory(int32 QuickbarIndex, int32 InventoryIndex);
+    
+    UFUNCTION(BlueprintCallable, Category = "Inventory|DragDrop")
+    void MoveItemToSlot(int32 SourceIndex, int32 TargetIndex);
+
+    // ========================================================================
+    // UTILITY
+    // ========================================================================
+    
+    UFUNCTION(BlueprintPure, Category = "Inventory")
     bool IsInventoryFull() const;
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
@@ -156,48 +225,64 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     void PrintInventory();
 
-    // NEW: Swap function for drag & drop
-    UFUNCTION(BlueprintCallable, Category = "Inventory")
-    bool SwapInventorySlots(int32 SlotA, int32 SlotB);
+    UFUNCTION(BlueprintPure, Category = "Inventory")
+    TArray<FInventorySlot> GetAllInventorySlots() const;
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
-    bool SwapQuickbarSlots(int32 SlotA, int32 SlotB);
+    void LoadInventorySlots(const TArray<FInventorySlot>& SavedSlots);
 
-    UFUNCTION(BlueprintCallable, Category = "Inventory")
-    bool MoveInventoryToQuickbar(int32 InventoryIndex, int32 QuickbarIndex);
+    UFUNCTION(BlueprintCallable, Category = "Inventory|Quickbar")
+    void SaveQuickbarSetup(TArray<FInventorySlot>& OutQuickbarSlots) const;
 
-    UFUNCTION(BlueprintCallable, Category = "Inventory")
-    bool MoveQuickbarToInventory(int32 QuickbarIndex, int32 InventoryIndex);
+    UFUNCTION(BlueprintCallable, Category = "Inventory|Quickbar")
+    void LoadQuickbarSetup(const TArray<FInventorySlot>& SavedQuickbar);
 
-    UFUNCTION(BlueprintCallable, Category = "Inventory")
-    int32 FindInventorySlotByItemID(const FName& ItemID) const;
+    // ========================================================================
+    // HORROR: PASSIVE EFFECTS
+    // ========================================================================
+    
+    UFUNCTION(BlueprintPure, Category = "Horror|Effects")
+    float GetPassiveSanityDrainReduction() const;
 
-    // Legacy support
-    UFUNCTION(BlueprintCallable, Category = "Inventory|Quickbar", meta = (DeprecatedFunction))
-    bool UseQuickbarSlot(int32 QuickbarIndex);
+    // ========================================================================
+    // DEBUG / CHEATS
+    // ========================================================================
+    
+    UFUNCTION(BlueprintCallable, Category = "Inventory|Debug", meta = (DevelopmentOnly))
+    void GiveAllItems();
 
-    UFUNCTION(BlueprintCallable, Category = "Inventory|Quickbar", meta = (DeprecatedFunction))
-    bool RemoveItemFromQuickbar(int32 QuickbarIndex, int32 Quantity);
+    UFUNCTION(BlueprintCallable, Category = "Inventory|Debug", meta = (DevelopmentOnly))
+    void RemoveAllItems();
 
-private:
-    // ============================================
-    // PRIVATE PROPERTIES
-    // ============================================
+protected:
+    // ========================================================================
+    // INTERNAL DATA
+    // ========================================================================
+    
+    // Mesh reference
     UPROPERTY()
-    TObjectPtr<UStaticMeshComponent> EquippedItemMesh;
+    UStaticMeshComponent* EquippedItemMesh;
 
     UPROPERTY()
-    TObjectPtr<USkeletalMeshComponent> CharacterMesh;
+    USkeletalMeshComponent* CharacterMesh;
 
-    // ============================================
-    // PRIVATE FUNCTIONS
-    // ============================================
-    FInventorySlot* FindItemSlot(FName ItemID);
-    int32 FindEmptySlot() const;
+    // ========================================================================
+    // INTERNAL FUNCTIONS
+    // ========================================================================
+    
     bool AttachItemToHand(const FItemData& ItemData);
-    void ApplyItemEffect(const FItemData& ItemData);
-    void UpdateCooldowns(float DeltaTime);
+    
+    FInventorySlot* FindItemSlot(FName ItemID);
+    
+    int32 FindInventorySlotByItemID(const FName& ItemID) const;
+    
+    bool ApplyItemEffect(const FItemData& ItemData);
+    
     void PlayItemSound(USoundBase* Sound);
-    bool TryAutoAssignToQuickbar(FName ItemID);
-    void SyncAllQuickbarSlots();
+    
+    void PlayInventoryFullSound();
+    
+    void PlayItemBreakSound();
+    
+    void PlayCannotDropSound();
 };

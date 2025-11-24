@@ -1,3 +1,4 @@
+// InventorySlotWidget.h - IMPROVED DRAG & DROP SUPPORT
 
 #pragma once
 
@@ -6,11 +7,12 @@
 #include "EscapeIT/Data/ItemData.h"
 #include "InventorySlotWidget.generated.h"
 
+class UInventoryWidget;
 class UImage;
 class UTextBlock;
+class UButton;
 class UBorder;
-class UProgressBar;
-class UInventoryWidget;
+class UItemDragDrop;
 
 UCLASS()
 class ESCAPEIT_API UInventorySlotWidget : public UUserWidget
@@ -18,109 +20,157 @@ class ESCAPEIT_API UInventorySlotWidget : public UUserWidget
     GENERATED_BODY()
 
 public:
-    // ============================================
-    // WIDGET BINDINGS
-    // ============================================
-    UPROPERTY(meta = (BindWidget))
-    UBorder* SlotBorder;
+    // ========================================================================
+    // WIDGET REFERENCES
+    // ========================================================================
 
     UPROPERTY(meta = (BindWidget))
-    UImage* ItemIcon;
+    TObjectPtr<UBorder> SlotBorder;
 
     UPROPERTY(meta = (BindWidget))
-    UTextBlock* QuantityText;
+    TObjectPtr<UImage> ItemIcon;
 
     UPROPERTY(meta = (BindWidget))
-    UTextBlock* HotkeyText;
+    TObjectPtr<UTextBlock> QuantityText;
 
-    UPROPERTY(meta = (BindWidgetOptional))
-    UProgressBar* DurabilityBar;
+    UPROPERTY(meta = (BindWidget))
+    TObjectPtr<UTextBlock> HotkeyText;
 
-    UPROPERTY(meta = (BindWidgetOptional))
-    UProgressBar* CooldownBar;
+    // ========================================================================
+    // SLOT PROPERTIES
+    // ========================================================================
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Slot")
+    int32 SlotIndex = 0;
 
-    UPROPERTY(meta = (BindWidgetOptional))
-    UImage* CooldownOverlay;
-
-    // ============================================
-    // PROPERTIES
-    // ============================================
-    UPROPERTY(BlueprintReadWrite, Category = "Slot")
-    int32 SlotIndex = -1;
-
-    UPROPERTY(BlueprintReadWrite, Category = "Slot")
+    UPROPERTY(BlueprintReadOnly, Category = "Slot")
     bool bIsQuickbarSlot = false;
 
     UPROPERTY(BlueprintReadWrite, Category = "Slot")
-    bool bIsEmpty = true;
-
-    UPROPERTY(BlueprintReadWrite, Category = "Slot")
-    FInventorySlot SlotData;
-
-    UPROPERTY(BlueprintReadWrite, Category = "Slot")
-    FItemData ItemData;
-
-    UPROPERTY()
     TObjectPtr<UInventoryWidget> ParentInventoryWidget;
 
-    // ============================================
-    // COLORS
-    // ============================================
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Slot|Colors")
+    // ========================================================================
+    // VISUAL COLORS
+    // ========================================================================
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual")
     FLinearColor NormalColor = FLinearColor(0.1f, 0.1f, 0.1f, 1.0f);
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Slot|Colors")
-    FLinearColor HoverColor = FLinearColor(0.3f, 0.3f, 0.3f, 1.0f);
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual")
+    FLinearColor HighlightColor = FLinearColor(0.3f, 0.3f, 0.5f, 1.0f);
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Slot|Colors")
-    FLinearColor SelectedColor = FLinearColor(0.5f, 0.5f, 0.1f, 1.0f);
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual")
+    FLinearColor SelectedColor = FLinearColor(0.5f, 0.5f, 0.2f, 1.0f);
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Slot|Colors")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual")
+    FLinearColor EquippedColor = FLinearColor(0.2f, 0.6f, 0.2f, 1.0f);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual")
     FLinearColor EmptyColor = FLinearColor(0.05f, 0.05f, 0.05f, 0.5f);
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Slot|Colors")
-    FLinearColor EquippedColor = FLinearColor(0.1f, 0.5f, 0.1f, 1.0f);
+    // ========================================================================
+    // DRAG & DROP VISUAL FEEDBACK
+    // ========================================================================
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual|DragDrop")
+    FLinearColor ValidDropColor = FLinearColor(0.2f, 0.8f, 0.2f, 1.0f);
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Slot|Colors")
-    FLinearColor OnCooldownColor = FLinearColor(0.5f, 0.1f, 0.1f, 1.0f);
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual|DragDrop")
+    FLinearColor InvalidDropColor = FLinearColor(0.8f, 0.2f, 0.2f, 1.0f);
 
-    // ============================================
-    // FUNCTIONS
-    // ============================================
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual|DragDrop")
+    FLinearColor DraggingColor = FLinearColor(0.5f, 0.5f, 0.5f, 0.5f);
+
+    // ========================================================================
+    // CORE FUNCTIONS
+    // ========================================================================
+    
     virtual void NativeConstruct() override;
     virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
-    // Mouse events
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    void UpdateSlot(const FInventorySlot& SlotData);
+
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    void SetSelected(bool bSelected);
+
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    void SetEquipped(bool bEquipped);
+    
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    void SetHighlight(bool bHighlight);
+
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    void UpdateVisuals();
+    
+    UFUNCTION(BlueprintPure, Category = "Inventory")
+    FORCEINLINE FInventorySlot GetSlotData() const { return CachedSlotData; }
+
+    UFUNCTION(BlueprintPure, Category = "Inventory")
+    FORCEINLINE bool IsEmpty() const { return bIsEmpty; }
+
+    UFUNCTION(BlueprintPure, Category = "Inventory")
+    FORCEINLINE bool IsDragging() const { return bIsDragging; }
+
+    // ========================================================================
+    // DRAG & DROP INTERFACE
+    // ========================================================================
+    
     virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
     virtual void NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
     virtual void NativeOnMouseLeave(const FPointerEvent& InMouseEvent) override;
-    virtual FReply NativeOnPreviewMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
-
-    // Drag & Drop
     virtual void NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation) override;
+    virtual void NativeOnDragCancelled(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
     virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
     virtual void NativeOnDragEnter(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
     virtual void NativeOnDragLeave(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 
-    // Slot management
-    UFUNCTION(BlueprintCallable, Category = "Slot")
-    void UpdateSlot(const FInventorySlot& NewSlotData);
-
-    UFUNCTION(BlueprintCallable, Category = "Slot")
-    void UpdateVisuals();
-
-    UFUNCTION(BlueprintCallable, Category = "Slot")
-    void SetSelected(bool bSelected);
-
-    UFUNCTION(BlueprintCallable, Category = "Slot")
+protected:
+    // ========================================================================
+    // BUTTON CALLBACKS
+    // ========================================================================
+    
+    UFUNCTION()
     void OnSlotClicked();
 
-private:
-    bool bIsSelected = false;
-    bool bIsHovered = false;
-    bool bIsDragHovered = false;
-    bool bIsEquipped = false;
+    // ========================================================================
+    // DRAG & DROP HELPERS
+    // ========================================================================
 
-    void UpdateDurabilityBar();
-    void UpdateCooldownVisuals();
+    UFUNCTION(BlueprintCallable, Category = "DragDrop")
+    bool CanAcceptDrop(UItemDragDrop* DragOp);
+
+    UFUNCTION(BlueprintCallable, Category = "DragDrop")
+    void ExecuteDrop(UItemDragDrop* DragOp);
+
+    UFUNCTION(BlueprintCallable, Category = "DragDrop")
+    void ShowDropFeedback(bool bIsValid);
+
+    UFUNCTION(BlueprintCallable, Category = "DragDrop")
+    void ClearDropFeedback();
+
+private:
+    // ========================================================================
+    // CACHED DATA
+    // ========================================================================
+    
+    FInventorySlot CachedSlotData;
+
+    // ========================================================================
+    // STATE FLAGS
+    // ========================================================================
+    
+    bool bIsSelected = false;
+    bool bIsEquipped = false;
+    bool bIsHovered = false;
+    bool bIsEmpty = true;
+
+    // ========================================================================
+    // DRAG & DROP STATE
+    // ========================================================================
+    
+    bool bIsDragging = false;
+    bool bIsValidDropTarget = false;
+    bool bIsInvalidDropTarget = false;
+    FLinearColor OriginalBorderColor;
 };

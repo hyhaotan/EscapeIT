@@ -1,48 +1,100 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
+// InventoryWidget.h
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "Components/UniformGridPanel.h"
-#include "Components/TextBlock.h"
-#include "Components/Button.h"
-#include "Components/ScrollBox.h"
-#include "Components/Border.h"
-#include "EscapeIT/Data/ItemData.h"
+#include "EscapeIT/Data/ItemData.h" // chứa FItemData, EItemType, EItemCategory, v.v.
 #include "InventoryWidget.generated.h"
 
 class UInventoryComponent;
 class UInventorySlotWidget;
+class UUniformGridPanel;
+class UTextBlock;
+class UButton;
+class UImage;
+class UProgressBar;
+class UBorder;
+class UWidgetAnimation;
+class UFlashlightComponent;
 
+/**
+ * Main Inventory Screen Widget for Horror Game
+ * - Inventory grid + quickbar
+ * - Item details panel
+ * - Category filtering
+ * - Battery indicator (connected to UFlashlightComponent)
+ */
 UCLASS()
 class ESCAPEIT_API UInventoryWidget : public UUserWidget
 {
-	GENERATED_BODY()
-	
+    GENERATED_BODY()
+
 public:
+    // Overrides
     virtual void NativeConstruct() override;
     virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
-    // ============================================
-    // WIDGET BINDINGS
-    // ============================================
+    // ========================================================================
+    // INITIALIZATION
+    // ========================================================================
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    void InitInventory(UInventoryComponent* InInventoryComp);
 
-    // Main container
-    UPROPERTY(meta = (BindWidget))
-    UBorder* MainContainer;
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    void CreateSlotWidgets();
 
-    // Inventory grid (main items)
+    // ========================================================================
+    // REFRESH FUNCTIONS
+    // ========================================================================
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    void RefreshInventory();
+
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    void RefreshQuickbar();
+
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    void UpdateSlotWidget(int32 SlotIndex);
+
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    void RefreshBatteryIndicator();
+
+    // ========================================================================
+    // ITEM DETAILS
+    // ========================================================================
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    void ShowItemDetails(int32 SlotIndex);
+
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    void HideItemDetails();
+
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    void ClearSelection();
+
+    // ========================================================================
+    // FILTERING
+    // ========================================================================
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    void FilterByType(EItemType ItemType);
+
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    void ShowAllItems();
+
+    // ========================================================================
+    // WIDGET REFERENCES (Bind in UMG)
+    // ========================================================================
+    // === INVENTORY GRID ===
     UPROPERTY(meta = (BindWidget))
     UUniformGridPanel* InventoryGrid;
 
-    // Quickbar section
     UPROPERTY(meta = (BindWidget))
     UUniformGridPanel* QuickbarGrid;
 
-    // Item details panel
+    // === ITEM DETAIL PANEL ===
     UPROPERTY(meta = (BindWidget))
     UBorder* ItemDetailPanel;
+
+    UPROPERTY(meta = (BindWidget))
+    UImage* ItemIcon;
 
     UPROPERTY(meta = (BindWidget))
     UTextBlock* Text_ItemName;
@@ -53,7 +105,20 @@ public:
     UPROPERTY(meta = (BindWidget))
     UTextBlock* Text_ItemStats;
 
-    // Category tabs (optional)
+    // === ACTION BUTTONS ===
+    UPROPERTY(meta = (BindWidget))
+    UButton* Btn_Use;
+
+    UPROPERTY(meta = (BindWidget))
+    UButton* Btn_Drop;
+
+    UPROPERTY(meta = (BindWidget))
+    UButton* Btn_Examine;
+
+    UPROPERTY(meta = (BindWidget))
+    UButton* Btn_Close;
+
+    // === FILTER BUTTONS ===
     UPROPERTY(meta = (BindWidget))
     UButton* Btn_All;
 
@@ -66,41 +131,49 @@ public:
     UPROPERTY(meta = (BindWidget))
     UButton* Btn_Documents;
 
-    // Action buttons
+    // === HORROR: BATTERY INDICATOR ===
     UPROPERTY(meta = (BindWidget))
-    UButton* Btn_Use;
-
-    UPROPERTY(meta = (BindWidget))
-    UButton* Btn_Drop;
+    UProgressBar* BatteryBar;
 
     UPROPERTY(meta = (BindWidget))
-    UButton* Btn_Close;
+    UTextBlock* Text_BatteryPercent;
 
-    // Documents scroll box
-    UPROPERTY(meta = (BindWidget))
-    UScrollBox* DocumentScrollBox;
-
-    // ============================================
-    // PROPERTIES
-    // ============================================
-
-    UPROPERTY(BlueprintReadWrite, Category = "Inventory")
-    UInventoryComponent* InventoryComponent;
-
-    // Slot widget class
-    UPROPERTY(EditDefaultsOnly, Category = "Inventory")
+    // ========================================================================
+    // SETTINGS
+    // ========================================================================
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory|Settings")
     TSubclassOf<UInventorySlotWidget> SlotWidgetClass;
 
-    // Grid dimensions
-    UPROPERTY(EditDefaultsOnly, Category = "Inventory")
-    int32 GridColumns = 3;
-
-    UPROPERTY(EditDefaultsOnly, Category = "Inventory")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory|Settings")
     int32 GridRows = 3;
 
-    // Current filter
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory|Settings")
+    int32 GridColumns = 3;
+
+    // HORROR: UI Colors
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Horror|UI")
+    FLinearColor BatteryHighColor = FLinearColor::Green;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Horror|UI")
+    FLinearColor BatteryMediumColor = FLinearColor::Yellow;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Horror|UI")
+    FLinearColor BatteryLowColor = FLinearColor::Red;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Horror|UI")
+    FLinearColor BatteryCriticalColor = FLinearColor(0.5f, 0.0f, 0.0f); // Dark red
+
+    // ========================================================================
+    // INTERNAL DATA
+    // ========================================================================
     UPROPERTY(BlueprintReadOnly, Category = "Inventory")
-    EItemType CurrentFilter;
+    UInventoryComponent* InventoryComponent;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Inventory")
+    TArray<UInventorySlotWidget*> SlotWidgets;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Inventory")
+    TArray<UInventorySlotWidget*> QuickbarSlotWidgets;
 
     UPROPERTY(BlueprintReadOnly, Category = "Inventory")
     int32 SelectedSlotIndex = -1;
@@ -108,39 +181,17 @@ public:
     UPROPERTY(BlueprintReadOnly, Category = "Inventory")
     bool bShowAllItems = true;
 
-    // ============================================
-    // FUNCTIONS
-    // ============================================
+    UPROPERTY(BlueprintReadOnly, Category = "Inventory")
+    EItemType CurrentFilter = EItemType::Consumable;
 
-    UFUNCTION(BlueprintCallable, Category = "Inventory")
-    void InitInventory(UInventoryComponent* InInventoryComp);
-
-    UFUNCTION(BlueprintCallable, Category = "Inventory")
-    void RefreshInventory();
-
-    UFUNCTION(BlueprintCallable, Category = "Inventory")
-    void RefreshQuickbar();
-
-    UFUNCTION(BlueprintCallable, Category = "Inventory")
-    void ShowItemDetails(int32 SlotIndex);
-
-    UFUNCTION(BlueprintCallable, Category = "Inventory")
-    void HideItemDetails();
-
-    UFUNCTION(BlueprintCallable, Category = "Inventory")
-    void FilterByType(EItemType ItemType);
-
-    UFUNCTION(BlueprintCallable, Category = "Inventory")
-    void ClearSelection();
-
-    FString BuildStatsText(const FItemData& ItemData, const FInventorySlot& SlotData);
-
-    void UpdateItemCountDisplay();
-
-    void ConfigureActionButtons(const FItemData& ItemData);
+    // Flashlight component (found at InitInventory time)
+    UPROPERTY(BlueprintReadOnly, Category = "Inventory", Transient)
+    UFlashlightComponent* FlashlightComponent;
 
 protected:
-    // Button callbacks
+    // ========================================================================
+    // BUTTON CALLBACKS
+    // ========================================================================
     UFUNCTION()
     void OnUseButtonClicked();
 
@@ -148,8 +199,12 @@ protected:
     void OnDropButtonClicked();
 
     UFUNCTION()
+    void OnExamineButtonClicked();
+
+    UFUNCTION()
     void OnCloseButtonClicked();
 
+    // Filter callbacks
     UFUNCTION()
     void OnFilterAllClicked();
 
@@ -162,14 +217,47 @@ protected:
     UFUNCTION()
     void OnFilterDocumentsClicked();
 
-    // Inventory events
+    // ========================================================================
+    // EVENT CALLBACKS
+    // ========================================================================
     UFUNCTION()
     void OnInventoryUpdated();
 
-    // Helper functions
-    void CreateSlotWidgets();
-    void UpdateSlotWidget(int32 SlotIndex);
+    UFUNCTION()
+    void OnItemEquipped(FName ItemID);
 
-    TArray<class UInventorySlotWidget*> SlotWidgets;
-    TArray<class UInventorySlotWidget*> QuickbarSlotWidgets;
+    UFUNCTION()
+    void OnItemUnequipped(FName ItemID);
+
+    // Battery callbacks (both declared because .cpp defines both)
+    UFUNCTION()
+    void OnBatteryChanged(float CurrentBattery, float MaxBattery);
+
+    UFUNCTION()
+    void OnBatteryLevelChanged(float CurrentLevel, float MaxLevel);
+
+    UFUNCTION()
+    void OnLowBattery();
+
+    // ========================================================================
+    // HELPER FUNCTIONS
+    // ========================================================================
+    FString BuildStatsText(const FItemData& ItemData, const FInventorySlot& SlotData);
+
+    void ConfigureActionButtons(const FItemData& ItemData);
+
+    void UpdateFilterButtonStates();
+
+    void HighlightEquippedSlots();
+
+    FLinearColor GetBatteryColor(float Percentage) const;
+
+    void PlayBatteryWarningAnimation();
+
+    // Optional: bind a UMG animation named "BatteryWarning" if you create it in the widget blueprint
+    UPROPERTY(Transient, meta = (BindWidgetAnim), BlueprintReadOnly)
+    UWidgetAnimation* BatteryWarningAnim;
+
+    // Timer handle used for color restore / flashing fallback
+    FTimerHandle BatteryFlashRestoreHandle;
 };

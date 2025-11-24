@@ -1,16 +1,21 @@
-﻿
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
-#include "Components/SpotLightComponent.h"
 #include "FlashlightComponent.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBatteryChanged, float, BatteryPercentage);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBatteryDepleted);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnFlashlightToggled, bool, bIsOn);
-
+// Forward declarations
+class USpotLightComponent;
+class USoundBase;
 class UAnimMontage;
+
+// ============================================
+// DELEGATES
+// ============================================
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnFlashlightToggled, bool, bIsOn);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnBatteryChanged, float, CurrentBattery, float, MaxBattery);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBatteryDepleted);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBatteryLow);
 
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class ESCAPEIT_API UFlashlightComponent : public UActorComponent
@@ -26,27 +31,33 @@ protected:
 
 public:
     // ============================================
-    // PROPERTIES
+    // PROPERTIES - LIGHT COMPONENT
     // ============================================
-
-    // Light component reference
-    UPROPERTY(BlueprintReadWrite, Category = "Flashlight")
+    
+    /** Reference to the SpotLight component */
+    UPROPERTY(BlueprintReadOnly, Category = "Flashlight")
     TObjectPtr<USpotLightComponent> SpotLight;
 
-    // Battery system
+    // ============================================
+    // PROPERTIES - BATTERY SYSTEM
+    // ============================================
+
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Flashlight|Battery")
-    float MaxBatteryDuration = 120.0f; // 120 giây (2 phút)
+    float MaxBatteryDuration = 120.0f;
 
     UPROPERTY(BlueprintReadOnly, Category = "Flashlight|Battery")
     float CurrentBattery = 120.0f;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Flashlight|Battery")
-    float DrainRate = 1.0f; // Giảm 1 giây mỗi giây khi bật
+    float DrainRate = 1.0f;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Flashlight|Battery")
-    float LowBatteryThreshold = 10.0f; // % để bắt đầu flicker
+    float LowBatteryThreshold = 20.0f;
 
-    // Light properties
+    // ============================================
+    // PROPERTIES - LIGHT SETTINGS
+    // ============================================
+
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Flashlight|Light")
     float NormalIntensity = 5000.0f;
 
@@ -56,14 +67,23 @@ public:
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Flashlight|Light")
     float FlickerSpeed = 5.0f;
 
-    // State
-    UPROPERTY(BlueprintReadOnly, Category = "Flashlight")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Flashlight|Light")
+    float FlickerIntensity = 0.3f;
+
+    // ============================================
+    // PROPERTIES - STATE
+    // ============================================
+
+    UPROPERTY(BlueprintReadOnly, Category = "Flashlight|State")
     bool bIsEquipped = false;
 
-    UPROPERTY(BlueprintReadOnly, Category = "Flashlight")
+    UPROPERTY(BlueprintReadOnly, Category = "Flashlight|State")
     bool bIsLightOn = false;
 
-    // Audio
+    // ============================================
+    // PROPERTIES - AUDIO
+    // ============================================
+    
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Flashlight|Audio")
     TObjectPtr<USoundBase> ToggleOnSound;
 
@@ -76,36 +96,55 @@ public:
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Flashlight|Audio")
     TObjectPtr<USoundBase> LowBatterySound;
 
-    // Delegates
-    UPROPERTY(BlueprintAssignable, Category = "Flashlight")
-    FOnBatteryChanged OnBatteryChanged;
+    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Flashlight|Audio")
+    TObjectPtr<USoundBase> NoBatterySound;
 
-    UPROPERTY(BlueprintAssignable, Category = "Flashlight")
-    FOnBatteryDepleted OnBatteryDepleted;
+    // ============================================
+    // PROPERTIES - ANIMATION
+    // ============================================
+    
+    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Flashlight|Animation")
+    TObjectPtr<UAnimMontage> EquipFlashlightAnim;
+    
+    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Flashlight|Animation")
+    TObjectPtr<UAnimMontage> UnequipFlashlightAnim;
 
-    UPROPERTY(BlueprintAssignable, Category = "Flashlight")
+    // ============================================
+    // DELEGATES
+    // ============================================
+
+    UPROPERTY(BlueprintAssignable, Category = "Flashlight|Events")
     FOnFlashlightToggled OnFlashlightToggled;
 
+    UPROPERTY(BlueprintAssignable, Category = "Flashlight|Events")
+    FOnBatteryChanged OnBatteryChanged;
+
+    UPROPERTY(BlueprintAssignable, Category = "Flashlight|Events")
+    FOnBatteryDepleted OnBatteryDepleted;
+
+    UPROPERTY(BlueprintAssignable, Category = "Flashlight|Events")
+    FOnBatteryLow OnBatteryLow;
+
     // ============================================
-    // PUBLIC FUNCTIONS
+    // PUBLIC FUNCTIONS - TOGGLE & CONTROL
     // ============================================
-
-    // Toggle đèn
+    
     UFUNCTION(BlueprintCallable, Category = "Flashlight")
-    void ToggleLight();
-
-    // Bật/tắt trực tiếp
+    bool ToggleLight();
+    
     UFUNCTION(BlueprintCallable, Category = "Flashlight")
-    void SetLightEnabled(bool bEnabled);
-
-    // Equip/Unequip
+    bool SetLightEnabled(bool bEnabled);
+    
     UFUNCTION(BlueprintCallable, Category = "Flashlight")
     void EquipFlashlight();
 
     UFUNCTION(BlueprintCallable, Category = "Flashlight")
     void UnequipFlashlight();
 
-    // Battery management
+    // ============================================
+    // PUBLIC FUNCTIONS - BATTERY MANAGEMENT
+    // ============================================
+
     UFUNCTION(BlueprintCallable, Category = "Flashlight|Battery")
     void ReplaceBattery();
 
@@ -116,35 +155,55 @@ public:
     float GetBatteryPercentage() const;
 
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Flashlight|Battery")
+    float GetBatteryDuration() const { return CurrentBattery; }
+
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Flashlight|Battery")
     bool IsBatteryLow() const;
 
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Flashlight|Battery")
     bool IsBatteryDepleted() const;
 
-    // Query
+    // ============================================
+    // PUBLIC FUNCTIONS - QUERY STATE
+    // ============================================
+
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Flashlight")
     bool IsLightOn() const { return bIsLightOn; }
 
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Flashlight")
     bool IsEquipped() const { return bIsEquipped; }
 
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Flashlight")
+    bool CanToggleLight() const;
+
 protected:
     // ============================================
-    // INTERNAL FUNCTIONS
+    // INTERNAL FUNCTIONS - BATTERY
     // ============================================
-
+    
     void UpdateBattery(float DeltaTime);
     void UpdateLightIntensity();
+
+    // ============================================
+    // INTERNAL FUNCTIONS - VISUAL EFFECTS
+    // ============================================
+    
     void ApplyFlickerEffect(float DeltaTime);
+    void HandleCriticalBattery();
+
+    // ============================================
+    // INTERNAL FUNCTIONS - AUDIO
+    // ============================================
+
     void PlaySound(USoundBase* Sound);
+    void PlayToggleSound();
 
 private:
+    // ============================================
+    // PRIVATE VARIABLES
+    // ============================================
+    
     float FlickerTimer = 0.0f;
     bool bLowBatterySoundPlayed = false;
-    
-    UPROPERTY(EditAnywhere,Category=Animation)
-    TObjectPtr<UAnimMontage> EquipFlashlightAnim;
-    
-    UPROPERTY(EditAnywhere,Category=Animation)
-    TObjectPtr<UAnimMontage> UnEquipFlashlightAnim;
+    float LastBatteryPercentage = 100.0f;
 };

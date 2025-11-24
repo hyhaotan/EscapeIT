@@ -14,7 +14,6 @@ enum class EItemType : uint8
 {
     Consumable      UMETA(DisplayName = "Consumable"),
     Tool            UMETA(DisplayName = "Tool"),
-    Battery         UMETA(DisplayName = "Battery"),
     QuestItem       UMETA(DisplayName = "Quest Item"),
     Document        UMETA(DisplayName = "Document"),
     Special         UMETA(DisplayName = "Special")
@@ -24,10 +23,16 @@ UENUM(BlueprintType)
 enum class EItemCategory : uint8
 {
     Flashlight      UMETA(DisplayName = "Flashlight"),
-    Medicien        UMETA(DisplayName = "Medicien"),
     MasterKey       UMETA(DisplayName = "Master Key"),
     Wrench          UMETA(DisplayName = "Wrench"),
     Other           UMETA(DisplayName = "Other")
+};
+
+UENUM()
+enum class EItemConsumable : uint8
+{
+    Medicien        UMETA(DisplayName = "Medicien"),
+    Battery         UMETA(DisplayName="Battery")
 };
 
 UENUM(BlueprintType)
@@ -58,8 +63,11 @@ struct FItemData : public FTableRowBase
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Basic")
     EItemType ItemType;
+    
+    UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="Basic")
+    EItemConsumable ItemConsumable;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Basic",
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Category",
         meta = (EditCondition = "ItemType == EItemType::Tool", EditConditionHides))
     EItemCategory ItemCategory;
     
@@ -78,21 +86,21 @@ struct FItemData : public FTableRowBase
     
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Usage")
     bool bCanBeUse;
+    
+    UPROPERTY(EditAnywhere,BlueprintReadWrite, Category = "Effects")
+    bool bUseEffect;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects",
+        meta=(EditCondition="bUseEffect",EditConditionHides))
     float SanityRestoreAmount;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects",
+        meta=(EditCondition="bUseEffect",EditConditionHides))
     float PassiveSanityDrainReduction;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
-    float UsageCooldown;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Durability")
-    bool bHasDurability;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Durability")
-    int32 MaxUses;
+    
+    UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="Effects",
+        meta=(EditCondition="ItemConsumable == EItemConsumable::Battery && bIsConsumable",EditConditionHides))
+    float BatteryAmount;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World")
     TObjectPtr<UStaticMesh> ItemMesh;
@@ -118,9 +126,6 @@ struct FItemData : public FTableRowBase
         , bCanBeDropped(true)
         , SanityRestoreAmount(0.0f)
         , PassiveSanityDrainReduction(0.0f)
-        , UsageCooldown(0.0f)
-        , bHasDurability(false)
-        , MaxUses(1)
         , ItemMesh(nullptr)
         , PickupActorClass(nullptr)
         , PickupSound(nullptr)
@@ -143,15 +148,12 @@ struct FInventorySlot
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     int32 RemainingUses;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    float CooldownRemaining;
+    
 
     FInventorySlot()
         : ItemID(NAME_None)
         , Quantity(0)
         , RemainingUses(-1)
-        , CooldownRemaining(0.0f)
     {
     }
 
@@ -159,7 +161,6 @@ struct FInventorySlot
         : ItemID(InItemID)
         , Quantity(InQuantity)
         , RemainingUses(-1)
-        , CooldownRemaining(0.0f)
     {
     }
 

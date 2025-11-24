@@ -1,45 +1,197 @@
-﻿// InventorySlotWidget.cpp - Enhanced Implementation
+﻿// InventorySlotWidget.cpp - IMPROVED DRAG & DROP
+
 #include "InventorySlotWidget.h"
 #include "InventoryWidget.h"
 #include "ItemDragDrop.h"
+#include "EscapeIT/Actor/Components/InventoryComponent.h"
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
+#include "Components/Button.h"
 #include "Components/Border.h"
-#include "Components/ProgressBar.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
-#include "Blueprint/DragDropOperation.h"
-#include "EscapeIT/Actor/Components/InventoryComponent.h"
-#include "Kismet/GameplayStatics.h"
 
 void UInventorySlotWidget::NativeConstruct()
 {
     Super::NativeConstruct();
-    UpdateVisuals();
+    
+    // Initial state
+    UpdateSlot(FInventorySlot());
 }
 
 void UInventorySlotWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
     Super::NativeTick(MyGeometry, InDeltaTime);
-
-    // Update cooldown visuals in real-time
-    if (!bIsEmpty && SlotData.CooldownRemaining > 0.0f)
-    {
-        UpdateCooldownVisuals();
-    }
 }
+
+void UInventorySlotWidget::UpdateSlot(const FInventorySlot& SlotData)
+{
+    CachedSlotData = SlotData;
+    
+    // Check if slot is empty
+    bIsEmpty = !SlotData.IsValid();
+    
+    if (bIsEmpty)
+    {
+        // EMPTY SLOT
+        if (ItemIcon)
+        {
+            ItemIcon->SetVisibility(ESlateVisibility::Collapsed);
+        }
+        
+        if (QuantityText)
+        {
+            QuantityText->SetVisibility(ESlateVisibility::Collapsed);
+        }
+        
+        // Set empty color
+        if (SlotBorder)
+        {
+            SlotBorder->SetBrushColor(EmptyColor);
+        }
+    }
+    else
+    {
+        // HAS ITEM - Get item data
+        if (ParentInventoryWidget && ParentInventoryWidget->InventoryComponent)
+        {
+            FItemData ItemData;
+            if (ParentInventoryWidget->InventoryComponent->GetItemData(SlotData.ItemID, ItemData))
+            {
+                // Update icon
+                if (ItemIcon && ItemData.Icon)
+                {
+                    ItemIcon->SetBrushFromTexture(ItemData.Icon);
+                    ItemIcon->SetVisibility(ESlateVisibility::HitTestInvisible);
+                }
+                
+                // Update quantity (only if > 1)
+                if (QuantityText)
+                {
+                    if (SlotData.Quantity > 1)
+                    {
+                        QuantityText->SetText(FText::AsNumber(SlotData.Quantity));
+                        QuantityText->SetVisibility(ESlateVisibility::HitTestInvisible);
+                    }
+                    else
+                    {
+                        QuantityText->SetVisibility(ESlateVisibility::Collapsed);
+                    }
+                }
+            }
+        }
+    }
+    
+    // Update hotkey display for quickbar slots
+    if (bIsQuickbarSlot && HotkeyText)
+    {
+        HotkeyText->SetText(FText::AsNumber(SlotIndex + 1));
+        HotkeyText->SetVisibility(ESlateVisibility::HitTestInvisible);
+    }
+    
+    // Update visual state
+    UpdateVisuals();
+}
+
+void UInventorySlotWidget::SetSelected(bool bSelected)
+{
+    bIsSelected = bSelected;
+    UpdateVisuals();
+}
+
+void UInventorySlotWidget::SetEquipped(bool bEquipped)
+{
+    bIsEquipped = bEquipped;
+    UpdateVisuals();
+}
+
+void UInventorySlotWidget::SetHighlight(bool bHighlight)
+{
+    bIsHovered = bHighlight;
+    UpdateVisuals();
+}
+
+void UInventorySlotWidget::UpdateVisuals()
+{
+    if (!SlotBorder)
+    {
+        return;
+    }
+    
+    FLinearColor BorderColor = NormalColor;
+    
+    // Priority: Dragging > Drop Feedback > Equipped > Selected > Hovered > Normal
+    if (bIsDragging)
+    {
+        BorderColor = DraggingColor;
+    }
+    else if (bIsValidDropTarget)
+    {
+        BorderColor = ValidDropColor;
+    }
+    else if (bIsInvalidDropTarget)
+    {
+        BorderColor = InvalidDropColor;
+    }
+    else if (bIsEquipped)
+    {
+        BorderColor = EquippedColor;
+    }
+    else if (bIsSelected)
+    {
+        BorderColor = SelectedColor;
+    }
+    else if (bIsHovered)
+    {
+        BorderColor = HighlightColor;
+    }
+    else if (bIsEmpty)
+    {
+        BorderColor = EmptyColor;
+    }
+    
+    SlotBorder->SetBrushColor(BorderColor);
+}
+
+void UInventorySlotWidget::OnSlotClicked()
+{
+    if (ParentInventoryWidget)
+    {
+        if (bIsQuickbarSlot)
+        {
+            // Quickbar slot clicked - equip item
+            if (ParentInventoryWidget->InventoryComponent && !bIsEmpty)
+            {
+                ParentInventoryWidget->InventoryComponent->EquipQuickbarSlot(SlotIndex);
+            }
+        }
+        else
+        {
+            // Inventory slot clicked - show details
+            ParentInventoryWidget->ShowItemDetails(SlotIndex);
+        }
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("OnSlotClicked: Slot %d, Quickbar=%s, Empty=%s"),
+        SlotIndex, bIsQuickbarSlot ? TEXT("Yes") : TEXT("No"), bIsEmpty ? TEXT("Yes") : TEXT("No"));
+}
+
+// ============================================================================
+// ✅ DRAG & DROP IMPLEMENTATION
+// ============================================================================
 
 FReply UInventorySlotWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
     if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
     {
+        // Click event
         OnSlotClicked();
-
+        
         // Only allow drag if slot has item
         if (!bIsEmpty)
         {
             return FReply::Handled().DetectDrag(TakeWidget(), EKeys::LeftMouseButton);
         }
-
+        
         return FReply::Handled();
     }
     else if (InMouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
@@ -53,435 +205,359 @@ FReply UInventorySlotWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry
             }
             else
             {
-                ParentInventoryWidget->InventoryComponent->UseItem(SlotData.ItemID);
+                ParentInventoryWidget->InventoryComponent->UseItem(CachedSlotData.ItemID);
             }
         }
         return FReply::Handled();
     }
-
+    
     return FReply::Unhandled();
 }
 
 void UInventorySlotWidget::NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
     Super::NativeOnMouseEnter(InGeometry, InMouseEvent);
-
+    
     bIsHovered = true;
-
-    if (!bIsSelected && SlotBorder)
+    UpdateVisuals();
+    
+    // Show tooltip if item exists
+    if (!bIsEmpty && ParentInventoryWidget && ParentInventoryWidget->InventoryComponent)
     {
-        SlotBorder->SetBrushColor(HoverColor);
+        FItemData ItemData;
+        if (ParentInventoryWidget->InventoryComponent->GetItemData(CachedSlotData.ItemID, ItemData))
+        {
+            // You can show tooltip here
+            // ShowTooltip(ItemData);
+        }
     }
 }
 
 void UInventorySlotWidget::NativeOnMouseLeave(const FPointerEvent& InMouseEvent)
 {
     Super::NativeOnMouseLeave(InMouseEvent);
-
+    
     bIsHovered = false;
-
-    if (!bIsSelected)
-    {
-        UpdateVisuals();
-    }
-}
-
-FReply UInventorySlotWidget::NativeOnPreviewMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
-{
-    return FReply::Unhandled();
+    UpdateVisuals();
+    
+    // Hide tooltip
+    // HideTooltip();
 }
 
 void UInventorySlotWidget::NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation)
 {
     Super::NativeOnDragDetected(InGeometry, InMouseEvent, OutOperation);
-
-    if (bIsEmpty)
+    
+    if (bIsEmpty || !ParentInventoryWidget)
     {
         return;
     }
-
-    UE_LOG(LogTemp, Log, TEXT("Drag detected on slot %d (%s)"),
-        SlotIndex, bIsQuickbarSlot ? TEXT("Quickbar") : TEXT("Inventory"));
-
-    UItemDragDrop* DragDrop = NewObject<UItemDragDrop>();
-    if (DragDrop)
+    
+    UE_LOG(LogTemp, Log, TEXT("🎯 DragDetected: Slot %d (%s) - Item: %s, Qty: %d"), 
+        SlotIndex, 
+        bIsQuickbarSlot ? TEXT("Quickbar") : TEXT("Inventory"),
+        *CachedSlotData.ItemID.ToString(),
+        CachedSlotData.Quantity);
+    
+    // Create drag operation
+    UItemDragDrop* DragOp = NewObject<UItemDragDrop>();
+    DragOp->SourceSlot = this;
+    DragOp->SlotIndex = SlotIndex;
+    DragOp->bIsQuickbarSlot = bIsQuickbarSlot;
+    DragOp->ItemID = CachedSlotData.ItemID;
+    DragOp->Quantity = CachedSlotData.Quantity;
+    
+    // Create visual widget for dragging
+    UInventorySlotWidget* DragVisual = CreateWidget<UInventorySlotWidget>(this, GetClass());
+    if (DragVisual)
     {
-        DragDrop->SourceSlot = this;
-        DragDrop->SlotIndex = SlotIndex;
-        DragDrop->bIsQuickbarSlot = bIsQuickbarSlot;
-        DragDrop->ItemID = SlotData.ItemID;
-
-        // Set visual
-        DragDrop->DefaultDragVisual = this;
-        DragDrop->Pivot = EDragPivot::CenterCenter;
-        DragDrop->Offset = FVector2D(0, 0);
-
-        OutOperation = DragDrop;
-
-        UE_LOG(LogTemp, Log, TEXT("Created drag operation for item: %s"), *SlotData.ItemID.ToString());
+        DragVisual->UpdateSlot(CachedSlotData);
+        DragVisual->SetRenderOpacity(0.7f);
+        DragOp->DefaultDragVisual = DragVisual;
     }
+    
+    DragOp->Pivot = EDragPivot::CenterCenter;
+    
+    // Update visual state
+    bIsDragging = true;
+    UpdateVisuals();
+    
+    OutOperation = DragOp;
+}
+
+void UInventorySlotWidget::NativeOnDragCancelled(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
+{
+    Super::NativeOnDragCancelled(InDragDropEvent, InOperation);
+    
+    UItemDragDrop* DragOp = Cast<UItemDragDrop>(InOperation);
+    if (DragOp && DragOp->SourceSlot)
+    {
+        DragOp->SourceSlot->bIsDragging = false;
+        DragOp->SourceSlot->UpdateVisuals();
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("❌ Drag Cancelled"));
+}
+
+bool UInventorySlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
+{
+    Super::NativeOnDrop(InGeometry, InDragDropEvent, InOperation);
+    
+    UItemDragDrop* DragOp = Cast<UItemDragDrop>(InOperation);
+    if (!DragOp)
+    {
+        ClearDropFeedback();
+        return false;
+    }
+    
+    bool bSuccess = false;
+    
+    if (CanAcceptDrop(DragOp))
+    {
+        ExecuteDrop(DragOp);
+        bSuccess = true;
+    }
+    
+    // Clear drag state
+    if (DragOp->SourceSlot)
+    {
+        DragOp->SourceSlot->bIsDragging = false;
+        DragOp->SourceSlot->UpdateVisuals();
+    }
+    
+    ClearDropFeedback();
+    
+    UE_LOG(LogTemp, Log, TEXT("📦 OnDrop: Success=%s"), bSuccess ? TEXT("Yes") : TEXT("No"));
+    
+    return bSuccess;
 }
 
 void UInventorySlotWidget::NativeOnDragEnter(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
 {
     Super::NativeOnDragEnter(InGeometry, InDragDropEvent, InOperation);
-
-    if (!InOperation)
+    
+    UItemDragDrop* DragOp = Cast<UItemDragDrop>(InOperation);
+    if (DragOp && DragOp->SourceSlot != this)
     {
-        return;
-    }
-
-    UItemDragDrop* ItemDragDrop = Cast<UItemDragDrop>(InOperation);
-    if (ItemDragDrop && ItemDragDrop->SourceSlot && ItemDragDrop->SourceSlot != this)
-    {
-        bIsDragHovered = true;
-
-        if (SlotBorder)
-        {
-            SlotBorder->SetBrushColor(FLinearColor(0.2f, 0.6f, 0.2f, 1.0f));
-        }
-
-        UE_LOG(LogTemp, Verbose, TEXT("Drag entered slot %d"), SlotIndex);
+        bool bIsValid = CanAcceptDrop(DragOp);
+        ShowDropFeedback(bIsValid);
+        
+        UE_LOG(LogTemp, Verbose, TEXT("➡️ DragEnter: Slot %d - Valid=%s"), SlotIndex, bIsValid ? TEXT("Yes") : TEXT("No"));
     }
 }
 
 void UInventorySlotWidget::NativeOnDragLeave(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
 {
     Super::NativeOnDragLeave(InDragDropEvent, InOperation);
-
-    bIsDragHovered = false;
-    UpdateVisuals();
+    ClearDropFeedback();
+    
+    UE_LOG(LogTemp, Verbose, TEXT("⬅️ DragLeave: Slot %d"), SlotIndex);
 }
 
-bool UInventorySlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
+// ============================================================================
+// ✅ DRAG & DROP LOGIC
+// ============================================================================
+
+bool UInventorySlotWidget::CanAcceptDrop(UItemDragDrop* DragOp)
 {
-    bIsDragHovered = false;
-    UpdateVisuals();
-
-    if (!InOperation)
+    if (!DragOp || !DragOp->SourceSlot || !ParentInventoryWidget || !ParentInventoryWidget->InventoryComponent)
     {
-        UE_LOG(LogTemp, Warning, TEXT("Drop failed: No operation"));
         return false;
     }
-
-    // Cast to ItemDragDrop
-    UItemDragDrop* ItemDragDrop = Cast<UItemDragDrop>(InOperation);
-    if (!ItemDragDrop || !ItemDragDrop->SourceSlot)
+    
+    // Can't drop on self
+    if (DragOp->SourceSlot == this)
     {
-        UE_LOG(LogTemp, Warning, TEXT("Drop failed: Invalid drag operation"));
         return false;
     }
-
-    UInventorySlotWidget* SourceSlot = ItemDragDrop->SourceSlot;
-
-    // Không cho drop vào chính nó
-    if (SourceSlot == this)
+    
+    UInventoryComponent* InvComp = ParentInventoryWidget->InventoryComponent;
+    
+    // Get item data
+    FItemData ItemData;
+    if (!InvComp->GetItemData(DragOp->ItemID, ItemData))
     {
-        UE_LOG(LogTemp, Verbose, TEXT("Drop cancelled: Self-drop"));
+        UE_LOG(LogTemp, Warning, TEXT("⚠️ CanAcceptDrop: Item data not found for %s"), *DragOp->ItemID.ToString());
         return false;
     }
-
-    if (!ParentInventoryWidget || !ParentInventoryWidget->InventoryComponent)
+    
+    // ========================================================================
+    // CASE 1: Quickbar → Quickbar (ALWAYS ALLOW SWAP)
+    // ========================================================================
+    if (DragOp->bIsQuickbarSlot && bIsQuickbarSlot)
     {
-        UE_LOG(LogTemp, Error, TEXT("Drop failed: No parent widget or inventory component"));
-        return false;
+        UE_LOG(LogTemp, Verbose, TEXT("✅ Quickbar → Quickbar: Allowed"));
+        return true;
     }
-
-    UInventoryComponent* Inventory = ParentInventoryWidget->InventoryComponent;
-
-    UE_LOG(LogTemp, Log, TEXT("Drop: Source=[%d,%s] Target=[%d,%s] Item='%s'"),
-        SourceSlot->SlotIndex, SourceSlot->bIsQuickbarSlot ? TEXT("QB") : TEXT("INV"),
-        SlotIndex, bIsQuickbarSlot ? TEXT("QB") : TEXT("INV"),
-        *ItemDragDrop->ItemID.ToString());
-
-    bool bSuccess = false;
-
-    // ===== CASE 1: Inventory -> Inventory =====
-    if (!SourceSlot->bIsQuickbarSlot && !bIsQuickbarSlot)
+    
+    // ========================================================================
+    // CASE 2: Quickbar → Inventory (ALLOW IF TARGET IS EMPTY)
+    // ========================================================================
+    if (DragOp->bIsQuickbarSlot && !bIsQuickbarSlot)
     {
-        // Nếu drop vào slot rỗng -> Move
-        // Nếu drop vào slot có item -> Swap
-        bSuccess = Inventory->SwapInventorySlots(SourceSlot->SlotIndex, SlotIndex);
-        UE_LOG(LogTemp, Log, TEXT("  -> Inventory SWAP"));
-    }
-    // ===== CASE 2: Quickbar -> Quickbar =====
-    else if (SourceSlot->bIsQuickbarSlot && bIsQuickbarSlot)
-    {
-        bSuccess = Inventory->SwapQuickbarSlots(SourceSlot->SlotIndex, SlotIndex);
-        UE_LOG(LogTemp, Log, TEXT("  -> Quickbar SWAP"));
-    }
-    // ===== CASE 3: Inventory -> Quickbar =====
-    else if (!SourceSlot->bIsQuickbarSlot && bIsQuickbarSlot)
-    {
-        // Move/Swap item từ inventory sang quickbar
-        bSuccess = Inventory->MoveInventoryToQuickbar(SourceSlot->SlotIndex, SlotIndex);
-        UE_LOG(LogTemp, Log, TEXT("  -> Inventory TO Quickbar"));
-    }
-    // ===== CASE 4: Quickbar -> Inventory =====
-    else if (SourceSlot->bIsQuickbarSlot && !bIsQuickbarSlot)
-    {
-        // Move/Swap item từ quickbar sang inventory
-        bSuccess = Inventory->MoveQuickbarToInventory(SourceSlot->SlotIndex, SlotIndex);
-        UE_LOG(LogTemp, Log, TEXT("  -> Quickbar TO Inventory"));
-    }
-
-    if (bSuccess)
-    {
-        UE_LOG(LogTemp, Log, TEXT("✓ Drop successful!"));
-
-        // TODO: Play sound effect
-        // if (DropSound)
-        // {
-        //     UGameplayStatics::PlaySound2D(this, DropSound);
-        // }
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("✗ Drop operation failed"));
-    }
-
-    return bSuccess;
-}
-
-void UInventorySlotWidget::UpdateSlot(const FInventorySlot& NewSlotData)
-{
-    SlotData = NewSlotData;
-    bIsEmpty = !SlotData.IsValid();
-
-    // Get item data from inventory component
-    if (!bIsEmpty && ParentInventoryWidget && ParentInventoryWidget->InventoryComponent)
-    {
-        if (!ParentInventoryWidget->InventoryComponent->GetItemData(SlotData.ItemID, ItemData))
+        if (!bIsEmpty)
         {
-            bIsEmpty = true;
+            UE_LOG(LogTemp, Warning, TEXT("⚠️ Quickbar → Inventory: Target slot occupied"));
+            return false;
         }
-
-        // Check if this item is equipped
-        if (bIsQuickbarSlot && ParentInventoryWidget->InventoryComponent->GetCurrentEquippedItemID() == SlotData.ItemID)
+        
+        UE_LOG(LogTemp, Verbose, TEXT("✅ Quickbar → Inventory: Allowed (removing from quickbar)"));
+        return true;
+    }
+    
+    // ========================================================================
+    // CASE 3: Inventory → Quickbar (CHECK COMPATIBILITY)
+    // ========================================================================
+    if (!DragOp->bIsQuickbarSlot && bIsQuickbarSlot)
+    {
+        // Only allow Tools and Consumables in quickbar
+        if (ItemData.ItemType != EItemType::Tool && ItemData.ItemType != EItemType::Consumable)
         {
-            bIsEquipped = true;
+            UE_LOG(LogTemp, Warning, TEXT("⚠️ Inventory → Quickbar: Only Tools/Consumables allowed (Type: %d)"), 
+                static_cast<int32>(ItemData.ItemType));
+            return false;
+        }
+        
+        // Check if item already exists in another quickbar slot
+        for (int32 i = 0; i < 4; i++)
+        {
+            if (i == SlotIndex) continue; // Skip current slot
+            
+            FInventorySlot QBSlot = InvComp->GetQuickbarSlot(i);
+            if (QBSlot.IsValid() && QBSlot.ItemID == DragOp->ItemID)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("⚠️ Inventory → Quickbar: Item already in Quickbar slot %d"), i);
+                return false;
+            }
+        }
+        
+        UE_LOG(LogTemp, Verbose, TEXT("✅ Inventory → Quickbar: Allowed"));
+        return true;
+    }
+    
+    // ========================================================================
+    // CASE 4: Inventory → Inventory (ALWAYS ALLOW)
+    // ========================================================================
+    if (!DragOp->bIsQuickbarSlot && !bIsQuickbarSlot)
+    {
+        UE_LOG(LogTemp, Verbose, TEXT("✅ Inventory → Inventory: Allowed"));
+        return true;
+    }
+    
+    return false;
+}
+
+void UInventorySlotWidget::ExecuteDrop(UItemDragDrop* DragOp)
+{
+    if (!DragOp || !DragOp->SourceSlot || !ParentInventoryWidget || !ParentInventoryWidget->InventoryComponent)
+    {
+        UE_LOG(LogTemp, Error, TEXT("❌ ExecuteDrop: Invalid parameters"));
+        return;
+    }
+    
+    UInventoryComponent* InvComp = ParentInventoryWidget->InventoryComponent;
+    
+    // ========================================================================
+    // CASE 1: Quickbar → Quickbar (SWAP)
+    // ========================================================================
+    if (DragOp->bIsQuickbarSlot && bIsQuickbarSlot)
+    {
+        InvComp->SwapQuickbarSlots(DragOp->SlotIndex, SlotIndex);
+        
+        UE_LOG(LogTemp, Log, TEXT("✅ Swapped Quickbar slots %d ↔ %d"), 
+            DragOp->SlotIndex, SlotIndex);
+        return;
+    }
+    
+    // ========================================================================
+    // CASE 2: Quickbar → Inventory (REMOVE FROM QUICKBAR)
+    // ========================================================================
+    if (DragOp->bIsQuickbarSlot && !bIsQuickbarSlot)
+    {
+        if (!bIsEmpty)
+        {
+            UE_LOG(LogTemp, Error, TEXT("❌ ExecuteDrop: Target inventory slot is not empty!"));
+            return;
+        }
+        
+        InvComp->RemoveFromQuickbar(DragOp->SlotIndex);
+        
+        UE_LOG(LogTemp, Log, TEXT("✅ Removed '%s' from Quickbar slot %d"), 
+            *DragOp->ItemID.ToString(), DragOp->SlotIndex);
+        return;
+    }
+    
+    // ========================================================================
+    // CASE 3: Inventory → Quickbar (ADD/REPLACE)
+    // ========================================================================
+    if (!DragOp->bIsQuickbarSlot && bIsQuickbarSlot)
+    {
+        if (bIsEmpty)
+        {
+            // Empty quickbar slot - just add
+            InvComp->AssignToQuickbar(DragOp->ItemID, SlotIndex);
+            
+            UE_LOG(LogTemp, Log, TEXT("✅ Added '%s' to Quickbar slot %d"), 
+                *DragOp->ItemID.ToString(), SlotIndex);
         }
         else
         {
-            bIsEquipped = false;
+            // Occupied quickbar slot - replace
+            FName OldItemID = CachedSlotData.ItemID;
+            InvComp->AssignToQuickbar(DragOp->ItemID, SlotIndex);
+            
+            UE_LOG(LogTemp, Log, TEXT("✅ Replaced Quickbar slot %d: '%s' → '%s'"), 
+                SlotIndex, *OldItemID.ToString(), *DragOp->ItemID.ToString());
         }
+        return;
     }
-
-    UpdateVisuals();
-}
-
-void UInventorySlotWidget::UpdateVisuals()
-{
-    if (bIsEmpty)
+    
+    // ========================================================================
+    // CASE 4: Inventory → Inventory (MOVE/SWAP)
+    // ========================================================================
+    if (!DragOp->bIsQuickbarSlot && !bIsQuickbarSlot)
     {
-        // Empty slot
-        if (ItemIcon)
+        if (bIsEmpty)
         {
-            ItemIcon->SetVisibility(ESlateVisibility::Hidden);
-        }
-
-        if (QuantityText)
-        {
-            QuantityText->SetVisibility(ESlateVisibility::Hidden);
-        }
-
-        if (DurabilityBar)
-        {
-            DurabilityBar->SetVisibility(ESlateVisibility::Hidden);
-        }
-
-        if (CooldownOverlay)
-        {
-            CooldownOverlay->SetVisibility(ESlateVisibility::Hidden);
-        }
-
-        if (CooldownBar)
-        {
-            CooldownBar->SetVisibility(ESlateVisibility::Hidden);
-        }
-
-        if (SlotBorder)
-        {
-            SlotBorder->SetBrushColor(EmptyColor);
-        }
-    }
-    else
-    {
-        // Has item - update icon
-        if (ItemIcon && ItemData.Icon)
-        {
-            ItemIcon->SetBrushFromTexture(ItemData.Icon);
-            ItemIcon->SetVisibility(ESlateVisibility::Visible);
-        }
-
-        // Update quantity
-        if (QuantityText)
-        {
-            if (SlotData.Quantity > 1)
-            {
-                QuantityText->SetText(FText::AsNumber(SlotData.Quantity));
-                QuantityText->SetVisibility(ESlateVisibility::Visible);
-            }
-            else
-            {
-                QuantityText->SetVisibility(ESlateVisibility::Hidden);
-            }
-        }
-
-        // Update border color based on state
-        if (SlotBorder)
-        {
-            FLinearColor BorderColor;
-
-            if (bIsEquipped)
-            {
-                BorderColor = EquippedColor;
-            }
-            else if (SlotData.CooldownRemaining > 0.0f)
-            {
-                BorderColor = OnCooldownColor;
-            }
-            else if (bIsSelected)
-            {
-                BorderColor = SelectedColor;
-            }
-            else if (bIsHovered || bIsDragHovered)
-            {
-                BorderColor = HoverColor;
-            }
-            else
-            {
-                BorderColor = NormalColor;
-            }
-
-            SlotBorder->SetBrushColor(BorderColor);
-        }
-
-        // Update durability bar
-        UpdateDurabilityBar();
-
-        // Update cooldown visuals
-        UpdateCooldownVisuals();
-    }
-
-    // Update hotkey display (quickbar only)
-    if (HotkeyText)
-    {
-        if (bIsQuickbarSlot)
-        {
-            HotkeyText->SetText(FText::AsNumber(SlotIndex + 1));
-            HotkeyText->SetVisibility(ESlateVisibility::Visible);
+            // Empty target - just move
+            InvComp->MoveItemToSlot(DragOp->SlotIndex, SlotIndex);
+            
+            UE_LOG(LogTemp, Log, TEXT("✅ Moved item from slot %d → %d"), 
+                DragOp->SlotIndex, SlotIndex);
         }
         else
         {
-            HotkeyText->SetVisibility(ESlateVisibility::Hidden);
-        }
-    }
-}
-
-void UInventorySlotWidget::UpdateDurabilityBar()
-{
-    if (!DurabilityBar || bIsEmpty)
-    {
-        if (DurabilityBar)
-        {
-            DurabilityBar->SetVisibility(ESlateVisibility::Hidden);
+            // Both occupied - swap
+            InvComp->SwapInventorySlots(DragOp->SlotIndex, SlotIndex);
+            
+            UE_LOG(LogTemp, Log, TEXT("✅ Swapped Inventory slots %d ↔ %d"), 
+                DragOp->SlotIndex, SlotIndex);
         }
         return;
     }
+    
+    UE_LOG(LogTemp, Error, TEXT("❌ ExecuteDrop: Unhandled case!"));
+}
 
-    // Only show durability bar for items with durability
-    if (ItemData.bHasDurability && ItemData.MaxUses > 0)
+void UInventorySlotWidget::ShowDropFeedback(bool bIsValid)
+{
+    if (bIsValid)
     {
-        float DurabilityPercent = (float)SlotData.RemainingUses / (float)ItemData.MaxUses;
-        DurabilityBar->SetPercent(DurabilityPercent);
-
-        // Color code: Green > Yellow > Red
-        FLinearColor BarColor;
-        if (DurabilityPercent > 0.5f)
-        {
-            BarColor = FLinearColor::Green;
-        }
-        else if (DurabilityPercent > 0.25f)
-        {
-            BarColor = FLinearColor::Yellow;
-        }
-        else
-        {
-            BarColor = FLinearColor::Red;
-        }
-
-        DurabilityBar->SetFillColorAndOpacity(BarColor);
-        DurabilityBar->SetVisibility(ESlateVisibility::HitTestInvisible);
+        bIsValidDropTarget = true;
+        bIsInvalidDropTarget = false;
     }
     else
     {
-        DurabilityBar->SetVisibility(ESlateVisibility::Hidden);
+        bIsValidDropTarget = false;
+        bIsInvalidDropTarget = true;
     }
-}
-
-void UInventorySlotWidget::UpdateCooldownVisuals()
-{
-    if (bIsEmpty || SlotData.CooldownRemaining <= 0.0f)
-    {
-        if (CooldownOverlay)
-        {
-            CooldownOverlay->SetVisibility(ESlateVisibility::Hidden);
-        }
-        if (CooldownBar)
-        {
-            CooldownBar->SetVisibility(ESlateVisibility::Hidden);
-        }
-        return;
-    }
-
-    // Get max cooldown from item data
-    float MaxCooldown = ItemData.UsageCooldown;
-    if (MaxCooldown <= 0.0f)
-    {
-        return;
-    }
-
-    float CooldownPercent = SlotData.CooldownRemaining / MaxCooldown;
-
-    // Show cooldown overlay
-    if (CooldownOverlay)
-    {
-        CooldownOverlay->SetOpacity(CooldownPercent * 0.7f);
-        CooldownOverlay->SetVisibility(ESlateVisibility::HitTestInvisible);
-    }
-
-    // Show cooldown bar
-    if (CooldownBar)
-    {
-        CooldownBar->SetPercent(CooldownPercent);
-        CooldownBar->SetVisibility(ESlateVisibility::HitTestInvisible);
-    }
-}
-
-void UInventorySlotWidget::SetSelected(bool bSelected)
-{
-    bIsSelected = bSelected;
+    
     UpdateVisuals();
 }
 
-void UInventorySlotWidget::OnSlotClicked()
+void UInventorySlotWidget::ClearDropFeedback()
 {
-    if (bIsEmpty)
-    {
-        UE_LOG(LogTemp, Log, TEXT("Clicked empty slot %d"), SlotIndex);
-
-        if (ParentInventoryWidget)
-        {
-            ParentInventoryWidget->HideItemDetails();
-        }
-        return;
-    }
-
-    if (ParentInventoryWidget)
-    {
-        ParentInventoryWidget->ClearSelection();
-        ParentInventoryWidget->ShowItemDetails(SlotIndex);
-        SetSelected(true);
-    }
+    bIsValidDropTarget = false;
+    bIsInvalidDropTarget = false;
+    UpdateVisuals();
 }

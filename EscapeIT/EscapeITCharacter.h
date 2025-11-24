@@ -301,4 +301,10 @@ private:
 	
 	UFUNCTION(Category = "Death")
 	void CheckCharacterDeath();
+	
+	void OnFlashlightToggled(bool bIsOn);
+	void OnBatteryChanged(float Current, float Max);
+	void OnBatteryLow();
+	void OnBatteryDepleted();
+	
 };
