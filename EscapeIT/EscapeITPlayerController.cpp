@@ -399,7 +399,7 @@ void AEscapeITPlayerController::OnToggleFlashlight()
     }
 
     // Check if equipped item is a flashlight
-    if (EquippedItemData.ItemCategory != EItemCategory::Flashlight)
+    if (EquippedItemData.ToolType != EToolType::Flashlight)
     {
         UE_LOG(LogTemp, Warning, TEXT("OnToggleFlashlight: Equipped item is not a flashlight! Current: %s"),
             *EquippedItemData.ItemName.ToString());
@@ -494,7 +494,7 @@ void AEscapeITPlayerController::EquipQuickbarSlot(int32 SlotIndex)
         CurrentEquippedSlotIndex = SlotIndex;
 
         // Check if it's a flashlight
-        bool bIsFlashlight = (ItemData.ItemCategory == EItemCategory::Flashlight);
+        bool bIsFlashlight = (ItemData.ToolType == EToolType::Flashlight);
 
         // Update character animation state
         if (AEscapeITCharacter* Char = GetPawn<AEscapeITCharacter>())
@@ -557,17 +557,39 @@ void AEscapeITPlayerController::UseCurrentEquippedItem()
         return;
     }
 
-    // Use equipped item through InventoryComponent
-    // InventoryComponent will delegate to FlashlightComponent if it's a flashlight
+    // Get equipped item data first
+    FItemData ItemData;
+    if (!InventoryComponent->GetEquippedItem(ItemData))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UseCurrentEquippedItem: Cannot get equipped item data!"));
+        return;
+    }
+
+    // Block flashlight from being used with left-click
+    if (ItemData.ItemType == EItemType::Tool && ItemData.ToolType == EToolType::Flashlight)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UseCurrentEquippedItem: Cannot use flashlight with left-click! Press F instead."));
+        return;
+    }
+
+    // Only allow consumable items to be used
+    if (ItemData.ItemType != EItemType::Consumable)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UseCurrentEquippedItem: Item '%s' is not consumable!"), *ItemData.ItemName.ToString());
+        return;
+    }
+
+    // Use the consumable item
     bool bSuccess = InventoryComponent->UseEquippedItem();
 
     if (bSuccess)
     {
-        UE_LOG(LogTemp, Log, TEXT("Used equipped item from slot %d"), CurrentEquippedSlotIndex + 1);
+        UE_LOG(LogTemp, Log, TEXT("Used consumable item '%s' from slot %d"), 
+            *ItemData.ItemName.ToString(), CurrentEquippedSlotIndex + 1);
     }
     else
     {
-        UE_LOG(LogTemp, Warning, TEXT("Failed to use equipped item"));
+        UE_LOG(LogTemp, Warning, TEXT("Failed to use consumable item '%s'"), *ItemData.ItemName.ToString());
     }
 }
 

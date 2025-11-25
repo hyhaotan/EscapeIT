@@ -390,7 +390,7 @@ void UInventoryWidget::ShowItemDetails(int32 SlotIndex)
 
     if (ItemData.ItemType == EItemType::Tool)
     {
-        if (ItemData.ItemCategory == EItemCategory::Flashlight)
+        if (ItemData.ToolType == EToolType::Flashlight)
         {
             if (BatteryBar && Text_BatteryPercent)
             {
@@ -512,9 +512,10 @@ void UInventoryWidget::OnUseButtonClicked()
     FItemData ItemData;
     if (InventoryComponent->GetItemData(SlotData.ItemID, ItemData))
     {
-        if (ItemData.ItemCategory == EItemCategory::Flashlight ||
-            ItemData.ItemCategory == EItemCategory::Wrench ||
-            ItemData.ItemCategory == EItemCategory::MasterKey)
+        if (ItemData.ToolType == EToolType::Flashlight ||
+            ItemData.ToolType == EToolType::Wrench ||
+            ItemData.ToolType == EToolType::MasterKey||
+            ItemData.ToolType == EToolType::Lighter)
         {
             // Find item in quickbar and equip it
             for (int32 i = 0; i < 4; i++)
@@ -649,7 +650,7 @@ void UInventoryWidget::OnBatteryChanged(float CurrentBattery, float MaxBattery)
                 FItemData ItemData;
                 if (InventoryComponent->GetItemData(SlotData.ItemID, ItemData))
                 {
-                    if (ItemData.ItemCategory == EItemCategory::Flashlight)
+                    if (ItemData.ToolType == EToolType::Flashlight)
                     {
                         RefreshBatteryIndicator();
                     }
@@ -676,7 +677,7 @@ void UInventoryWidget::OnLowBattery()
                 FItemData ItemData;
                 if (InventoryComponent->GetItemData(SlotData.ItemID, ItemData))
                 {
-                    if (ItemData.ItemCategory == EItemCategory::Flashlight)
+                    if (ItemData.ToolType == EToolType::Flashlight)
                     {
                         PlayBatteryWarningAnimation();
                     }
@@ -716,7 +717,7 @@ FString UInventoryWidget::BuildStatsText(const FItemData& ItemData, const FInven
 
     if (ItemData.ItemType == EItemType::Tool && FlashlightComponent)
     {
-        if (ItemData.ItemCategory == EItemCategory::Flashlight && FlashlightComponent)
+        if (ItemData.ToolType == EToolType::Flashlight && FlashlightComponent)
         {
             float BatteryPercent = FlashlightComponent->GetBatteryPercentage();
             float BatteryDuration = FlashlightComponent->GetBatteryDuration();
@@ -731,28 +732,32 @@ FString UInventoryWidget::BuildStatsText(const FItemData& ItemData, const FInven
 
     // Item category info
     FString TextInfo;
-    switch (ItemData.ItemCategory)
+    switch (ItemData.ToolType)
     {
-        case EItemCategory::Flashlight:
+        case EToolType::Flashlight:
             TextInfo = TEXT("💡 Light Source - Press F to toggle");
             break;
-        case EItemCategory::MasterKey:
+        case EToolType::MasterKey:
             TextInfo = TEXT("🔑 Opens Locked Doors");
             break;
-        case EItemCategory::Wrench:
+        case EToolType::Wrench:
             TextInfo = TEXT("🔧 Repair Tool");
             break;
         default:
             break;
     }
 
-    switch (ItemData.ItemConsumable)
+    switch (ItemData.ConsumableType)
     {
-    case EItemConsumable::Battery:
+    case EConsumableType::Battery:
         TextInfo = TEXT("Increase Battery");
         break;
-    case EItemConsumable::Medicien:
+    case EConsumableType::Medicine:
         TextInfo = TEXT("Increase Sanity");
+        break;
+    case EConsumableType::Food:
+        TextInfo = TEXT("Increase Sanity");
+        break;
     }
 
     if (!TextInfo.IsEmpty())
@@ -761,7 +766,7 @@ FString UInventoryWidget::BuildStatsText(const FItemData& ItemData, const FInven
     }
 
     // Consumable warning
-    if (ItemData.bIsConsumable)
+    if (ItemData.bIsSingleUse)
     {
         StatsText += TEXT("\n⚠ Single Use Item");
     }
@@ -774,7 +779,7 @@ void UInventoryWidget::ConfigureActionButtons(const FItemData& ItemData)
     // USE/EQUIP BUTTON
     if (Btn_Use)
     {
-        bool bCanUse = ItemData.bCanBeUse || ItemData.ItemType == EItemType::Tool;
+        bool bCanUse = ItemData.bCanBeUsed || ItemData.ItemType == EItemType::Tool;
         Btn_Use->SetIsEnabled(bCanUse);
 
         // Change button text based on item type
@@ -784,9 +789,17 @@ void UInventoryWidget::ConfigureActionButtons(const FItemData& ItemData)
             {
                 UseButtonText->SetText(FText::FromString(TEXT("EQUIP")));
             }
-            else if (ItemData.bIsConsumable)
+            else if (ItemData.ItemType == EItemType::Consumable)
             {
                 UseButtonText->SetText(FText::FromString(TEXT("USE")));
+            } 
+            else if (ItemData.ItemType == EItemType::Document)
+            {
+                UseButtonText->SetText(FText::FromString(TEXT("READ")));
+            }  
+            else if (ItemData.ItemType == EItemType::Key)
+            {
+                UseButtonText->SetText(FText::FromString(TEXT("INTERACT")));
             }
             else
             {
@@ -806,7 +819,8 @@ void UInventoryWidget::ConfigureActionButtons(const FItemData& ItemData)
     if (Btn_Examine)
     {
         bool bCanExamine = (ItemData.ItemType == EItemType::Document || 
-                            ItemData.ItemType == EItemType::Special);
+                            ItemData.ItemType == EItemType::Passive || 
+                            ItemData.ItemType == EItemType::QuestItem);
         Btn_Examine->SetIsEnabled(bCanExamine);
     }
 }

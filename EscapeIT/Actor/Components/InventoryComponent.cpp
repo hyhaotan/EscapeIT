@@ -32,10 +32,6 @@ void UInventoryComponent::BeginPlay()
     {
         CharacterMesh = Character->GetMesh();
     }
-
-    // HORROR: Reserve slot 0 for Flashlight (most important tool)
-    // Slot 0: Flashlight
-    // Slot 1-3: Other tools/items
 }
 
 void UInventoryComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -239,7 +235,7 @@ bool UInventoryComponent::UseItem(FName ItemID)
         return false;
     }
 
-    if (!ItemData.bCanBeUse)
+    if (!ItemData.bCanBeUsed)
     {
         UE_LOG(LogTemp, Warning, TEXT("UseItem: Item '%s' cannot be used"), *ItemData.ItemName.ToString());
         OnItemUsed.Broadcast(ItemID, false);
@@ -247,9 +243,9 @@ bool UInventoryComponent::UseItem(FName ItemID)
     }
 
     // Nếu là Pin thì chỉ cho dùng khi có Flashlight
-    if (ItemData.ItemType == EItemType::Consumable)
+    if (ItemData.ItemType == EItemType::Tool)
     {
-        if (ItemData.ItemConsumable == EItemConsumable::Battery)
+        if (ItemData.ToolType == EToolType::Flashlight)
         {
             UFlashlightComponent* FlashlightComp = GetOwner()->FindComponentByClass<UFlashlightComponent>();
             if (!FlashlightComp)
@@ -273,27 +269,38 @@ bool UInventoryComponent::UseItem(FName ItemID)
             return true;
         }
     }
-
-    // Các item khác xử lý như cũ
+    
     bool bEffectApplied = ApplyItemEffect(ItemData);
     PlayItemSound(ItemData.UseSound);
     OnItemUsed.Broadcast(ItemID, bEffectApplied);
 
-    if (ItemData.bIsConsumable)
+    if (const auto Sanity = GetOwner()->FindComponentByClass<USanityComponent>())
     {
-        if (CurrentEquippedItemID == ItemID)
+        if (Sanity->GetSanity() < 100.0f)
         {
-            UnequipCurrentItem();
-        }
-        for (int32 i = 0; i < QuickbarSlots.Num(); i++)
-        {
-            if (QuickbarSlots[i].ItemID == ItemID)
+            if (ItemData.ItemType == EItemType::Consumable)
             {
-                QuickbarSlots[i] = FInventorySlot();
+                if (CurrentEquippedItemID == ItemID)
+                {
+                    UnequipCurrentItem();
+                }
+                for (int32 i = 0; i < QuickbarSlots.Num(); i++)
+                {
+                    if (QuickbarSlots[i].ItemID == ItemID)
+                    {
+                        QuickbarSlots[i] = FInventorySlot();
+                    }
+                }
+                RemoveItem(ItemID, 1);
             }
         }
-        RemoveItem(ItemID, 1);
+        else
+        {
+            UE_LOG(LogTemp,Warning,TEXT("Consumable items cannot be used because the player's sanity must be less than 100!"));
+            return false;
+        }
     }
+   
 
     OnInventoryUpdated.Broadcast();
     return true;
@@ -316,7 +323,7 @@ bool UInventoryComponent::UseEquippedItem()
 
     if (ItemData.ItemType == EItemType::Tool)
     {
-        if (ItemData.ItemCategory == EItemCategory::Flashlight)
+        if (ItemData.ToolType == EToolType::Flashlight)
         {
             if (UFlashlightComponent* FlashlightComp = GetOwner()->FindComponentByClass<UFlashlightComponent>())
             {
@@ -406,7 +413,7 @@ bool UInventoryComponent::EquipQuickbarSlot(int32 QuickbarIndex)
         // HORROR: Special handling for flashlight
         if (ItemData.ItemType == EItemType::Tool)
         {
-            if (ItemData.ItemCategory == EItemCategory::Flashlight)
+            if (ItemData.ToolType == EToolType::Flashlight)
             {
                 if (UFlashlightComponent* FlashlightComp = GetOwner()->FindComponentByClass<UFlashlightComponent>())
                 {
@@ -500,7 +507,7 @@ void UInventoryComponent::UnequipCurrentItem()
     {
         if (ItemData.ItemType == EItemType::Tool)
         {
-            if (ItemData.ItemCategory == EItemCategory::Flashlight)
+            if (ItemData.ToolType == EToolType::Flashlight)
             {
                 if (UFlashlightComponent* FlashlightComp = GetOwner()->FindComponentByClass<UFlashlightComponent>())
                 {
@@ -1056,7 +1063,7 @@ void UInventoryComponent::PrintInventory()
 
 bool UInventoryComponent::ApplyItemEffect(const FItemData& ItemData)
 {
-    if (!ItemData.bUseEffect)
+    if (ItemData.ItemType != EItemType::Consumable)
     {
         return false;
     }

@@ -3,7 +3,6 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
-#include "Engine/DataTable.h"
 #include "EscapeIT/Data//ItemData.h"
 #include "InventoryComponent.generated.h"
 

@@ -53,7 +53,7 @@ public:
     
     // Loại key yêu cầu để mở chest này
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Settings")
-    EKeysType RequiredKeyType;
+    EKeyType RequiredKeyType;
 
     // Có cần key để mở không (một số chest không cần key)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Settings")

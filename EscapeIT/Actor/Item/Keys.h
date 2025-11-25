@@ -20,10 +20,10 @@ protected:
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Key")
-	EKeysType KeyType;
+	EKeyType KeyType;
 	
 	UFUNCTION(BlueprintCallable, Category = "Key")
-	EKeysType GetKeyType() const { return KeyType; }
+	EKeyType GetKeyType() const { return KeyType; }
 	
 	
 private:

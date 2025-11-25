@@ -6,7 +6,7 @@ AKeys::AKeys()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	
-	KeyType = EKeysType::Key1;
+	KeyType = EKeyType::BasementKey;
 }
 
 void AKeys::UseItem_Implementation()

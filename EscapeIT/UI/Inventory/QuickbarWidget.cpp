@@ -462,9 +462,9 @@ bool UQuickbarWidget::IsFlashlightItem(const FItemData& ItemData)
 {
     if (ItemData.ItemType == EItemType::Tool)
     {
-        if (ItemData.ItemCategory == EItemCategory::Flashlight)
+        if (ItemData.ToolType == EToolType::Flashlight)
         {
-            return ItemData.ItemCategory == EItemCategory::Flashlight;
+            return ItemData.ToolType == EToolType::Flashlight;
         }
     }
     return false;

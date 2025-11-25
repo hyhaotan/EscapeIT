@@ -32,7 +32,7 @@ AChest::AChest()
     
     OpenTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("OpenTimeline"));
     
-    RequiredKeyType = EKeysType::Key1;
+    RequiredKeyType = EKeyType::BasementKey;
 }
 
 void AChest::BeginPlay()
@@ -124,8 +124,8 @@ bool AChest::CheckCanOpenChest(AActor* Interactor, FString& OutFailReason)
             FItemData* ItemData = Inventory->ItemDataTable->FindRow<FItemData>(RowName, TEXT(""));
             if (ItemData && 
                 ItemData->ItemType == EItemType::Tool && 
-                ItemData->ItemCategory == EItemCategory::MasterKey &&
-                ItemData->KeysType == RequiredKeyType)
+                ItemData->KeyType == EKeyType::BasementKey &&
+                ItemData->KeyType == RequiredKeyType)
             {
                 RequiredKeyItemID = ItemData->ItemID;
                 break;
@@ -182,8 +182,8 @@ void AChest::OpenChest(AActor* Interactor)
                 FItemData* ItemData = Inventory->ItemDataTable->FindRow<FItemData>(RowName, TEXT(""));
                 if (ItemData && 
                     ItemData->ItemType == EItemType::Tool && 
-                    ItemData->ItemCategory == EItemCategory::MasterKey &&
-                    ItemData->KeysType == RequiredKeyType)
+                    ItemData->KeyType == EKeyType::BasementKey &&
+                    ItemData->KeyType == RequiredKeyType)
                 {
                     RequiredKeyItemID = ItemData->ItemID;
                     break;
