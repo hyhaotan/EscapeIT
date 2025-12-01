@@ -3,8 +3,9 @@
 #include "EscapeIT/UI/Settings/Row/SelectionSettingRow.h"
 #include "EscapeIT/Settings/Core/SettingsSubsystem.h"
 #include "CommonTextBlock.h"
+#include "IMediaControls.h"
 #include "GameFramework/GameUserSettings.h"
-#include "Engine/Engine.h"
+#include "Engine.h"
 
 UGraphicWidget::UGraphicWidget(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
@@ -40,18 +41,6 @@ void UGraphicWidget::NativeConstruct()
     {
         FS_GraphicsSettings DefaultSettings;
         LoadSettings(DefaultSettings);
-    }
-
-    // Start FPS counter if widget exists
-    if (FPSText)
-    {
-        GetWorld()->GetTimerManager().SetTimer(
-            FPSTimerHandle,
-            this,
-            &UGraphicWidget::UpdateFPSCounter,
-            1.0f,  // Update every 1 second
-            true
-        );
     }
 }
 
@@ -536,44 +525,6 @@ int32 UGraphicWidget::PercentageToIndex(float Value) const
     return ClosestIndex;
 }
 
-void UGraphicWidget::UpdateFPSCounter()
-{
-    if (!FPSText || !GEngine)
-        return;
-
-    float AverageFPS = 0.0f;
-
-    // Uncomment when GEngine->GetAverageFPS() is available
-    // if (GEngine->GetAverageFPS() > 0.0f)
-    // {
-    //     AverageFPS = GEngine->GetAverageFPS();
-    // }
-    // else
-    // {
-    //     float DeltaTime = GetWorld()->GetDeltaSeconds();
-    //     if (DeltaTime > 0.0f)
-    //     {
-    //         AverageFPS = 1.0f / DeltaTime;
-    //     }
-    // }
-
-    FString FPSString;
-    if (AverageFPS >= 60.0f)
-    {
-        FPSString = FString::Printf(TEXT("FPS: %.0f"), AverageFPS);
-    }
-    else if (AverageFPS >= 30.0f)
-    {
-        FPSString = FString::Printf(TEXT("FPS: %.0f (OK)"), AverageFPS);
-    }
-    else
-    {
-        FPSString = FString::Printf(TEXT("FPS: %.0f (Low)"), AverageFPS);
-    }
-
-    FPSText->SetText(FText::FromString(FPSString));
-}
-
 void UGraphicWidget::MarkAsCustomPreset()
 {
     if (CurrentSettings.QualityPreset != EE_GraphicsQuality::Custom)
@@ -732,4 +683,3 @@ void UGraphicWidget::OnFieldOfViewChanged(int32 NewIndex)
     UE_LOG(LogTemp, Log, TEXT("GraphicWidget: FieldOfView changed to %.1f (local)"), CurrentSettings.FieldOfView);
     if (SettingsSubsystem) SettingsSubsystem->ApplyGraphicsSettings(CurrentSettings);
 }
-

@@ -28,6 +28,8 @@ void UDocumentWidget::NativeConstruct()
             SetFocus();
         }
     }, 0.1f, false);
+    
+    bIsFocusable = true;
 }
 
 void UDocumentWidget::NativeDestruct()

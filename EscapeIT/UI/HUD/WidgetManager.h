@@ -12,6 +12,7 @@ class USanityComponent;
 class UQuickbarWidget;
 class UPauseMenuWidget;
 class UInventoryWidget;
+class UFPSWidget;
 
 UCLASS()
 class ESCAPEIT_API AWidgetManager : public AHUD
@@ -43,6 +44,9 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Widgets")
 	TSubclassOf<UInventoryWidget> InventoryWidgetClass;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "Widgets")
+	TSubclassOf<UFPSWidget> FPSWidgetClass;
 
 	UPROPERTY(EditAnywhere,Category = "Widgets")
 	TSubclassOf<UUserWidget> StaminaWidgetClass;
@@ -71,6 +75,9 @@ public:
 	
 	UPROPERTY()
 	TObjectPtr<UUserWidget> StaminaWidget;	
+	
+	UPROPERTY()
+	TObjectPtr<UFPSWidget> FPSWidget;	
 	
 	UPROPERTY()
 	TObjectPtr<UUserWidget> DeathWidget;

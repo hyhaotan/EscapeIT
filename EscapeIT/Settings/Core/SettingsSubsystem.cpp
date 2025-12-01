@@ -1,9 +1,9 @@
 ﻿
 #include "EscapeIT/Settings/Core/SettingsSubsystem.h"
 #include "Kismet/GameplayStatics.h"
-#include "GameFramework/GameUserSettings.h"
 #include "Engine/Engine.h"
 #include "RHI.h"
+#include "DynamicRHI.h"
 #include "GenericPlatform/GenericPlatformMisc.h"
 #include "EscapeIT/SaveGames/SettingsSaveManager.h"
 #include "HAL/PlatformMemory.h"
@@ -1345,37 +1345,43 @@ TArray<EE_GraphicsQuality> USettingsSubsystem::GetAvailableGraphicsPresets() con
 
 FS_PerformanceMetrics USettingsSubsystem::GetPerformanceMetrics() const
 {
-    // Check if cached metrics are still valid
-    float CurrentTime = UGameplayStatics::GetRealTimeSeconds(GetWorld());
+      float CurrentTime = UGameplayStatics::GetRealTimeSeconds(GetWorld());
 
+    // Return cached if still valid
     if (CurrentTime - LastMetricsCacheTime < MetricsCacheDuration)
     {
         return CachedMetrics;
     }
 
-    // Update metrics
     FS_PerformanceMetrics Metrics;
 
-    if (!GEngine)
+    if (!GEngine || !GetWorld())
     {
         return Metrics;
     }
 
-    // Get frame stats
-    float AverageFPS = 0.0f;
-    float AverageMS = 0.0f;
-
-    // Get FPS from engine stats
-    if (GAverageFPS > 0)
+    // ===== FPS MEASUREMENT =====
+    extern ENGINE_API float GAverageFPS;
+    
+    // Method 1: Global average FPS
+    if (GAverageFPS > 0.0f)
     {
-        AverageFPS = GAverageFPS;
-        AverageMS = 1000.0f / GAverageFPS;
+        Metrics.AverageFPS = GAverageFPS;
+        Metrics.AverageFrameTime = 1000.0f / GAverageFPS;
+    }
+    // Method 2: Calculate from delta time
+    else
+    {
+        float DeltaTime = GetWorld()->GetDeltaSeconds();
+        if (DeltaTime > 0.0f)
+        {
+            Metrics.AverageFPS = 1.0f / DeltaTime;
+            Metrics.AverageFrameTime = DeltaTime * 1000.0f;
+        }
     }
 
-    Metrics.AverageFPS = AverageFPS;
-    Metrics.AverageFrameTime = AverageMS;
-
-    // Get rendering stats
+    // ===== RENDERING STATS =====
+    
     if (FModuleManager::Get().IsModuleLoaded(TEXT("Renderer")))
     {
         // Lấy module renderer (không phải từ GEngine)
@@ -1397,15 +1403,22 @@ FS_PerformanceMetrics USettingsSubsystem::GetPerformanceMetrics() const
         Metrics.Triangles = 0;
     }
 
-    // Get memory stats
+    // ===== MEMORY STATS =====
+    
+    // RAM usage
     FPlatformMemoryStats MemStats = FPlatformMemory::GetStats();
-    Metrics.UsedRAMMB = (MemStats.UsedPhysical) / (1024.0f * 1024.0f);
+    Metrics.UsedRAMMB = static_cast<float>(MemStats.UsedPhysical) / (1024.0f * 1024.0f);
 
-    // VRAM usage (approximate)
+    // VRAM usage (approximate from texture memory)
     if (GDynamicRHI)
     {
-        // This is simplified - actual VRAM tracking is more complex
-        Metrics.UsedVRAMMB = 0.0f;
+        FTextureMemoryStats TextureStats;
+        RHIGetTextureMemoryStats(TextureStats);
+        
+        if (TextureStats.DedicatedVideoMemory > 0)
+        {
+            Metrics.UsedVRAMMB = static_cast<float>(TextureStats.DedicatedVideoMemory) / (1024.0f * 1024.0f);
+        }
     }
 
     Metrics.MeasurementTime = FDateTime::UtcNow();

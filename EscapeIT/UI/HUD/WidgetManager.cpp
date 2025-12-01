@@ -7,6 +7,7 @@
 #include "EscapeIT/UI/Settings/PauseMenuWidget.h"
 #include "GameFramework/PlayerController.h"
 #include "Blueprint/UserWidget.h"
+#include "EscapeIT/UI/FPSWidget.h"
 #include "Kismet/GameplayStatics.h"
 
 AWidgetManager::AWidgetManager()
@@ -100,6 +101,15 @@ void AWidgetManager::InitializeWidgets()
 	if (DeathWidgetClass && !DeathWidget)
 	{
 		DeathWidget = CreateWidget<UUserWidget>(GetWorld(), DeathWidgetClass);
+	}
+
+	if (FPSWidgetClass && !FPSWidget)
+	{
+		FPSWidget = CreateWidget<UFPSWidget>(GetWorld(),FPSWidgetClass);
+		if (FPSWidget)
+		{
+			FPSWidget->AddToViewport();
+		}
 	}
 }
 

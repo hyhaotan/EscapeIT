@@ -1,4 +1,3 @@
-// GraphicWidget.h
 #pragma once
 
 #include "CoreMinimal.h"
@@ -62,10 +61,6 @@ protected:
     UPROPERTY(meta = (BindWidgetOptional))
     USelectionSettingRow* FieldOfViewRow;
 
-    // Optional FPS counter text
-    UPROPERTY(meta = (BindWidgetOptional))
-    UCommonTextBlock* FPSText;
-
     // Internal
     UPROPERTY()
     USettingsSubsystem* SettingsSubsystem;
@@ -104,9 +99,6 @@ protected:
     float IndexToPercentage(int32 Index) const;
     int32 PercentageToIndex(float Value) const;
 
-    // FPS counter
-    void UpdateFPSCounter();
-
     // Helper to mark preset as custom when user changes individual settings
     void MarkAsCustomPreset();
 
@@ -144,3 +136,4 @@ protected:
     UFUNCTION()
     void OnFieldOfViewChanged(int32 NewIndex);
 };
+
