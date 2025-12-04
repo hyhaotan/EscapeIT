@@ -14,6 +14,8 @@
 #include "EscapeIT/UI/HUD/WidgetManager.h"
 #include <EnhancedInputSubsystems.h>
 #include "EscapeITCharacter.h"
+#include "Actor/Item/Flashlight.h"
+#include "EscapeIT/UI/NotificationWidget.h"
 
 AEscapeITPlayerController::AEscapeITPlayerController()
     : MouseSensitivity(1.0f)
@@ -68,60 +70,9 @@ void AEscapeITPlayerController::BeginPlay()
     Super::BeginPlay();
 
     LastInputNotifyTime = FPlatformTime::Seconds();
-
-    // Get references from Pawn
-    if (GetPawn())
-    {
-        // Get Inventory Component
-        InventoryComponent = GetPawn()->FindComponentByClass<UInventoryComponent>();
-        if (!InventoryComponent)
-        {
-            UE_LOG(LogTemp, Error, TEXT("PlayerController: InventoryComponent not found on Pawn!"));
-        }
-
-        // Get Flashlight Component
-        FlashlightComponent = GetPawn()->FindComponentByClass<UFlashlightComponent>();
-        if (!FlashlightComponent)
-        {
-            UE_LOG(LogTemp, Error, TEXT("PlayerController: FlashlightComponent not found on Pawn!"));
-        }
-        else
-        {
-            UE_LOG(LogTemp, Log, TEXT("PlayerController: FlashlightComponent found"));
-        }
-    }
-
-    // Create interaction prompt widget
-    if (InteractionPromptWidgetClass)
-    {
-        InteractionPromptWidget = CreateWidget<UInteractionPromptWidget>(this, InteractionPromptWidgetClass);
-        if (InteractionPromptWidget)
-        {
-            InteractionPromptWidget->AddToViewport(10); // High Z-order
-            InteractionPromptWidget->HidePrompt();
-        }
-    }
-
-    // Create quickbar widget
-    if (QuickbarWidgetClass)
-    {
-        QuickbarWidget = CreateWidget<UQuickbarWidget>(this, QuickbarWidgetClass);
-        if (QuickbarWidget)
-        {
-            QuickbarWidget->AddToViewport(5); // Lower than interaction prompt
-            QuickbarWidget->InitQuickBar(InventoryComponent, FlashlightComponent);
-
-            UE_LOG(LogTemp, Log, TEXT("QuickbarWidget created and initialized"));
-        }
-        else
-        {
-            UE_LOG(LogTemp, Error, TEXT("Failed to create QuickbarWidget"));
-        }
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("QuickbarWidgetClass not set!"));
-    }
+    
+    InitWidget();
+    FindComponentClass();
 }
 
 void AEscapeITPlayerController::SetupInputComponent()
@@ -158,6 +109,8 @@ void AEscapeITPlayerController::SetupInputComponent()
 
             // Use equipped item (Right-click)
             if (UseEquippedItem) EnhancedInputComponent->BindAction(UseEquippedItem, ETriggerEvent::Completed, this, &AEscapeITPlayerController::UseCurrentEquippedItem);
+            
+            if (ChargeBatteryFlashlight) EnhancedInputComponent->BindAction(ChargeBatteryFlashlight, ETriggerEvent::Completed, this, &AEscapeITPlayerController::ChargeBattery);
 
             // Other actions
             if (ToggleInventory) EnhancedInputComponent->BindAction(ToggleInventory, ETriggerEvent::Completed, this, &AEscapeITPlayerController::Inventory);
@@ -370,13 +323,6 @@ void AEscapeITPlayerController::Inventory()
 
 void AEscapeITPlayerController::OnToggleFlashlight()
 {
-    // Validate components
-    if (!FlashlightComponent)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("OnToggleFlashlight: FlashlightComponent is null!"));
-        return;
-    }
-
     if (!InventoryComponent)
     {
         UE_LOG(LogTemp, Warning, TEXT("OnToggleFlashlight: InventoryComponent is null!"));
@@ -401,26 +347,40 @@ void AEscapeITPlayerController::OnToggleFlashlight()
     // Check if equipped item is a flashlight
     if (EquippedItemData.ToolType != EToolType::Flashlight)
     {
-        UE_LOG(LogTemp, Warning, TEXT("OnToggleFlashlight: Equipped item is not a flashlight! Current: %s"),
-            *EquippedItemData.ItemName.ToString());
+        UE_LOG(LogTemp, Warning, TEXT("OnToggleFlashlight: Equipped item is not a flashlight!"));
         return;
     }
 
-    // Check if flashlight is equipped in FlashlightComponent
-    if (!FlashlightComponent->IsEquipped())
+    // **UPDATED: Get FlashlightComponent from spawned flashlight actor**
+    AFlashlight* FlashlightActor = InventoryComponent->SpawnedFlashlightActor;
+    if (!FlashlightActor)
     {
-        UE_LOG(LogTemp, Warning, TEXT("OnToggleFlashlight: Flashlight not equipped in FlashlightComponent!"));
+        UE_LOG(LogTemp, Error, TEXT("OnToggleFlashlight: SpawnedFlashlightActor is null!"));
+        return;
+    }
+
+    UFlashlightComponent* FlashlightComp = FlashlightActor->FlashlightComponent;
+    if (!FlashlightComp)
+    {
+        UE_LOG(LogTemp, Error, TEXT("OnToggleFlashlight: FlashlightComponent is null!"));
+        return;
+    }
+
+    // Check if flashlight is equipped
+    if (!FlashlightComp->IsEquipped())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("OnToggleFlashlight: Flashlight not equipped!"));
         return;
     }
 
     // Toggle the flashlight
-    bool bSuccess = FlashlightComponent->ToggleLight();
+    bool bSuccess = FlashlightComp->ToggleLight();
 
     if (bSuccess)
     {
         UE_LOG(LogTemp, Log, TEXT("Flashlight toggled: %s (Battery: %.1f%%)"),
-            FlashlightComponent->IsLightOn() ? TEXT("ON") : TEXT("OFF"),
-            FlashlightComponent->GetBatteryPercentage());
+            FlashlightComp->IsLightOn() ? TEXT("ON") : TEXT("OFF"),
+            FlashlightComp->GetBatteryPercentage());
     }
     else
     {
@@ -632,6 +592,79 @@ void AEscapeITPlayerController::DropCurrentItem()
     else
     {
         UE_LOG(LogTemp, Warning, TEXT("Failed to drop item"));
+    }
+}
+
+void AEscapeITPlayerController::ChargeBattery()
+{
+    if (!InventoryComponent || !FlashlightComponent)
+    {
+        UE_LOG(LogTemp, Error, TEXT("ChargeBattery: Missing components!"));
+        return;
+    }
+    
+    if (!FlashlightComponent->IsEquipped())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ChargeBattery: Flashlight not equipped!"));
+        
+        return;
+    }
+    
+  
+    FItemData ItemData;
+    if (ItemData.ItemType != EItemType::Consumable && ItemData.ConsumableType != EConsumableType::Battery)
+    {
+        FText Message = FText::FromString(TEXT("You must have batteries to charge the flashlight"));
+        NotificationWidget->ShowNotification(Message);
+        return;
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("ChargeBattery: Replacing battery..."));
+    
+    FlashlightComponent->AddBatteryCharge(ItemData.BatteryChargePercent);
+    
+    InventoryComponent->RemoveItem(ItemData.ItemID, 1);
+
+    UE_LOG(LogTemp, Log, TEXT("✅ ChargeBattery: Battery replaced successfully!"));
+    
+    FText Message = FText::FromString(FString::Printf(TEXT("Flashlight charge: %d"),
+        static_cast<int32>(ItemData.BatteryChargePercent)));
+    NotificationWidget->ShowNotification(Message);
+}
+
+void AEscapeITPlayerController::InitWidget()
+{
+    if (InteractionPromptWidgetClass)
+    {
+        InteractionPromptWidget = CreateWidget<UInteractionPromptWidget>(this, InteractionPromptWidgetClass);
+        if (InteractionPromptWidget)
+        {
+            InteractionPromptWidget->AddToViewport();
+            InteractionPromptWidget->HidePrompt();
+        }
+    }
+    
+    if (QuickbarWidgetClass)
+    {
+        QuickbarWidget = CreateWidget<UQuickbarWidget>(this, QuickbarWidgetClass);
+        if (QuickbarWidget)
+        {
+            QuickbarWidget->AddToViewport();
+            QuickbarWidget->InitQuickBar(InventoryComponent, FlashlightComponent);
+        }
+    }
+}
+
+void AEscapeITPlayerController::FindComponentClass()
+{
+    if (GetPawn())
+    {
+        InventoryComponent = GetPawn()->FindComponentByClass<UInventoryComponent>();
+    }
+
+    if (GetOwner())
+    {
+        FlashlightComponent = GetOwner()->FindComponentByClass<UFlashlightComponent>();
     }
 }
 

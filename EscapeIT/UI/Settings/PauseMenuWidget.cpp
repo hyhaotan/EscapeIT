@@ -47,7 +47,7 @@ void UPauseMenuWidget::OnClickSettingButton()
         UMainMenuSettingWidget* SettingWidget = CreateWidget<UMainMenuSettingWidget>(PC, MainMenuSettingWidgetClass);
         if (SettingWidget)
         {
-            SettingWidget->AddToPlayerScreen(999); // an toàn hơn AddToViewport
+            SettingWidget->AddToViewport(999);
             PC->bShowMouseCursor = true;
 
             // set input mode and focus widget:

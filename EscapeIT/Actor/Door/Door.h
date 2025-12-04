@@ -10,7 +10,7 @@ class UTimelineComponent;
 class UStaticMeshComponent;
 class USceneComponent;
 class UCurveFloat;
-class UAudioSubsystem;
+class UAudioManager;
 
 UCLASS()
 class ESCAPEIT_API ADoor : public AActor
@@ -70,6 +70,6 @@ public:
 	bool IsOpen() const { return bIsOpen; }
 	
 private:
-	UPROPERTY()
-	TObjectPtr<UAudioSubsystem> AudioSubsystem;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UAudioManager> AudioManager;
 };

@@ -17,11 +17,6 @@ void UInteractionPromptWidget::NativeConstruct()
 void UInteractionPromptWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
     Super::NativeTick(MyGeometry, InDeltaTime);
-
-    if (bIsVisible)
-    {
-        UpdateAnimation(InDeltaTime);
-    }
 }
 
 void UInteractionPromptWidget::ShowPrompt(const FText& Action, const FText& Target, UTexture2D* KeyTexture)
@@ -60,9 +55,6 @@ void UInteractionPromptWidget::ShowPrompt(const FText& Action, const FText& Targ
             IconToUse = KeyTexture_E;
         }
     }
-
-    // Reset animation
-    AnimationTime = 0.0f;
 }
 
 void UInteractionPromptWidget::HidePrompt()
@@ -130,32 +122,4 @@ void UInteractionPromptWidget::UpdatePromptForActor(AActor* TargetActor)
 bool UInteractionPromptWidget::IsPromptVisible() const
 {
     return bIsVisible;
-}
-
-void UInteractionPromptWidget::UpdateAnimation(float DeltaTime)
-{
-    AnimationTime += DeltaTime * PulseSpeed;
-
-    // Pulsing effect
-    float PulseValue = FMath::Sin(AnimationTime) * PulseIntensity;
-    float Scale = 1.0f + PulseValue;
-
-    if (PromptContainer)
-    {
-        PromptContainer->SetRenderScale(FVector2D(Scale, Scale));
-    }
-
-    // Color pulse
-    if (PromptBackground)
-    {
-        FLinearColor CurrentColor = FMath::Lerp(NormalColor, HighlightColor, (PulseValue + 1.0f) * 0.5f);
-        PromptBackground->SetBrushColor(CurrentColor);
-    }
-
-    // Fade in animation for text
-    if (TargetText)
-    {
-        float Alpha = FMath::Clamp(AnimationTime * 3.0f, 0.0f, 1.0f);
-        TargetText->SetRenderOpacity(Alpha);
-    }
 }

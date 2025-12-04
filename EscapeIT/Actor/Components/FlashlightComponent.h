@@ -37,6 +37,9 @@ public:
     /** Reference to the SpotLight component */
     UPROPERTY(BlueprintReadOnly, Category = "Flashlight")
     TObjectPtr<USpotLightComponent> SpotLight;
+    
+    UPROPERTY()
+    AFlashlight* CurrentFlashlightActor;
 
     // ============================================
     // PROPERTIES - BATTERY SYSTEM
@@ -107,7 +110,10 @@ public:
     TObjectPtr<UAnimMontage> EquipFlashlightAnim;
     
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Flashlight|Animation")
-    TObjectPtr<UAnimMontage> UnequipFlashlightAnim;
+    TObjectPtr<UAnimMontage> UnequipFlashlightAnim; 
+    
+    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Flashlight|Animation")
+    TObjectPtr<UAnimMontage> ChargeBatteryFlashlightAnim;
 
     // ============================================
     // DELEGATES
@@ -136,7 +142,7 @@ public:
     bool SetLightEnabled(bool bEnabled);
     
     UFUNCTION(BlueprintCallable, Category = "Flashlight")
-    void EquipFlashlight();
+    void EquipFlashlight(AFlashlight* FlashlightActor);
 
     UFUNCTION(BlueprintCallable, Category = "Flashlight")
     void UnequipFlashlight();
@@ -173,8 +179,12 @@ public:
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Flashlight")
     bool IsEquipped() const { return bIsEquipped; }
 
+    void SetEquipped(bool bEquipped);
+    
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Flashlight")
     bool CanToggleLight() const;
+    
+    void InitializeFlashlight(AFlashlight* OwnerFlashlight, USpotLightComponent* Spotlight);
 
 protected:
     // ============================================

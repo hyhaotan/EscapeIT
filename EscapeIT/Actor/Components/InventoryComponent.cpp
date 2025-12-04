@@ -8,7 +8,9 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "EscapeIT/Actor/Components/SanityComponent.h"
 #include "TimerManager.h"
+#include "Components/SpotLightComponent.h"
 #include "EscapeIT/Actor/Components/FlashlightComponent.h"
+#include "EscapeIT/Actor/Item/Flashlight.h"
 
 UInventoryComponent::UInventoryComponent()
 {
@@ -241,68 +243,94 @@ bool UInventoryComponent::UseItem(FName ItemID)
         OnItemUsed.Broadcast(ItemID, false);
         return false;
     }
-
-    // Nếu là Pin thì chỉ cho dùng khi có Flashlight
-    if (ItemData.ItemType == EItemType::Tool)
-    {
-        if (ItemData.ToolType == EToolType::Flashlight)
-        {
-            UFlashlightComponent* FlashlightComp = GetOwner()->FindComponentByClass<UFlashlightComponent>();
-            if (!FlashlightComp)
-            {
-                UE_LOG(LogTemp, Warning, TEXT("UseItem: Cannot use battery without flashlight!"));
-                OnItemUsed.Broadcast(ItemID, false);
-                return false;
-            }
-
-            // Replace battery + toggle light
-            FlashlightComp->ReplaceBattery();
-            FlashlightComp->ToggleLight();
-
-            RemoveItem(ItemID, 1);
-            PlayItemSound(ItemData.UseSound);
-
-            OnItemUsed.Broadcast(ItemID, true);
-            OnInventoryUpdated.Broadcast();
-
-            UE_LOG(LogTemp, Log, TEXT("UseItem: Battery used with flashlight"));
-            return true;
-        }
-    }
     
+    if (ItemData.ItemType == EItemType::Consumable && ItemData.ConsumableType == EConsumableType::Battery)
+    {
+        UFlashlightComponent* FlashlightComp = GetOwner()->FindComponentByClass<UFlashlightComponent>();
+        
+        if (!FlashlightComp)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("UseItem: FlashlightComponent not found!"));
+            OnItemUsed.Broadcast(ItemID, false);
+            return false;
+        }
+        
+        if (!FlashlightComp->IsEquipped())
+        {
+            UE_LOG(LogTemp, Warning, TEXT("UseItem: Cannot use battery - Flashlight not equipped!"));
+            OnItemUsed.Broadcast(ItemID, false);
+            return false;
+        }
+        
+        FlashlightComp->AddBatteryCharge(ItemData.BatteryChargePercent);
+        
+        // Remove battery from inventory
+        RemoveItem(ItemID, 1);
+        
+        // Play sound
+        PlayItemSound(ItemData.UseSound);
+
+        OnItemUsed.Broadcast(ItemID, true);
+        OnInventoryUpdated.Broadcast();
+
+        UE_LOG(LogTemp, Log, TEXT("✅ UseItem: Battery replaced successfully"));
+        return true;
+    }
+
+    // ============================================
+    // CONSUMABLE ITEMS (Sanity items)
+    // ============================================
+    if (ItemData.ItemType == EItemType::Consumable)
+    {
+        USanityComponent* Sanity = GetOwner()->FindComponentByClass<USanityComponent>();
+        
+        if (!Sanity)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("UseItem: SanityComponent not found!"));
+            return false;
+        }
+
+        // ✅ Only allow consumables when sanity < 100%
+        if (Sanity->GetSanity() >= 100.0f)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("UseItem: Cannot use consumable - Sanity is full!"));
+            return false;
+        }
+
+        // Apply effect
+        bool bEffectApplied = ApplyItemEffect(ItemData);
+        PlayItemSound(ItemData.UseSound);
+        OnItemUsed.Broadcast(ItemID, bEffectApplied);
+
+        // Remove consumable
+        if (CurrentEquippedItemID == ItemID)
+        {
+            UnequipCurrentItem();
+        }
+        
+        // Clear from quickbar
+        for (int32 i = 0; i < QuickbarSlots.Num(); i++)
+        {
+            if (QuickbarSlots[i].ItemID == ItemID)
+            {
+                QuickbarSlots[i] = FInventorySlot();
+            }
+        }
+        
+        RemoveItem(ItemID, 1);
+        OnInventoryUpdated.Broadcast();
+        
+        return true;
+    }
+
+    // ============================================
+    // OTHER ITEMS
+    // ============================================
     bool bEffectApplied = ApplyItemEffect(ItemData);
     PlayItemSound(ItemData.UseSound);
     OnItemUsed.Broadcast(ItemID, bEffectApplied);
-
-    if (const auto Sanity = GetOwner()->FindComponentByClass<USanityComponent>())
-    {
-        if (Sanity->GetSanity() < 100.0f)
-        {
-            if (ItemData.ItemType == EItemType::Consumable)
-            {
-                if (CurrentEquippedItemID == ItemID)
-                {
-                    UnequipCurrentItem();
-                }
-                for (int32 i = 0; i < QuickbarSlots.Num(); i++)
-                {
-                    if (QuickbarSlots[i].ItemID == ItemID)
-                    {
-                        QuickbarSlots[i] = FInventorySlot();
-                    }
-                }
-                RemoveItem(ItemID, 1);
-            }
-        }
-        else
-        {
-            UE_LOG(LogTemp,Warning,TEXT("Consumable items cannot be used because the player's sanity must be less than 100!"));
-            return false;
-        }
-    }
-   
-
     OnInventoryUpdated.Broadcast();
+    
     return true;
 }
 
@@ -399,6 +427,16 @@ bool UInventoryComponent::EquipQuickbarSlot(int32 QuickbarIndex)
         return false;
     }
 
+    // **NEW: Special handling for flashlight - Spawn actor BEFORE attaching**
+    if (ItemData.ItemType == EItemType::Tool && ItemData.ToolType == EToolType::Flashlight)
+    {
+        if (!SpawnFlashlightActor(ItemData))
+        {
+            UE_LOG(LogTemp, Error, TEXT("EquipQuickbarSlot: Failed to spawn flashlight actor!"));
+            return false;
+        }
+    }
+
     // Attach to hand (visual only)
     bool bSuccess = AttachItemToHand(ItemData);
 
@@ -410,36 +448,118 @@ bool UInventoryComponent::EquipQuickbarSlot(int32 QuickbarIndex)
         // Play equip sound
         PlayItemSound(ItemData.PickupSound);
 
-        // HORROR: Special handling for flashlight
-        if (ItemData.ItemType == EItemType::Tool)
+        // **UPDATED: Handle flashlight equip with spawned actor**
+        if (ItemData.ItemType == EItemType::Tool && ItemData.ToolType == EToolType::Flashlight)
         {
-            if (ItemData.ToolType == EToolType::Flashlight)
+            if (SpawnedFlashlightActor && SpawnedFlashlightActor->FlashlightComponent)
             {
-                if (UFlashlightComponent* FlashlightComp = GetOwner()->FindComponentByClass<UFlashlightComponent>())
-                {
-                    // Tell FlashlightComponent to equip
-                    FlashlightComp->EquipFlashlight();
+                // Mark as equipped
+                SpawnedFlashlightActor->FlashlightComponent->SetEquipped(true);
                 
-                    // Auto-turn on flashlight when equipped
-                    FlashlightComp->SetLightEnabled(true);
+                OnItemEquipped.Broadcast(Slot.ItemID);
+                OnInventoryUpdated.Broadcast();
                 
-                    UE_LOG(LogTemp, Log, TEXT("EquipQuickbarSlot: Flashlight equipped and turned on"));
-                }
-                else
-                {
-                    UE_LOG(LogTemp, Warning, TEXT("EquipQuickbarSlot: FlashlightComponent not found!"));
-                }
+                // Auto-turn on flashlight when equipped
+                SpawnedFlashlightActor->FlashlightComponent->SetLightEnabled(true);
+                
+                UE_LOG(LogTemp, Log, TEXT("EquipQuickbarSlot: Flashlight equipped and turned on"));
             }
         }
-
-        OnItemEquipped.Broadcast(Slot.ItemID);
-        OnInventoryUpdated.Broadcast();
+        else
+        {
+            OnItemEquipped.Broadcast(Slot.ItemID);
+            OnInventoryUpdated.Broadcast();
+        }
 
         UE_LOG(LogTemp, Log, TEXT("EquipQuickbarSlot: Equipped '%s' from slot %d"),
             *ItemData.ItemName.ToString(), QuickbarIndex);
     }
 
     return bSuccess;
+}
+
+bool UInventoryComponent::SpawnFlashlightActor(const FItemData& ItemData)
+{
+    // Get character owner
+    ACharacter* Character = Cast<ACharacter>(GetOwner());
+    if (!Character)
+    {
+        UE_LOG(LogTemp, Error, TEXT("SpawnFlashlightActor: Owner is not a character!"));
+        return false;
+    }
+
+    // Check if we have a flashlight class to spawn
+    if (!FlashlightClass)
+    {
+        UE_LOG(LogTemp, Error, TEXT("SpawnFlashlightActor: FlashlightClass not set!"));
+        UE_LOG(LogTemp, Error, TEXT("  -> Please set FlashlightClass in InventoryComponent Blueprint!"));
+        return false;
+    }
+
+    // Destroy old flashlight if exists
+    if (SpawnedFlashlightActor)
+    {
+        SpawnedFlashlightActor->Destroy();
+        SpawnedFlashlightActor = nullptr;
+        UE_LOG(LogTemp, Log, TEXT("SpawnFlashlightActor: Destroyed old flashlight"));
+    }
+
+    // Spawn new flashlight actor
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.Owner = Character;
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+    SpawnedFlashlightActor = GetWorld()->SpawnActor<AFlashlight>(
+        FlashlightClass,
+        FVector::ZeroVector,
+        FRotator::ZeroRotator,
+        SpawnParams
+    );
+
+    if (!SpawnedFlashlightActor)
+    {
+        UE_LOG(LogTemp, Error, TEXT("SpawnFlashlightActor: Failed to spawn actor!"));
+        return false;
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("SpawnFlashlightActor: Spawned successfully"));
+
+    // Attach to character's hand socket
+    USkeletalMeshComponent* Mesh = Character->GetMesh();
+    FName SocketName = FName("Item"); // Change to your actual socket name
+
+    if (Mesh && Mesh->DoesSocketExist(SocketName))
+    {
+        SpawnedFlashlightActor->AttachToComponent(
+            Mesh,
+            FAttachmentTransformRules::SnapToTargetIncludingScale,
+            SocketName
+        );
+        UE_LOG(LogTemp, Log, TEXT("SpawnFlashlightActor: Attached to socket '%s'"), *SocketName.ToString());
+    }
+    else
+    {
+        // Fallback: attach to character root
+        SpawnedFlashlightActor->AttachToActor(
+            Character,
+            FAttachmentTransformRules::KeepRelativeTransform
+        );
+        UE_LOG(LogTemp, Warning, TEXT("SpawnFlashlightActor: Socket '%s' not found, attached to root"), *SocketName.ToString());
+    }
+
+    // Verify SpotLightComponent exists
+    USpotLightComponent* SpotLight = SpawnedFlashlightActor->FindComponentByClass<USpotLightComponent>();
+    if (SpotLight)
+    {
+        UE_LOG(LogTemp, Log, TEXT("SpawnFlashlightActor: SpotLightComponent verified"));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("SpawnFlashlightActor: No SpotLightComponent found on spawned actor!"));
+        return false;
+    }
+
+    return true;
 }
 
 bool UInventoryComponent::AttachItemToHand(const FItemData& ItemData)
@@ -496,45 +616,69 @@ bool UInventoryComponent::AttachItemToHand(const FItemData& ItemData)
 
 void UInventoryComponent::UnequipCurrentItem()
 {
-    if (CurrentEquippedItemID.IsNone())
+     if (CurrentEquippedItemID.IsNone())
     {
+        UE_LOG(LogTemp, Warning, TEXT("UnequipCurrentItem: No item equipped"));
         return;
     }
 
     // Get item data to check type
     FItemData ItemData;
-    if (GetItemData(CurrentEquippedItemID, ItemData))
+    if (!GetItemData(CurrentEquippedItemID, ItemData))
     {
-        if (ItemData.ItemType == EItemType::Tool)
+        UE_LOG(LogTemp, Error, TEXT("UnequipCurrentItem: Failed to get item data"));
+        return;
+    }
+
+    FName PreviousItemID = CurrentEquippedItemID;
+
+    // ============================================
+    // HANDLE FLASHLIGHT UNEQUIP
+    // ============================================
+    if (ItemData.ItemType == EItemType::Tool && ItemData.ToolType == EToolType::Flashlight)
+    {
+        if (SpawnedFlashlightActor && SpawnedFlashlightActor->FlashlightComponent)
         {
-            if (ItemData.ToolType == EToolType::Flashlight)
-            {
-                if (UFlashlightComponent* FlashlightComp = GetOwner()->FindComponentByClass<UFlashlightComponent>())
-                {
-                    // Tell FlashlightComponent to unequip (will auto turn off light)
-                    FlashlightComp->UnequipFlashlight();
-                
-                    UE_LOG(LogTemp, Log, TEXT("UnequipCurrentItem: Flashlight unequipped"));
-                }
-            }
+            // Mark as unequipped (will turn off light)
+            SpawnedFlashlightActor->FlashlightComponent->SetEquipped(false);
+            UE_LOG(LogTemp, Log, TEXT("UnequipCurrentItem: Flashlight component unequipped"));
+        }
+
+        // Destroy spawned flashlight actor
+        if (SpawnedFlashlightActor)
+        {
+            SpawnedFlashlightActor->Destroy();
+            SpawnedFlashlightActor = nullptr;
+            UE_LOG(LogTemp, Log, TEXT("UnequipCurrentItem: Flashlight actor destroyed"));
+        }
+    }
+    // ============================================
+    // HANDLE OTHER ITEMS
+    // ============================================
+    else
+    {
+        if (CurrentAttachedItemActor)
+        {
+            CurrentAttachedItemActor->Destroy();
+            CurrentAttachedItemActor = nullptr;
         }
     }
 
-    // Destroy mesh (visual)
+    // Destroy visual mesh
     if (EquippedItemMesh)
     {
         EquippedItemMesh->DestroyComponent();
         EquippedItemMesh = nullptr;
     }
 
-    FName PreviousItemID = CurrentEquippedItemID;
     CurrentEquippedItemID = NAME_None;
     CurrentEquippedSlotIndex = -1;
 
     OnItemUnequipped.Broadcast(PreviousItemID);
     OnInventoryUpdated.Broadcast();
 
-    UE_LOG(LogTemp, Log, TEXT("UnequipCurrentItem: Unequipped '%s'"), *PreviousItemID.ToString());
+    UE_LOG(LogTemp, Log, TEXT("UnequipCurrentItem: Successfully unequipped '%s'"), 
+        *PreviousItemID.ToString());
 }
 
 // ============================================================================

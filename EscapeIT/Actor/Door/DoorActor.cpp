@@ -3,7 +3,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Curves/CurveFloat.h"
-#include "GameSystem/AudioSubsystem.h"
+#include "GameSystem/AudioManager.h"
 #include "Kismet/KismetMathLibrary.h"
 
 ADoorActor::ADoorActor()

@@ -79,12 +79,8 @@ public:
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Interaction")
     bool IsPromptVisible() const;
 
-protected:
-    void UpdateAnimation(float DeltaTime);
-
 private:
     bool bIsVisible = false;
-    float AnimationTime = 0.0f;
     FText ActionTexts;
     FText TargetTexts;
 };

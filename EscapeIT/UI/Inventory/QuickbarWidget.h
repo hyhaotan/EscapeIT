@@ -46,6 +46,9 @@ protected:
     
     UPROPERTY(meta = (BindWidget))
     UImage* Slot1_Icon;
+    
+    UPROPERTY(meta = (BindWidget))
+    UImage* Slot1_IconBattery;
 
     UPROPERTY(meta = (BindWidget))
     UTextBlock* Slot1_Quantity;
@@ -65,6 +68,9 @@ protected:
     
     UPROPERTY(meta = (BindWidget))
     UImage* Slot2_Icon;
+    
+    UPROPERTY(meta = (BindWidget))
+    UImage* Slot2_IconBattery;
 
     UPROPERTY(meta = (BindWidget))
     UTextBlock* Slot2_Quantity;
@@ -84,6 +90,9 @@ protected:
     
     UPROPERTY(meta = (BindWidget))
     UImage* Slot3_Icon;
+    
+    UPROPERTY(meta = (BindWidget))
+    UImage* Slot3_IconBattery;
 
     UPROPERTY(meta = (BindWidget))
     UTextBlock* Slot3_Quantity;
@@ -103,6 +112,9 @@ protected:
     
     UPROPERTY(meta = (BindWidget))
     UImage* Slot4_Icon;
+    
+    UPROPERTY(meta = (BindWidget))
+    UImage* Slot4_IconBattery;
 
     UPROPERTY(meta = (BindWidget))
     UTextBlock* Slot4_Quantity;
@@ -164,6 +176,7 @@ private:
     bool IsFlashlightItem(const FItemData& ItemData);
     UProgressBar* GetBatteryBarForSlot(int32 SlotIndex);
     UBorder* GetBorderForSlot(int32 SlotIndex);
+    UImage* GetIconBatteryForSlot(int32 SlotIndex);
 
     // ============================================
     // EVENT CALLBACKS
@@ -171,6 +184,9 @@ private:
 
     UFUNCTION()
     void OnInventoryUpdated();
+    
+    UFUNCTION()
+    void OnItemAdded(FName ItemID, int32 Quantity);
 
     UFUNCTION()
     void OnBatteryChanged(float CurrentBattery, float MaxBattery);

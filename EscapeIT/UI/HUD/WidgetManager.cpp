@@ -44,7 +44,7 @@ void AWidgetManager::InitializeWidgets()
 		SanityWidget = CreateWidget<USanityWidget>(GetWorld(), SanityWidgetClass);
 		if (SanityWidget)
 		{
-			SanityWidget->AddToViewport(0); // Z-Order 0 (nền)
+			SanityWidget->AddToViewport();
 		}
 	}
 	
@@ -80,7 +80,7 @@ void AWidgetManager::InitializeWidgets()
 		QuickbarWidget = CreateWidget<UQuickbarWidget>(GetWorld(), QuickbarWidgetClass);
 		if (QuickbarWidget)
 		{
-			QuickbarWidget->AddToViewport(1);
+			QuickbarWidget->AddToViewport();
 		}
 	}
 	
@@ -94,7 +94,7 @@ void AWidgetManager::InitializeWidgets()
 		StaminaWidget = CreateWidget<UUserWidget>(GetWorld(), StaminaWidgetClass);
 		if (StaminaWidget)
 		{
-			StaminaWidget->AddToViewport(1);
+			StaminaWidget->AddToViewport();
 		}
 	}
 	

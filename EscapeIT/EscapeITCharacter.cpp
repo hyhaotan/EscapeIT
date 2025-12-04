@@ -11,7 +11,6 @@
 #include "EscapeIT.h"
 #include "EscapeIT/Actor/Components/SanityComponent.h"
 #include "EscapeIT/Actor/Components/InventoryComponent.h"
-#include "EscapeIT/Actor/Components/FlashlightComponent.h"
 #include "EscapeIT/Actor/Components/HeaderBobComponent.h"
 #include "EscapeIT/Actor/Components/FootstepComponent.h"
 #include "EscapeIT/Actor/Components/StaminaComponent.h"
@@ -68,7 +67,6 @@ AEscapeITCharacter::AEscapeITCharacter()
 	SanityComponent = CreateDefaultSubobject<USanityComponent>(TEXT("SanityComponent"));
 	InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
 	HeaderBobComponent = CreateDefaultSubobject<UHeaderBobComponent>(TEXT("HeaderBobComponent"));
-	FlashlightComponent = CreateDefaultSubobject<UFlashlightComponent>(TEXT("FlashlightComponent"));
 	FootstepComponent = CreateDefaultSubobject<UFootstepComponent>(TEXT("FootstepComponent"));
 	StaminaComponent = CreateDefaultSubobject<UStaminaComponent>(TEXT("StaminaComponent"));
 
@@ -143,15 +141,6 @@ void AEscapeITCharacter::BindComponentEvents()
 	{
 		StaminaComponent->OnStaminaExhausted.AddDynamic(this, &AEscapeITCharacter::OnStaminaExhausted);
 		StaminaComponent->OnStaminaRecovered.AddDynamic(this, &AEscapeITCharacter::OnStaminaRecovered);
-	}
-	
-	if (FlashlightComponent)
-	{
-		// Listen to flashlight events
-		FlashlightComponent->OnFlashlightToggled.AddDynamic(this, &AEscapeITCharacter::OnFlashlightToggled);
-		FlashlightComponent->OnBatteryChanged.AddDynamic(this, &AEscapeITCharacter::OnBatteryChanged);
-		FlashlightComponent->OnBatteryLow.AddDynamic(this, &AEscapeITCharacter::OnBatteryLow);
-		FlashlightComponent->OnBatteryDepleted.AddDynamic(this, &AEscapeITCharacter::OnBatteryDepleted);
 	}
 }
 
@@ -565,25 +554,4 @@ void AEscapeITCharacter::CheckCharacterDeath()
 			}
 		},3.0f,false);
 	}
-}
-
-void AEscapeITCharacter::OnFlashlightToggled(bool bIsOn)
-{
-	UE_LOG(LogTemp, Log, TEXT("Flashlight toggled: %s"), bIsOn ? TEXT("ON") : TEXT("OFF"));
-}
-
-void AEscapeITCharacter::OnBatteryChanged(float Current, float Max)
-{
-	float Percentage = (Current / Max) * 100.0f;
-	UE_LOG(LogTemp, Log, TEXT("Battery: %.1f%%"), Percentage);
-}
-
-void AEscapeITCharacter::OnBatteryLow()
-{
-	UE_LOG(LogTemp, Warning, TEXT("LOW BATTERY WARNING!"));
-}
-
-void AEscapeITCharacter::OnBatteryDepleted()
-{
-	UE_LOG(LogTemp, Error, TEXT("BATTERY DEPLETED!"));
 }

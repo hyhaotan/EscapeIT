@@ -15,12 +15,16 @@ void UQuickbarWidget::NativeConstruct()
     if (Slot2_Hotkey) Slot2_Hotkey->SetText(FText::FromString("2"));
     if (Slot3_Hotkey) Slot3_Hotkey->SetText(FText::FromString("3"));
     if (Slot4_Hotkey) Slot4_Hotkey->SetText(FText::FromString("4"));
-
-    // ✅ FIX: Ẩn tất cả battery bars ban đầu
+    
     if (Slot1_Battery) Slot1_Battery->SetVisibility(ESlateVisibility::Collapsed);
     if (Slot2_Battery) Slot2_Battery->SetVisibility(ESlateVisibility::Collapsed);
     if (Slot3_Battery) Slot3_Battery->SetVisibility(ESlateVisibility::Collapsed);
-    if (Slot4_Battery) Slot4_Battery->SetVisibility(ESlateVisibility::Collapsed);
+    if (Slot4_Battery) Slot4_Battery->SetVisibility(ESlateVisibility::Collapsed); 
+    
+    if (Slot1_IconBattery) Slot1_Battery->SetVisibility(ESlateVisibility::Collapsed);
+    if (Slot2_IconBattery) Slot2_Battery->SetVisibility(ESlateVisibility::Collapsed);
+    if (Slot3_IconBattery) Slot3_Battery->SetVisibility(ESlateVisibility::Collapsed);
+    if (Slot4_IconBattery) Slot4_Battery->SetVisibility(ESlateVisibility::Collapsed);
 
     UE_LOG(LogTemp, Log, TEXT("QuickbarWidget: NativeConstruct called"));
 }
@@ -93,6 +97,12 @@ void UQuickbarWidget::InitQuickBar(UInventoryComponent* InInventoryComp, UFlashl
     {
         InventoryComponent->OnInventoryUpdated.AddDynamic(this, &UQuickbarWidget::OnInventoryUpdated);
         UE_LOG(LogTemp, Log, TEXT("QuickbarWidget: Bound to OnInventoryUpdated"));
+    }
+
+    if (!InventoryComponent->OnItemAdded.IsAlreadyBound(this, &UQuickbarWidget::OnItemAdded))
+    {
+        InventoryComponent->OnItemAdded.AddDynamic(this, &UQuickbarWidget::OnItemAdded);
+        UE_LOG(LogTemp, Log, TEXT("✅ QuickbarWidget: Bound to OnItemAdded"));
     }
 
     if (FlashlightComponent)
@@ -168,47 +178,52 @@ void UQuickbarWidget::UpdateSlot(int32 SlotIndex)
 void UQuickbarWidget::UpdateSlotVisuals(int32 SlotIndex, const FInventorySlot& SlotData)
 {
     UImage* Icon = nullptr;
+    UImage* IconBattery = nullptr;
     UTextBlock* Quantity = nullptr;
     UProgressBar* ProgressBar = nullptr;
     UBorder* Border = nullptr;
 
-    // Get widget references based on slot index
+    // Get widget references
     switch (SlotIndex)
     {
     case 0:
         Icon = Slot1_Icon;
+        IconBattery = Slot1_IconBattery;
         Quantity = Slot1_Quantity;
         ProgressBar = Slot1_Battery;
         Border = Slot1_Border;
         break;
     case 1:
         Icon = Slot2_Icon;
+        IconBattery = Slot2_IconBattery;
         Quantity = Slot2_Quantity;
         ProgressBar = Slot2_Battery;
         Border = Slot2_Border;
         break;
     case 2:
         Icon = Slot3_Icon;
+        IconBattery = Slot3_IconBattery;
         Quantity = Slot3_Quantity;
         ProgressBar = Slot3_Battery;
         Border = Slot3_Border;
         break;
     case 3:
         Icon = Slot4_Icon;
+        IconBattery = Slot4_IconBattery;
         Quantity = Slot4_Quantity;
         ProgressBar = Slot4_Battery;
         Border = Slot4_Border;
         break;
     }
 
-    // Validate widget references
-    if (!Icon || !Quantity || !Border)
+    // ✅ KIỂM TRA WIDGET CÓ TỒN TẠI KHÔNG
+    if (!Icon || !Quantity || !Border || !IconBattery)
     {
-        UE_LOG(LogTemp, Error, TEXT("UpdateSlotVisuals: Widget is NULL for slot %d"), SlotIndex);
+        UE_LOG(LogTemp, Error, TEXT("❌ UpdateSlotVisuals: Widget NULL for slot %d"), SlotIndex);
         return;
     }
 
-    // ✅ FIX: Empty slot - ẨN battery bar
+    // Empty slot
     if (!SlotData.IsValid())
     {
         Icon->SetColorAndOpacity(EmptySlotColor);
@@ -216,13 +231,13 @@ void UQuickbarWidget::UpdateSlotVisuals(int32 SlotIndex, const FInventorySlot& S
         Quantity->SetText(FText::GetEmpty());
         Quantity->SetVisibility(ESlateVisibility::Collapsed);
 
-        // ✅ Ẩn battery bar khi slot trống
-        if (ProgressBar)
-        {
-            ProgressBar->SetVisibility(ESlateVisibility::Collapsed);
-        }
+        if (ProgressBar) ProgressBar->SetVisibility(ESlateVisibility::Collapsed);
+        
+        if (IconBattery) IconBattery->SetVisibility(ESlateVisibility::Collapsed);
 
         Border->SetBrushColor(EmptySlotColor);
+        
+        UE_LOG(LogTemp, Verbose, TEXT("  Slot %d: EMPTY"), SlotIndex);
         return;
     }
 
@@ -237,27 +252,30 @@ void UQuickbarWidget::UpdateSlotVisuals(int32 SlotIndex, const FInventorySlot& S
         {
             ItemData = *Data;
             bFoundItemData = true;
+            
+            UE_LOG(LogTemp, Log, TEXT("✅ Slot %d: Found item data for '%s'"), 
+                SlotIndex, *ItemData.ItemName.ToString());
         }
         else
         {
-            UE_LOG(LogTemp, Warning, TEXT("UpdateSlotVisuals: ItemID '%s' not found in DataTable"),
-                *SlotData.ItemID.ToString());
+            UE_LOG(LogTemp, Error, TEXT("❌ Slot %d: ItemID '%s' NOT FOUND in DataTable"),
+                SlotIndex, *SlotData.ItemID.ToString());
         }
     }
     else
     {
-        UE_LOG(LogTemp, Error, TEXT("UpdateSlotVisuals: ItemDataTable is NULL"));
+        UE_LOG(LogTemp, Error, TEXT("❌ UpdateSlotVisuals: ItemDataTable is NULL!"));
     }
 
     if (!bFoundItemData)
     {
-        // Show placeholder for missing data
+        // Show error placeholder
         Icon->SetColorAndOpacity(FLinearColor::Red);
+        Icon->SetBrushFromTexture(nullptr);
         Quantity->SetText(FText::FromString("?"));
         Quantity->SetVisibility(ESlateVisibility::Visible);
         Border->SetBrushColor(FLinearColor::Red);
         
-        // ✅ Ẩn battery bar khi không tìm thấy data
         if (ProgressBar)
         {
             ProgressBar->SetVisibility(ESlateVisibility::Collapsed);
@@ -265,18 +283,24 @@ void UQuickbarWidget::UpdateSlotVisuals(int32 SlotIndex, const FInventorySlot& S
         return;
     }
 
-    // Set icon
+    // ✅ SET ICON
     if (ItemData.Icon)
     {
         Icon->SetBrushFromTexture(ItemData.Icon);
         Icon->SetColorAndOpacity(FLinearColor::White);
+        
+        UE_LOG(LogTemp, Log, TEXT("  ✅ Icon set for '%s'"), *ItemData.ItemName.ToString());
     }
     else
     {
         Icon->SetBrushFromTexture(nullptr);
         Icon->SetColorAndOpacity(FLinearColor::Gray);
+        
+        UE_LOG(LogTemp, Warning, TEXT("  ⚠ Item '%s' has NO icon texture!"), 
+            *ItemData.ItemName.ToString());
     }
     
+    // Set quantity
     bool bIsFlashlight = IsFlashlightItem(ItemData);
     
     if (!bIsFlashlight && SlotData.Quantity > 1)
@@ -289,27 +313,18 @@ void UQuickbarWidget::UpdateSlotVisuals(int32 SlotIndex, const FInventorySlot& S
         Quantity->SetVisibility(ESlateVisibility::Collapsed);
     }
     
+    // Battery bar logic (chỉ cho flashlight)
     if (ProgressBar)
     {
         if (bIsFlashlight && FlashlightComponent)
         {
-            // ✅ HIỆN battery bar khi là Flashlight
             ProgressBar->SetVisibility(ESlateVisibility::Visible);
             float BatteryPercent = FlashlightComponent->GetBatteryPercentage();
             UpdateBatteryDisplay(SlotIndex, BatteryPercent);
-            
-            UE_LOG(LogTemp, Log, TEXT("UpdateSlotVisuals: Showing battery bar for Flashlight in slot %d"), SlotIndex);
         }
         else
         {
-            // ✅ ẨN battery bar với tất cả items khác
             ProgressBar->SetVisibility(ESlateVisibility::Collapsed);
-            
-            if (!bIsFlashlight)
-            {
-                UE_LOG(LogTemp, Verbose, TEXT("UpdateSlotVisuals: Hiding battery bar for non-flashlight item '%s' in slot %d"), 
-                    *ItemData.ItemName.ToString(), SlotIndex);
-            }
         }
     }
 
@@ -384,6 +399,14 @@ void UQuickbarWidget::HighlightSlot(int32 SlotIndex)
 void UQuickbarWidget::OnInventoryUpdated()
 {
     UE_LOG(LogTemp, Log, TEXT("QuickbarWidget: OnInventoryUpdated called - Refreshing all slots"));
+    RefreshQuickbar();
+}
+
+void UQuickbarWidget::OnItemAdded(FName ItemID, int32 Quantity)
+{
+    UE_LOG(LogTemp, Log, TEXT("🎯 QuickbarWidget: Item added - %s x%d"), 
+        *ItemID.ToString(), Quantity);
+    
     RefreshQuickbar();
 }
 
@@ -490,6 +513,18 @@ UBorder* UQuickbarWidget::GetBorderForSlot(int32 SlotIndex)
         case 1: return Slot2_Border;
         case 2: return Slot3_Border;
         case 3: return Slot4_Border;
+        default: return nullptr;
+    }
+}
+
+UImage* UQuickbarWidget::GetIconBatteryForSlot(int32 SlotIndex)
+{
+    switch (SlotIndex)
+    {
+    case 0: return Slot1_IconBattery;
+    case 1: return Slot2_IconBattery;
+    case 2: return Slot3_IconBattery;
+    case 3: return Slot4_IconBattery;
         default: return nullptr;
     }
 }

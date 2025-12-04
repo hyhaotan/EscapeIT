@@ -12,7 +12,9 @@ class UQuickbarWidget;
 class UInputMappingContext;
 class UInputAction;
 class UFlashlightComponent;
+class AFlashlight;
 class AWidgetManager;
+class UNotificationWidget;
 
 UCLASS()
 class ESCAPEIT_API AEscapeITPlayerController : public APlayerController
@@ -57,6 +59,9 @@ protected:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
     TSubclassOf<UInventoryWidget> InventoryWidgetClass;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+    TSubclassOf<UNotificationWidget> NotificationWidgetClass;
 
     UPROPERTY()
     TObjectPtr<UInteractionPromptWidget> InteractionPromptWidget;
@@ -69,6 +74,9 @@ protected:
 
     UPROPERTY()
     TObjectPtr<AWidgetManager> WidgetManagerHUD;
+    
+    UPROPERTY()
+    TObjectPtr<UNotificationWidget> NotificationWidget;
 
     // ========== Input Mapping ==========
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
@@ -103,7 +111,10 @@ protected:
     TObjectPtr<UInputAction> ToggleFlashlight;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-    TObjectPtr<UInputAction> PauseMenu;
+    TObjectPtr<UInputAction> PauseMenu; 
+    
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+    TObjectPtr<UInputAction> ChargeBatteryFlashlight;
 
     // ========== Interaction System ==========
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
@@ -124,6 +135,9 @@ protected:
     float GamepadSensitivity;
     bool bLastInputWasGamepad;
     double LastInputNotifyTime;
+    
+    UPROPERTY()
+    AFlashlight* Flashlight;
 
     // ========== Functions ==========
     void CheckForInteractables();
@@ -157,4 +171,9 @@ protected:
 
     // Drop Item
     void DropCurrentItem();
+    
+    void ChargeBattery();
+    
+    void InitWidget();
+    void FindComponentClass();
 };

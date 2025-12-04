@@ -59,10 +59,6 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UInventoryComponent> InventoryComponent;
 
-	/** Flashlight component */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UFlashlightComponent> FlashlightComponent;
-
 	/** Header bob (camera shake) component */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UHeaderBobComponent> HeaderBobComponent;
@@ -289,7 +285,6 @@ public:
 	FORCEINLINE USkeletalMeshComponent* GetFirstPersonMesh() const { return FirstPersonMesh; }
 	FORCEINLINE USanityComponent* GetSanityComponent() const { return SanityComponent; }
 	FORCEINLINE UInventoryComponent* GetInventoryComponent() const { return InventoryComponent; }
-	FORCEINLINE UFlashlightComponent* GetFlashlightComponent() const { return FlashlightComponent; }
 	FORCEINLINE UHeaderBobComponent* GetHeaderBobComponent() const { return HeaderBobComponent; }
 	FORCEINLINE UFootstepComponent* GetFootstepComponent() const { return FootstepComponent; }
 	FORCEINLINE UStaminaComponent* GetStaminaComponent() const { return StaminaComponent; }
@@ -301,10 +296,5 @@ private:
 	
 	UFUNCTION(Category = "Death")
 	void CheckCharacterDeath();
-	
-	void OnFlashlightToggled(bool bIsOn);
-	void OnBatteryChanged(float Current, float Max);
-	void OnBatteryLow();
-	void OnBatteryDepleted();
 	
 };

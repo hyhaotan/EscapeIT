@@ -9,6 +9,7 @@
 class USoundBase;
 class UStaticMeshComponent;
 class USkeletalMeshComponent;
+class AFlashlight;
 
 // ============================================================================
 // DELEGATES
@@ -44,11 +45,17 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory")
     TArray<FInventorySlot> QuickbarSlots;
     
+    UPROPERTY(EditDefaultsOnly, Category = "Items|Flashlight")
+    TSubclassOf<AFlashlight> FlashlightClass;
+    
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory")
     FName CurrentEquippedItemID = NAME_None;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory")
     int32 CurrentEquippedSlotIndex = -1;
+    
+    UPROPERTY()
+    AFlashlight* SpawnedFlashlightActor;
     
     // ========================================================================
     // DATA TABLE
@@ -284,4 +291,10 @@ protected:
     void PlayItemBreakSound();
     
     void PlayCannotDropSound();
+    
+    UPROPERTY()
+    AActor* CurrentAttachedItemActor;
+    
+    // Helper function to spawn flashlight
+    bool SpawnFlashlightActor(const FItemData& ItemData);
 };

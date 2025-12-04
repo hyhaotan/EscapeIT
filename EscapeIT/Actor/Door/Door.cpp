@@ -4,7 +4,7 @@
 #include "Components/TimelineComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Curves/CurveFloat.h"
-#include "EscapeIT//GameSystem/AudioSubsystem.h"
+#include "EscapeIT//GameSystem/AudioManager.h"
 #include "Kismet/GameplayStatics.h"
 
 // Sets default values
@@ -28,6 +28,8 @@ ADoor::ADoor()
 	// Timeline cho animation
 	DoorTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("DoorTimeline"));
 	DoorTimeline->RegisterComponent();
+	
+	AudioManager = CreateDefaultSubobject<UAudioManager>(TEXT("AudioManager"));
 
 	bIsOpen = false;
 	AnimationDuration = 1.0f;
@@ -47,16 +49,6 @@ void ADoor::BeginPlay()
 		DoorTimeline->AddInterpFloat(DoorCurve, TimelineCallback);
 	}
 	
-	AudioSubsystem = GetGameInstance()->GetSubsystem<UAudioSubsystem>();
-	
-	if (AudioSubsystem)
-	{
-		AudioSubsystem->SetupAudioEffects();
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("AudioSubsystem NOT found!"));
-	}
 	
 }
 
@@ -87,16 +79,10 @@ void ADoor::UpdateDoorRotation_Implementation(float Value)
 
 void ADoor::OpenDoor_Implementation()
 {
-	if (AudioSubsystem && AudioSubsystem->OpenDoorSound)
-	{
-		UGameplayStatics::PlaySoundAtLocation(this,AudioSubsystem->OpenDoorSound,GetActorLocation(), 1.0f);
-	}
+	AudioManager->PlayOpenDoorSound();
 }
 
 void ADoor::CloseDoor_Implementation()
 {
-	if (AudioSubsystem && AudioSubsystem->CloseDoorSound)
-	{
-		UGameplayStatics::PlaySoundAtLocation(this,AudioSubsystem->CloseDoorSound,GetActorLocation(), 1.0f);
-	}
+	AudioManager->PlayCloseDoorSound();
 }
