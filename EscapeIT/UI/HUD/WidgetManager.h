@@ -13,6 +13,8 @@ class UQuickbarWidget;
 class UPauseMenuWidget;
 class UInventoryWidget;
 class UFPSWidget;
+class UInteractionPromptWidget;
+class UNotificationWidget;
 
 UCLASS()
 class ESCAPEIT_API AWidgetManager : public AHUD
@@ -54,6 +56,12 @@ public:
 	UPROPERTY(EditAnywhere,Category = "Widgets")
 	TSubclassOf<UUserWidget> DeathWidgetClass;
 	
+	UPROPERTY(EditDefaultsOnly, Category = "Widgets")
+	TSubclassOf<UInteractionPromptWidget> InteractionPromptWidgetClass;
+    
+	UPROPERTY(EditDefaultsOnly, Category = "Widgets")
+	TSubclassOf<UNotificationWidget> NotificationWidgetClass;
+	
 	// Widget Instances
 	UPROPERTY()
 	TObjectPtr<USanityWidget> SanityWidget;
@@ -81,6 +89,12 @@ public:
 	
 	UPROPERTY()
 	TObjectPtr<UUserWidget> DeathWidget;
+	
+	UPROPERTY()
+	TObjectPtr<UNotificationWidget> NotificationWidget;
+	
+	UPROPERTY()
+	TObjectPtr<UInteractionPromptWidget> InteractionPromptWidget;
 
 	// Initialization
 	UFUNCTION(BlueprintCallable, Category = "Widget Manager")

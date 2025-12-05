@@ -16,53 +16,26 @@ AFlashlight::AFlashlight()
     SpotLightComponent->SetVisibility(false);
     SpotLightComponent->SetHiddenInGame(true);
     SpotLightComponent->SetActive(false);
-    
-    // Create FlashlightComponent (this manages battery, toggle, etc.)
-    FlashlightComponent = CreateDefaultSubobject<UFlashlightComponent>(TEXT("FlashlightComponent"));
-    
-    UE_LOG(LogTemp, Log, TEXT("AFlashlight: Components created"));
 }
 
 void AFlashlight::BeginPlay()
 {
     Super::BeginPlay();
     
-    if (FlashlightComponent)
+    if (SpotLightComponent)
     {
-        // Bind to flashlight events
-        FlashlightComponent->OnFlashlightToggled.AddDynamic(this, &AFlashlight::OnFlashlightToggled);
-        FlashlightComponent->OnBatteryChanged.AddDynamic(this, &AFlashlight::OnBatteryChanged);
-        FlashlightComponent->OnBatteryLow.AddDynamic(this, &AFlashlight::OnBatteryLow);
-        FlashlightComponent->OnBatteryDepleted.AddDynamic(this, &AFlashlight::OnBatteryDepleted);
-        
-        // **CRITICAL: Give FlashlightComponent reference to its own actor**
-        FlashlightComponent->InitializeFlashlight(this, SpotLightComponent);
-        
-        UE_LOG(LogTemp, Log, TEXT("AFlashlight: FlashlightComponent initialized"));
+        UE_LOG(LogTemp, Log, TEXT("Flashlight BeginPlay: SpotLight initialized"));
+        UE_LOG(LogTemp, Log, TEXT("  - Intensity: %.1f"), SpotLightComponent->Intensity);
+        UE_LOG(LogTemp, Log, TEXT("  - Outer Cone: %.1f"), SpotLightComponent->OuterConeAngle);
+        UE_LOG(LogTemp, Log, TEXT("  - Visibility: %s"), SpotLightComponent->IsVisible() ? TEXT("TRUE") : TEXT("FALSE"));
     }
     else
     {
-        UE_LOG(LogTemp, Error, TEXT("AFlashlight: FlashlightComponent is NULL!"));
+        UE_LOG(LogTemp, Error, TEXT("Flashlight BeginPlay: SpotLight is NULL!"));
     }
 }
 
-void AFlashlight::OnFlashlightToggled(bool bIsOn)
+USpotLightComponent* AFlashlight::GetSpotLight() const
 {
-    UE_LOG(LogTemp, Log, TEXT("Flashlight toggled: %s"), bIsOn ? TEXT("ON") : TEXT("OFF"));
-}
-
-void AFlashlight::OnBatteryChanged(float Current, float Max)
-{
-    float Percentage = (Current / Max) * 100.0f;
-    UE_LOG(LogTemp, Log, TEXT("Battery: %.1f%%"), Percentage);
-}
-
-void AFlashlight::OnBatteryLow()
-{
-    UE_LOG(LogTemp, Warning, TEXT("LOW BATTERY WARNING!"));
-}
-
-void AFlashlight::OnBatteryDepleted()
-{
-    UE_LOG(LogTemp, Error, TEXT("BATTERY DEPLETED!"));
+    return SpotLightComponent;
 }

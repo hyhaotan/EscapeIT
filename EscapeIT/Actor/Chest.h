@@ -10,8 +10,8 @@
 
 class UStaticMeshComponent;
 class UBoxComponent;
-class UCurveFloat;
 class UTimelineComponent;
+class UCurveFloat;
 class UInventoryComponent;
 class UNotificationWidget;
 
@@ -22,102 +22,92 @@ class ESCAPEIT_API AChest : public AActor, public IInteract
     
 public:    
     AChest();
+    
+    virtual void Tick(float DeltaTime) override;
+    
+    // IInteractInterface
+    virtual void Interact_Implementation(AActor* Interactor) override;
+    
+    UFUNCTION(BlueprintCallable, Category = "Chest")
+    bool CanBeOpenedWithKey(EKeyType InKeyType) const;
+    
+    UFUNCTION(BlueprintCallable, Category = "Chest")
+    void UnlockWithKey(AActor* Interactor, EKeyType InKeyType);
 
 protected:
     virtual void BeginPlay() override;
-
-public:    
-    virtual void Tick(float DeltaTime) override;
-
-    // Interface Interact
-    virtual void Interact_Implementation(AActor* Interactor) override;
-
-    // ============================================
-    // COMPONENTS
-    // ============================================
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-    TObjectPtr<UStaticMeshComponent> ChestMesh;
-
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-    TObjectPtr<UStaticMeshComponent> LidMesh;
-
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-    TObjectPtr<UBoxComponent> InteractionBox;
-
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-    TObjectPtr<UTimelineComponent> OpenTimeline;
-
-    // ============================================
-    // CHEST SETTINGS
-    // ============================================
     
-    // Loại key yêu cầu để mở chest này
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Settings")
-    EKeyType RequiredKeyType;
-
-    // Có cần key để mở không (một số chest không cần key)
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Settings")
+    // Components
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    UStaticMeshComponent* ChestMesh;
+    
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    UStaticMeshComponent* LidMesh;
+    
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    UBoxComponent* InteractionBox;
+    
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    UTimelineComponent* OpenTimeline;
+    
+    // Settings
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest Settings")
     bool bRequiresKey = true;
-
-    // Có cần cầm key trên tay không (nếu false thì chỉ cần có trong inventory)
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Settings")
-    bool bRequireKeyEquipped = true;
-
-    // Có tiêu hao key sau khi mở không
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Settings")
-    bool bConsumeKeyOnOpen = false;
-
-    // Curve cho animation mở nắp
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Animation")
-    TObjectPtr<UCurveFloat> ChestCurve;
-
-    // Góc xoay tối đa của nắp (độ)
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Animation")
-    float MaxLidRotation = 90.0f;
-
-    // Các item bên trong chest (thiết lập trong editor)
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Contents")
-    TArray<FName> ChestItems;
-
-    // ============================================
-    // STATE
-    // ============================================
-    UPROPERTY(BlueprintReadOnly, Category = "Chest|State")
-    bool bIsOpen = false;
-
-    UPROPERTY(BlueprintReadOnly, Category = "Chest|State")
-    bool bIsLocked = true;
-
-    // ============================================
-    // SOUNDS
-    // ============================================
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Audio")
-    TObjectPtr<USoundBase> OpenSound;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Audio")
-    TObjectPtr<USoundBase> LockedSound;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest|Audio")
-    TObjectPtr<USoundBase> UnlockSound;
-
-private:
-    bool CheckCanOpenChest(AActor* Interactor, FString& OutFailReason);
     
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest Settings", meta = (EditCondition = "bRequiresKey"))
+    EKeyType RequiredKeyType;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest Settings", meta = (EditCondition = "bRequiresKey"))
+    bool bRequireKeyEquipped = false;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest Settings", meta = (EditCondition = "bRequiresKey"))
+    bool bConsumeKeyOnOpen = false;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest Settings")
+    TArray<FName> ChestItems;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest Animation")
+    UCurveFloat* ChestCurve;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest Animation")
+    float MaxLidRotation = 90.0f;
+    
+    // Sounds
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest Sound")
+    USoundBase* OpenSound;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest Sound")
+    USoundBase* LockedSound;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest Sound")
+    USoundBase* UnlockSound;
+    
+    // UI
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chest UI")
+    TSubclassOf<UNotificationWidget> NotificationWidgetClass;
+    
+    UPROPERTY()
+    UNotificationWidget* NotificationWidget;
+    
+    // State
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Chest State")
+    bool bIsOpen = false;
+    
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Chest State")
+    bool bIsLocked = true;
+    
+private:
+    // Helper functions
+    bool CheckCanOpenChest(AActor* Interactor, FString& OutFailReason);
     void OpenChest(AActor* Interactor);
     
     UFUNCTION()
     void UpdateLidRotation(float Value);
-
+    
     UFUNCTION()
     void OnOpenFinished();
     
     void PlayChestSound(USoundBase* Sound);
     
     UInventoryComponent* GetInventoryFromActor(AActor* Actor) const;
-    
-    UPROPERTY()
-    TObjectPtr<UNotificationWidget> NotificationWidget;
-    
-    UPROPERTY(EditAnywhere,Category="Chest")
-    TSubclassOf<UNotificationWidget> NotificationWidgetClass;
 };

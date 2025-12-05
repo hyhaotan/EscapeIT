@@ -13,6 +13,7 @@ class UTextBlock;
 class UButton;
 class UBorder;
 class UItemDragDrop;
+class UInventoryComponent;
 
 UCLASS()
 class ESCAPEIT_API UInventorySlotWidget : public UUserWidget
@@ -48,6 +49,9 @@ public:
 
     UPROPERTY(BlueprintReadWrite, Category = "Slot")
     TObjectPtr<UInventoryWidget> ParentInventoryWidget;
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Slot")
+    TObjectPtr<UInventoryComponent> InventoryComponentRef;
 
     // ========================================================================
     // VISUAL COLORS
@@ -126,12 +130,6 @@ public:
     virtual void NativeOnDragLeave(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 
 protected:
-    // ========================================================================
-    // BUTTON CALLBACKS
-    // ========================================================================
-    
-    UFUNCTION()
-    void OnSlotClicked();
 
     // ========================================================================
     // DRAG & DROP HELPERS
@@ -139,9 +137,6 @@ protected:
 
     UFUNCTION(BlueprintCallable, Category = "DragDrop")
     bool CanAcceptDrop(UItemDragDrop* DragOp);
-
-    UFUNCTION(BlueprintCallable, Category = "DragDrop")
-    void ExecuteDrop(UItemDragDrop* DragOp);
 
     UFUNCTION(BlueprintCallable, Category = "DragDrop")
     void ShowDropFeedback(bool bIsValid);

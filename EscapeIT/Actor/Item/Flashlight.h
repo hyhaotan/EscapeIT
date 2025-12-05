@@ -24,23 +24,7 @@ public:
     
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	USpotLightComponent* SpotLightComponent;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	UFlashlightComponent* FlashlightComponent;
-
-	// ============================================
-	// EVENT HANDLERS
-	// ============================================
-    
+	
 	UFUNCTION()
-	void OnFlashlightToggled(bool bIsOn);
-
-	UFUNCTION()
-	void OnBatteryChanged(float Current, float Max);
-
-	UFUNCTION()
-	void OnBatteryLow();
-
-	UFUNCTION()
-	void OnBatteryDepleted();
+	USpotLightComponent* GetSpotLight() const;
 };

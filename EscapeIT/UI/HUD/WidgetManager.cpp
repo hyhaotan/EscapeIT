@@ -9,6 +9,10 @@
 #include "Blueprint/UserWidget.h"
 #include "EscapeIT/UI/FPSWidget.h"
 #include "Kismet/GameplayStatics.h"
+#include "EscapeIT/Actor/Components/InventoryComponent.h"
+#include "EscapeIT/Actor/Components/FlashlightComponent.h"
+#include "EscapeIT/UI/NotificationWidget.h"
+#include "EscapeIT/UI/Inventory/InteractionPromptWidget.h"
 
 AWidgetManager::AWidgetManager()
 {
@@ -81,12 +85,50 @@ void AWidgetManager::InitializeWidgets()
 		if (QuickbarWidget)
 		{
 			QuickbarWidget->AddToViewport();
+			
+			GetWorld()->GetTimerManager().SetTimerForNextTick([this]()
+			{
+				if (APlayerController* PC = GetOwningPlayerController())
+				{
+					if (APawn* PlayerPawn = PC->GetPawn())
+					{
+						UInventoryComponent* InvComp = PlayerPawn->FindComponentByClass<UInventoryComponent>();
+						UFlashlightComponent* FlashComp = PlayerPawn->FindComponentByClass<UFlashlightComponent>();
+						
+						if (InvComp)
+						{
+							QuickbarWidget->InitQuickBar(InvComp, FlashComp);
+							UE_LOG(LogTemp, Log, TEXT("✅ QuickbarWidget initialized successfully!"));
+						}
+					}
+				}
+			});
 		}
 	}
 	
 	if (InventoryWidgetClass && !InventoryWidget)
 	{
 		InventoryWidget = CreateWidget<UInventoryWidget>(GetWorld(), InventoryWidgetClass);
+		
+		if (InventoryWidget)
+		{
+			GetWorld()->GetTimerManager().SetTimerForNextTick([this]()
+			{
+				if (APlayerController* PC = GetOwningPlayerController())
+				{
+					if (APawn* PlayerPawn = PC->GetPawn())
+					{
+						UInventoryComponent* InvComp = PlayerPawn->FindComponentByClass<UInventoryComponent>();
+						
+						if (InvComp)
+						{
+							InventoryWidget->InitInventory(InvComp);
+							UE_LOG(LogTemp, Log, TEXT("✅ InventoryWidget initialized successfully!"));
+						}
+					}
+				}
+			});
+		}
 	}
 	
 	if (StaminaWidgetClass && !StaminaWidget)
@@ -110,6 +152,16 @@ void AWidgetManager::InitializeWidgets()
 		{
 			FPSWidget->AddToViewport();
 		}
+	}
+
+	if (NotificationWidgetClass && !NotificationWidget)
+	{
+		NotificationWidget = CreateWidget<UNotificationWidget>(GetWorld(), NotificationWidgetClass);
+	}
+	
+	if (InteractionPromptWidgetClass && !InteractionPromptWidget)
+	{
+		InteractionPromptWidget = CreateWidget<UInteractionPromptWidget>(GetWorld(), InteractionPromptWidgetClass);
 	}
 }
 

@@ -1,4 +1,4 @@
-﻿// InventoryComponent.cpp - Horror Game Implementation
+﻿// InventoryComponent.cpp - IMPROVED IMPLEMENTATION
 
 #include "InventoryComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -7,10 +7,9 @@
 #include "GameFramework/Character.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "EscapeIT/Actor/Components/SanityComponent.h"
-#include "TimerManager.h"
-#include "Components/SpotLightComponent.h"
 #include "EscapeIT/Actor/Components/FlashlightComponent.h"
 #include "EscapeIT/Actor/Item/Flashlight.h"
+#include "TimerManager.h"
 
 UInventoryComponent::UInventoryComponent()
 {
@@ -22,18 +21,17 @@ void UInventoryComponent::BeginPlay()
 {
     Super::BeginPlay();
 
-    // Initialize quickbar với empty slots
-    QuickbarSlots.SetNum(QuickbarSize);
-    for (int32 i = 0; i < QuickbarSize; i++)
-    {
-        QuickbarSlots[i] = FInventorySlot();
-    }
+    // ✅ Initialize quickbar indices (all empty)
+    QuickbarSlotIndices.Init(-1, QuickbarSize);
 
-    // Get hand socket reference
+    // Get character mesh for attaching items
     if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
     {
         CharacterMesh = Character->GetMesh();
     }
+
+    UE_LOG(LogTemp, Log, TEXT("✅ InventoryComponent initialized - Max:%d slots, Quickbar:%d"), 
+        MaxInventorySlots, QuickbarSize);
 }
 
 void UInventoryComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -49,26 +47,22 @@ bool UInventoryComponent::AddItem(FName ItemID, int32 Quantity)
 {
     if (ItemID.IsNone() || Quantity <= 0)
     {
-        UE_LOG(LogTemp, Warning, TEXT("AddItem: Invalid ItemID or Quantity"));
+        UE_LOG(LogTemp, Warning, TEXT("❌ AddItem: Invalid ItemID or Quantity"));
         return false;
     }
 
     FItemData ItemData;
     if (!GetItemData(ItemID, ItemData))
     {
-        UE_LOG(LogTemp, Warning, TEXT("AddItem: ItemID '%s' not found in DataTable"), *ItemID.ToString());
+        UE_LOG(LogTemp, Warning, TEXT("❌ AddItem: ItemID '%s' not found in DataTable"), *ItemID.ToString());
         return false;
-    }
-
-    // HORROR: Quest items cannot be refused
-    if (ItemData.ItemType == EItemType::QuestItem)
-    {
-        UE_LOG(LogTemp, Log, TEXT("AddItem: Force adding quest item '%s'"), *ItemData.ItemName.ToString());
     }
 
     int32 RemainingQuantity = Quantity;
 
-    // Try to stack with existing items
+    // ========================================================================
+    // STEP 1: Try stacking with existing items
+    // ========================================================================
     if (ItemData.MaxStackSize > 1)
     {
         for (FInventorySlot& Slot : InventorySlots)
@@ -81,6 +75,8 @@ bool UInventoryComponent::AddItem(FName ItemID, int32 Quantity)
                 Slot.Quantity += AmountToAdd;
                 RemainingQuantity -= AmountToAdd;
 
+                UE_LOG(LogTemp, Log, TEXT("  → Stacked %d into existing slot (now %d)"), AmountToAdd, Slot.Quantity);
+
                 if (RemainingQuantity <= 0)
                 {
                     break;
@@ -89,18 +85,17 @@ bool UInventoryComponent::AddItem(FName ItemID, int32 Quantity)
         }
     }
 
-    // Create new slots for remaining items
+    // ========================================================================
+    // STEP 2: Create new slots for remaining items
+    // ========================================================================
     while (RemainingQuantity > 0)
     {
         if (IsInventoryFull())
         {
-            // HORROR: Show "Inventory Full" warning
-            UE_LOG(LogTemp, Warning, TEXT("AddItem: INVENTORY FULL! Cannot pick up '%s'"), *ItemData.ItemName.ToString());
-            
-            // Play inventory full sound
+            UE_LOG(LogTemp, Warning, TEXT("❌ INVENTORY FULL! Cannot add '%s'"), *ItemData.ItemName.ToString());
             PlayInventoryFullSound();
 
-            // Partial add case
+            // Partial add
             if (RemainingQuantity < Quantity)
             {
                 OnInventoryUpdated.Broadcast();
@@ -114,45 +109,23 @@ bool UInventoryComponent::AddItem(FName ItemID, int32 Quantity)
 
         InventorySlots.Add(NewSlot);
         RemainingQuantity -= AmountToAdd;
+
+        UE_LOG(LogTemp, Log, TEXT("  → Created new slot with %d items"), AmountToAdd);
     }
 
-    // Play pickup sound with slight audio variation for horror feel
+    // ========================================================================
+    // STEP 3: Play sound & broadcast events
+    // ========================================================================
     PlayItemSound(ItemData.PickupSound);
-
-    // Broadcast events
     OnInventoryUpdated.Broadcast();
     OnItemAdded.Broadcast(ItemID, Quantity);
-    
-    if (ItemData.ItemType == EItemType::Tool || ItemData.ItemType == EItemType::Consumable)
-    {
-        // Check if item is already in quickbar
-        bool bAlreadyInQuickbar = false;
-        for (int32 i = 0; i < QuickbarSize; i++)
-        {
-            if (QuickbarSlots[i].ItemID == ItemID)
-            {
-                bAlreadyInQuickbar = true;
-                break;
-            }
-        }
 
-        // If not in quickbar, find first empty slot and add it
-        if (!bAlreadyInQuickbar)
-        {
-            for (int32 i = 0; i < QuickbarSize; i++)
-            {
-                if (!QuickbarSlots[i].IsValid())
-                {
-                    AssignToQuickbar(ItemID, i);
-                    UE_LOG(LogTemp, Log, TEXT("✅ AddItem: Auto-assigned '%s' to quickbar slot %d"), 
-                        *ItemID.ToString(), i);
-                    break;
-                }
-            }
-        }
-    }
+    // ========================================================================
+    // STEP 4: Auto-assign to quickbar (if tool/consumable)
+    // ========================================================================
+    TryAutoAssignToQuickbar(ItemID);
 
-    UE_LOG(LogTemp, Log, TEXT("✅ AddItem: Added %d x %s [%d/%d slots used]"), 
+    UE_LOG(LogTemp, Log, TEXT("✅ Added %d x %s [%d/%d slots]"), 
         Quantity, *ItemData.ItemName.ToString(), InventorySlots.Num(), MaxInventorySlots);
     
     return true;
@@ -167,14 +140,15 @@ bool UInventoryComponent::RemoveItem(FName ItemID, int32 Quantity)
 
     if (!HasItem(ItemID, Quantity))
     {
-        UE_LOG(LogTemp, Warning, TEXT("RemoveItem: Not enough items to remove"));
+        UE_LOG(LogTemp, Warning, TEXT("❌ RemoveItem: Not enough '%s' (need %d, have %d)"), 
+            *ItemID.ToString(), Quantity, GetItemQuantity(ItemID));
         return false;
     }
 
     int32 RemainingToRemove = Quantity;
 
-    // Remove from inventory slots (reverse iteration for safe removal)
-    for (int32 i = InventorySlots.Num() - 1; i >= 0; i--)
+    // Remove from inventory (reverse iteration for safe removal)
+    for (int32 i = InventorySlots.Num() - 1; i >= 0 && RemainingToRemove > 0; i--)
     {
         if (InventorySlots[i].ItemID == ItemID)
         {
@@ -184,35 +158,40 @@ bool UInventoryComponent::RemoveItem(FName ItemID, int32 Quantity)
 
             if (InventorySlots[i].Quantity <= 0)
             {
+                // ✅ CRITICAL: Update quickbar references BEFORE removing slot
+                for (int32 q = 0; q < QuickbarSlotIndices.Num(); q++)
+                {
+                    if (QuickbarSlotIndices[q] == i)
+                    {
+                        // Item removed, clear quickbar slot
+                        QuickbarSlotIndices[q] = -1;
+                        
+                        // If this was equipped, unequip it
+                        if (CurrentEquippedSlotIndex == q)
+                        {
+                            UnequipCurrentItem();
+                        }
+                    }
+                    else if (QuickbarSlotIndices[q] > i)
+                    {
+                        // Adjust indices after removed slot
+                        QuickbarSlotIndices[q]--;
+                    }
+                }
+
                 InventorySlots.RemoveAt(i);
-            }
-
-            if (RemainingToRemove <= 0)
-            {
-                break;
+                UE_LOG(LogTemp, Log, TEXT("  → Removed slot at index %d"), i);
             }
         }
     }
 
-    // Sync quickbar slots
-    for (int32 i = 0; i < QuickbarSlots.Num(); ++i)
-    {
-        if (QuickbarSlots[i].IsValid() && QuickbarSlots[i].ItemID == ItemID)
-        {
-            SyncQuickbarSlot(i);
-        }
-    }
-
-    // Unequip if equipped item is removed completely
-    if (CurrentEquippedItemID == ItemID && !HasItem(ItemID, 1))
-    {
-        UnequipCurrentItem();
-    }
+    // ✅ Validate quickbar references
+    ValidateQuickbarReferences();
 
     OnInventoryUpdated.Broadcast();
     OnItemRemoved.Broadcast(ItemID, Quantity);
 
-    UE_LOG(LogTemp, Log, TEXT("RemoveItem: Removed %d x %s"), Quantity, *ItemID.ToString());
+    UE_LOG(LogTemp, Log, TEXT("✅ Removed %d x %s"), Quantity, *ItemID.ToString());
     return true;
 }
 
@@ -224,7 +203,7 @@ bool UInventoryComponent::UseItem(FName ItemID)
 {
     if (!HasItem(ItemID, 1))
     {
-        UE_LOG(LogTemp, Warning, TEXT("UseItem: Item not found in inventory"));
+        UE_LOG(LogTemp, Warning, TEXT("❌ UseItem: Item not in inventory"));
         OnItemUsed.Broadcast(ItemID, false);
         return false;
     }
@@ -232,68 +211,77 @@ bool UInventoryComponent::UseItem(FName ItemID)
     FItemData ItemData;
     if (!GetItemData(ItemID, ItemData))
     {
-        UE_LOG(LogTemp, Error, TEXT("UseItem: Cannot get item data for %s"), *ItemID.ToString());
+        UE_LOG(LogTemp, Error, TEXT("❌ UseItem: Cannot get item data"));
         OnItemUsed.Broadcast(ItemID, false);
         return false;
     }
 
     if (!ItemData.bCanBeUsed)
     {
-        UE_LOG(LogTemp, Warning, TEXT("UseItem: Item '%s' cannot be used"), *ItemData.ItemName.ToString());
+        UE_LOG(LogTemp, Warning, TEXT("❌ UseItem: Item cannot be used"));
         OnItemUsed.Broadcast(ItemID, false);
         return false;
     }
     
+    const auto Pawn = UGameplayStatics::GetPlayerPawn(this,0);
+
+    // ========================================================================
+    // BATTERY REPLACEMENT
+    // ========================================================================
     if (ItemData.ItemType == EItemType::Consumable && ItemData.ConsumableType == EConsumableType::Battery)
     {
-        UFlashlightComponent* FlashlightComp = GetOwner()->FindComponentByClass<UFlashlightComponent>();
+        UFlashlightComponent* FlashlightComp = Pawn->FindComponentByClass<UFlashlightComponent>();
         
         if (!FlashlightComp)
         {
-            UE_LOG(LogTemp, Warning, TEXT("UseItem: FlashlightComponent not found!"));
+            UE_LOG(LogTemp, Warning, TEXT("❌ UseItem: FlashlightComponent not found!"));
             OnItemUsed.Broadcast(ItemID, false);
             return false;
         }
         
         if (!FlashlightComp->IsEquipped())
         {
-            UE_LOG(LogTemp, Warning, TEXT("UseItem: Cannot use battery - Flashlight not equipped!"));
+            UE_LOG(LogTemp, Warning, TEXT("❌ UseItem: Flashlight not equipped!"));
             OnItemUsed.Broadcast(ItemID, false);
             return false;
         }
-        
-        FlashlightComp->AddBatteryCharge(ItemData.BatteryChargePercent);
-        
-        // Remove battery from inventory
-        RemoveItem(ItemID, 1);
-        
-        // Play sound
-        PlayItemSound(ItemData.UseSound);
-
-        OnItemUsed.Broadcast(ItemID, true);
-        OnInventoryUpdated.Broadcast();
-
-        UE_LOG(LogTemp, Log, TEXT("✅ UseItem: Battery replaced successfully"));
-        return true;
-    }
-
-    // ============================================
-    // CONSUMABLE ITEMS (Sanity items)
-    // ============================================
-    if (ItemData.ItemType == EItemType::Consumable)
-    {
-        USanityComponent* Sanity = GetOwner()->FindComponentByClass<USanityComponent>();
-        
-        if (!Sanity)
+        if (FlashlightComp->CurrentBattery <= 100.0f)
         {
-            UE_LOG(LogTemp, Warning, TEXT("UseItem: SanityComponent not found!"));
+            FlashlightComp->AddBatteryCharge(ItemData.BatteryChargePercent);
+        }
+        else
+        {
             return false;
         }
 
-        // ✅ Only allow consumables when sanity < 100%
+        RemoveItem(ItemID, 1);
+        PlayItemSound(ItemData.UseSound);
+        OnItemUsed.Broadcast(ItemID, true);
+        OnInventoryUpdated.Broadcast();
+
+        UE_LOG(LogTemp, Log, TEXT("✅ Battery replaced (+%.0f%%)"), ItemData.BatteryChargePercent);
+        return true;
+    }
+
+    // ========================================================================
+    // CONSUMABLE ITEMS (Sanity restore)
+    // ========================================================================
+    if (ItemData.ItemType == EItemType::Consumable)
+    {
+        USanityComponent* Sanity = Pawn->FindComponentByClass<USanityComponent>();
+        
+        if (!Sanity)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("❌ UseItem: SanityComponent not found!"));
+            OnItemUsed.Broadcast(ItemID, false);
+            return false;
+        }
+
+        // ✅ Check if sanity is already full
         if (Sanity->GetSanity() >= 100.0f)
         {
-            UE_LOG(LogTemp, Warning, TEXT("UseItem: Cannot use consumable - Sanity is full!"));
+            UE_LOG(LogTemp, Warning, TEXT("❌ UseItem: Sanity is already full!"));
+            OnItemUsed.Broadcast(ItemID, false);
             return false;
         }
 
@@ -302,30 +290,22 @@ bool UInventoryComponent::UseItem(FName ItemID)
         PlayItemSound(ItemData.UseSound);
         OnItemUsed.Broadcast(ItemID, bEffectApplied);
 
-        // Remove consumable
+        // Remove from inventory
         if (CurrentEquippedItemID == ItemID)
         {
             UnequipCurrentItem();
         }
         
-        // Clear from quickbar
-        for (int32 i = 0; i < QuickbarSlots.Num(); i++)
-        {
-            if (QuickbarSlots[i].ItemID == ItemID)
-            {
-                QuickbarSlots[i] = FInventorySlot();
-            }
-        }
-        
         RemoveItem(ItemID, 1);
         OnInventoryUpdated.Broadcast();
         
+        UE_LOG(LogTemp, Log, TEXT("✅ Used consumable: %s"), *ItemData.ItemName.ToString());
         return true;
     }
 
-    // ============================================
+    // ========================================================================
     // OTHER ITEMS
-    // ============================================
+    // ========================================================================
     bool bEffectApplied = ApplyItemEffect(ItemData);
     PlayItemSound(ItemData.UseSound);
     OnItemUsed.Broadcast(ItemID, bEffectApplied);
@@ -338,38 +318,37 @@ bool UInventoryComponent::UseEquippedItem()
 {
     if (CurrentEquippedItemID.IsNone())
     {
-        UE_LOG(LogTemp, Warning, TEXT("UseEquippedItem: No item equipped"));
+        UE_LOG(LogTemp, Warning, TEXT("❌ UseEquippedItem: No item equipped"));
         return false;
     }
 
-    // Get item data
     FItemData ItemData;
     if (!GetItemData(CurrentEquippedItemID, ItemData))
     {
         return false;
     }
 
-    if (ItemData.ItemType == EItemType::Tool)
+    // ========================================================================
+    // FLASHLIGHT TOGGLE
+    // ========================================================================
+    if (ItemData.ItemType == EItemType::Tool && ItemData.ToolType == EToolType::Flashlight)
     {
-        if (ItemData.ToolType == EToolType::Flashlight)
+        UFlashlightComponent* FlashlightComp = GetOwner()->FindComponentByClass<UFlashlightComponent>();
+        
+        if (!FlashlightComp)
         {
-            if (UFlashlightComponent* FlashlightComp = GetOwner()->FindComponentByClass<UFlashlightComponent>())
-            {
-                bool bSuccess = FlashlightComp->ToggleLight();
-            
-                if (!bSuccess)
-                {
-                    UE_LOG(LogTemp, Warning, TEXT("UseEquippedItem: Cannot toggle flashlight"));
-                }
-            
-                return bSuccess;
-            }
-            else
-            {
-                UE_LOG(LogTemp, Error, TEXT("UseEquippedItem: FlashlightComponent not found!"));
-                return false;
-            }
+            UE_LOG(LogTemp, Error, TEXT("❌ UseEquippedItem: FlashlightComponent not found!"));
+            return false;
         }
+        
+        bool bSuccess = FlashlightComp->ToggleLight();
+        
+        if (!bSuccess)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("❌ Cannot toggle flashlight"));
+        }
+        
+        return bSuccess;
     }
     
     return UseItem(CurrentEquippedItemID);
@@ -383,278 +362,157 @@ bool UInventoryComponent::EquipQuickbarSlot(int32 QuickbarIndex)
 {
     if (QuickbarIndex < 0 || QuickbarIndex >= QuickbarSize)
     {
-        UE_LOG(LogTemp, Warning, TEXT("EquipQuickbarSlot: Invalid index %d"), QuickbarIndex);
+        UE_LOG(LogTemp, Warning, TEXT("❌ EquipQuickbarSlot: Invalid index %d"), QuickbarIndex);
+        return false;
+    }
+    
+    int32 InventoryIndex = QuickbarSlotIndices[QuickbarIndex];
+    
+    if (InventoryIndex < 0 || !InventorySlots.IsValidIndex(InventoryIndex))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("❌ EquipQuickbarSlot: Slot %d is empty"), QuickbarIndex);
         return false;
     }
 
-    // Sync first
-    SyncQuickbarSlot(QuickbarIndex);
-
-    FInventorySlot& Slot = QuickbarSlots[QuickbarIndex];
+    FInventorySlot& Slot = InventorySlots[InventoryIndex];
+    
     if (!Slot.IsValid())
     {
-        UE_LOG(LogTemp, Warning, TEXT("EquipQuickbarSlot: Slot %d is empty"), QuickbarIndex);
-        return false;
-    }
-
-    // Check if item still exists
-    if (!HasItem(Slot.ItemID, 1))
-    {
-        UE_LOG(LogTemp, Warning, TEXT("EquipQuickbarSlot: Item not in inventory (clearing slot)"));
-        Slot = FInventorySlot();
+        UE_LOG(LogTemp, Warning, TEXT("❌ EquipQuickbarSlot: Invalid slot data"));
+        QuickbarSlotIndices[QuickbarIndex] = -1;
         OnInventoryUpdated.Broadcast();
         return false;
     }
-
-    // Toggle equip/unequip
+    
     if (CurrentEquippedItemID == Slot.ItemID && CurrentEquippedSlotIndex == QuickbarIndex)
     {
+        UE_LOG(LogTemp, Log, TEXT("  → Toggling OFF equipped item"));
         UnequipCurrentItem();
         return true;
     }
-
-    // Unequip current item first
+    
     if (!CurrentEquippedItemID.IsNone())
     {
         UnequipCurrentItem();
     }
-
-    // Get item data
+    
     FItemData ItemData;
     if (!GetItemData(Slot.ItemID, ItemData))
     {
-        UE_LOG(LogTemp, Error, TEXT("EquipQuickbarSlot: ItemData not found"));
+        UE_LOG(LogTemp, Error, TEXT("❌ EquipQuickbarSlot: ItemData not found"));
         return false;
     }
 
-    // **NEW: Special handling for flashlight - Spawn actor BEFORE attaching**
+    // ========================================================================
+    // SPECIAL HANDLING: FLASHLIGHT
+    // ========================================================================
+
     if (ItemData.ItemType == EItemType::Tool && ItemData.ToolType == EToolType::Flashlight)
     {
+        const auto Pawn = UGameplayStatics::GetPlayerPawn(this,0);
+        UFlashlightComponent* FlashlightComp = Pawn->FindComponentByClass<UFlashlightComponent>();
+        
+        if (!FlashlightComp)
+        {
+            UE_LOG(LogTemp, Error, TEXT("❌ FlashlightComponent not found on character!"));
+            return false;
+        }
+        
         if (!SpawnFlashlightActor(ItemData))
         {
-            UE_LOG(LogTemp, Error, TEXT("EquipQuickbarSlot: Failed to spawn flashlight actor!"));
+            UE_LOG(LogTemp, Error, TEXT("❌ Failed to spawn flashlight visual actor!"));
+            return false;
+        }
+        
+        if (SpawnedFlashlightActor && SpawnedFlashlightActor->GetSpotLight())
+        {
+            FlashlightComp->InitializeFlashlight(SpawnedFlashlightActor, SpawnedFlashlightActor->SpotLightComponent);
+            FlashlightComp->SetEquipped(true);
+            
+            UE_LOG(LogTemp, Log, TEXT("✅ FlashlightComponent connected to spawned flashlight"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("❌ SpawnedFlashlightActor or SpotLight is NULL!"));
+            return false;
+        }
+    }
+    // ========================================================================
+    // NORMAL ITEMS: Attach visual mesh to hand
+    // ========================================================================
+    else
+    {
+        if (!AttachItemToHand(ItemData))
+        {
+            UE_LOG(LogTemp, Error, TEXT("❌ Failed to attach item to hand"));
             return false;
         }
     }
 
-    // Attach to hand (visual only)
-    bool bSuccess = AttachItemToHand(ItemData);
+    // ========================================================================
+    // FINALIZE EQUIPPING
+    // ========================================================================
+    CurrentEquippedItemID = Slot.ItemID;
+    CurrentEquippedSlotIndex = QuickbarIndex;
 
-    if (bSuccess)
-    {
-        CurrentEquippedItemID = Slot.ItemID;
-        CurrentEquippedSlotIndex = QuickbarIndex;
+    PlayItemSound(ItemData.PickupSound);
 
-        // Play equip sound
-        PlayItemSound(ItemData.PickupSound);
+    // Broadcast events
+    OnItemEquipped.Broadcast(Slot.ItemID);
+    OnInventoryUpdated.Broadcast();
 
-        // **UPDATED: Handle flashlight equip with spawned actor**
-        if (ItemData.ItemType == EItemType::Tool && ItemData.ToolType == EToolType::Flashlight)
-        {
-            if (SpawnedFlashlightActor && SpawnedFlashlightActor->FlashlightComponent)
-            {
-                // Mark as equipped
-                SpawnedFlashlightActor->FlashlightComponent->SetEquipped(true);
-                
-                OnItemEquipped.Broadcast(Slot.ItemID);
-                OnInventoryUpdated.Broadcast();
-                
-                // Auto-turn on flashlight when equipped
-                SpawnedFlashlightActor->FlashlightComponent->SetLightEnabled(true);
-                
-                UE_LOG(LogTemp, Log, TEXT("EquipQuickbarSlot: Flashlight equipped and turned on"));
-            }
-        }
-        else
-        {
-            OnItemEquipped.Broadcast(Slot.ItemID);
-            OnInventoryUpdated.Broadcast();
-        }
+    UE_LOG(LogTemp, Log, TEXT("✅ Equipped '%s' from quickbar slot %d"), 
+        *ItemData.ItemName.ToString(), QuickbarIndex);
 
-        UE_LOG(LogTemp, Log, TEXT("EquipQuickbarSlot: Equipped '%s' from slot %d"),
-            *ItemData.ItemName.ToString(), QuickbarIndex);
-    }
-
-    return bSuccess;
-}
-
-bool UInventoryComponent::SpawnFlashlightActor(const FItemData& ItemData)
-{
-    // Get character owner
-    ACharacter* Character = Cast<ACharacter>(GetOwner());
-    if (!Character)
-    {
-        UE_LOG(LogTemp, Error, TEXT("SpawnFlashlightActor: Owner is not a character!"));
-        return false;
-    }
-
-    // Check if we have a flashlight class to spawn
-    if (!FlashlightClass)
-    {
-        UE_LOG(LogTemp, Error, TEXT("SpawnFlashlightActor: FlashlightClass not set!"));
-        UE_LOG(LogTemp, Error, TEXT("  -> Please set FlashlightClass in InventoryComponent Blueprint!"));
-        return false;
-    }
-
-    // Destroy old flashlight if exists
-    if (SpawnedFlashlightActor)
-    {
-        SpawnedFlashlightActor->Destroy();
-        SpawnedFlashlightActor = nullptr;
-        UE_LOG(LogTemp, Log, TEXT("SpawnFlashlightActor: Destroyed old flashlight"));
-    }
-
-    // Spawn new flashlight actor
-    FActorSpawnParameters SpawnParams;
-    SpawnParams.Owner = Character;
-    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
-    SpawnedFlashlightActor = GetWorld()->SpawnActor<AFlashlight>(
-        FlashlightClass,
-        FVector::ZeroVector,
-        FRotator::ZeroRotator,
-        SpawnParams
-    );
-
-    if (!SpawnedFlashlightActor)
-    {
-        UE_LOG(LogTemp, Error, TEXT("SpawnFlashlightActor: Failed to spawn actor!"));
-        return false;
-    }
-
-    UE_LOG(LogTemp, Log, TEXT("SpawnFlashlightActor: Spawned successfully"));
-
-    // Attach to character's hand socket
-    USkeletalMeshComponent* Mesh = Character->GetMesh();
-    FName SocketName = FName("Item"); // Change to your actual socket name
-
-    if (Mesh && Mesh->DoesSocketExist(SocketName))
-    {
-        SpawnedFlashlightActor->AttachToComponent(
-            Mesh,
-            FAttachmentTransformRules::SnapToTargetIncludingScale,
-            SocketName
-        );
-        UE_LOG(LogTemp, Log, TEXT("SpawnFlashlightActor: Attached to socket '%s'"), *SocketName.ToString());
-    }
-    else
-    {
-        // Fallback: attach to character root
-        SpawnedFlashlightActor->AttachToActor(
-            Character,
-            FAttachmentTransformRules::KeepRelativeTransform
-        );
-        UE_LOG(LogTemp, Warning, TEXT("SpawnFlashlightActor: Socket '%s' not found, attached to root"), *SocketName.ToString());
-    }
-
-    // Verify SpotLightComponent exists
-    USpotLightComponent* SpotLight = SpawnedFlashlightActor->FindComponentByClass<USpotLightComponent>();
-    if (SpotLight)
-    {
-        UE_LOG(LogTemp, Log, TEXT("SpawnFlashlightActor: SpotLightComponent verified"));
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("SpawnFlashlightActor: No SpotLightComponent found on spawned actor!"));
-        return false;
-    }
-
-    return true;
-}
-
-bool UInventoryComponent::AttachItemToHand(const FItemData& ItemData)
-{
-    if (!CharacterMesh)
-    {
-        UE_LOG(LogTemp, Error, TEXT("AttachItemToHand: No character mesh!"));
-        return false;
-    }
-
-    if (!ItemData.ItemMesh)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("AttachItemToHand: Item has no mesh"));
-        return false;
-    }
-
-    // Destroy existing mesh
-    if (EquippedItemMesh)
-    {
-        EquippedItemMesh->DestroyComponent();
-        EquippedItemMesh = nullptr;
-    }
-
-    // Create new static mesh component
-    EquippedItemMesh = NewObject<UStaticMeshComponent>(GetOwner());
-    if (!EquippedItemMesh)
-    {
-        UE_LOG(LogTemp, Error, TEXT("AttachItemToHand: Failed to create mesh component"));
-        return false;
-    }
-
-    EquippedItemMesh->RegisterComponent();
-    EquippedItemMesh->SetStaticMesh(ItemData.ItemMesh);
-    EquippedItemMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-
-    // Attach to hand socket
-    FName SocketName = TEXT("Item"); // Or "hand_r", "RightHandSocket"
-
-    if (!CharacterMesh->DoesSocketExist(SocketName))
-    {
-        UE_LOG(LogTemp, Warning, TEXT("AttachItemToHand: Socket '%s' not found"), *SocketName.ToString());
-        SocketName = NAME_None;
-    }
-
-    EquippedItemMesh->AttachToComponent(
-        CharacterMesh,
-        FAttachmentTransformRules::SnapToTargetNotIncludingScale,
-        SocketName
-    );
-
-    UE_LOG(LogTemp, Log, TEXT("AttachItemToHand: Attached '%s' to hand"), *ItemData.ItemName.ToString());
     return true;
 }
 
 void UInventoryComponent::UnequipCurrentItem()
 {
-     if (CurrentEquippedItemID.IsNone())
+    if (CurrentEquippedItemID.IsNone())
     {
-        UE_LOG(LogTemp, Warning, TEXT("UnequipCurrentItem: No item equipped"));
+        UE_LOG(LogTemp, Warning, TEXT("  → No item to unequip"));
         return;
     }
 
-    // Get item data to check type
     FItemData ItemData;
     if (!GetItemData(CurrentEquippedItemID, ItemData))
     {
-        UE_LOG(LogTemp, Error, TEXT("UnequipCurrentItem: Failed to get item data"));
+        UE_LOG(LogTemp, Error, TEXT("❌ UnequipCurrentItem: Failed to get item data"));
         return;
     }
 
     FName PreviousItemID = CurrentEquippedItemID;
 
-    // ============================================
+    // ========================================================================
     // HANDLE FLASHLIGHT UNEQUIP
-    // ============================================
+    // ========================================================================
     if (ItemData.ItemType == EItemType::Tool && ItemData.ToolType == EToolType::Flashlight)
     {
-        if (SpawnedFlashlightActor && SpawnedFlashlightActor->FlashlightComponent)
+        const auto Pawn = UGameplayStatics::GetPlayerPawn(this,0);
+        
+        if (UFlashlightComponent* FlashlightComp = Pawn->FindComponentByClass<UFlashlightComponent>())
         {
-            // Mark as unequipped (will turn off light)
-            SpawnedFlashlightActor->FlashlightComponent->SetEquipped(false);
-            UE_LOG(LogTemp, Log, TEXT("UnequipCurrentItem: Flashlight component unequipped"));
+            FlashlightComp->SetLightEnabled(false);
+            FlashlightComp->SetEquipped(false);
+            
+            UE_LOG(LogTemp, Log, TEXT("  → FlashlightComponent unequipped"));
         }
-
-        // Destroy spawned flashlight actor
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("⚠️ FlashlightComponent not found during unequip"));
+        }
+        
         if (SpawnedFlashlightActor)
         {
             SpawnedFlashlightActor->Destroy();
             SpawnedFlashlightActor = nullptr;
-            UE_LOG(LogTemp, Log, TEXT("UnequipCurrentItem: Flashlight actor destroyed"));
+            UE_LOG(LogTemp, Log, TEXT("  → Flashlight visual actor destroyed"));
         }
     }
-    // ============================================
+    // ========================================================================
     // HANDLE OTHER ITEMS
-    // ============================================
+    // ========================================================================
     else
     {
         if (CurrentAttachedItemActor)
@@ -662,23 +520,25 @@ void UInventoryComponent::UnequipCurrentItem()
             CurrentAttachedItemActor->Destroy();
             CurrentAttachedItemActor = nullptr;
         }
+
+        // Destroy visual mesh
+        if (EquippedItemMesh)
+        {
+            EquippedItemMesh->DestroyComponent();
+            EquippedItemMesh = nullptr;
+        }
     }
 
-    // Destroy visual mesh
-    if (EquippedItemMesh)
-    {
-        EquippedItemMesh->DestroyComponent();
-        EquippedItemMesh = nullptr;
-    }
-
+    // ========================================================================
+    // FINALIZE UNEQUIPPING
+    // ========================================================================
     CurrentEquippedItemID = NAME_None;
     CurrentEquippedSlotIndex = -1;
 
     OnItemUnequipped.Broadcast(PreviousItemID);
     OnInventoryUpdated.Broadcast();
 
-    UE_LOG(LogTemp, Log, TEXT("UnequipCurrentItem: Successfully unequipped '%s'"), 
-        *PreviousItemID.ToString());
+    UE_LOG(LogTemp, Log, TEXT("✅ Unequipped '%s'"), *PreviousItemID.ToString());
 }
 
 // ============================================================================
@@ -694,7 +554,7 @@ bool UInventoryComponent::DropItem(FName ItemID, int32 Quantity)
 
     if (!HasItem(ItemID, Quantity))
     {
-        UE_LOG(LogTemp, Warning, TEXT("DropItem: Not enough items"));
+        UE_LOG(LogTemp, Warning, TEXT("❌ DropItem: Not enough items"));
         return false;
     }
 
@@ -703,29 +563,24 @@ bool UInventoryComponent::DropItem(FName ItemID, int32 Quantity)
     {
         return false;
     }
-
-    // HORROR: Quest items cannot be dropped
+    
     if (ItemData.ItemType == EItemType::QuestItem || !ItemData.bCanBeDropped)
     {
-        UE_LOG(LogTemp, Warning, TEXT("DropItem: Cannot drop quest/important items!"));
+        UE_LOG(LogTemp, Warning, TEXT("❌ Cannot drop quest/important items!"));
         PlayCannotDropSound();
         return false;
     }
 
     if (!ItemData.PickupActorClass)
     {
-        UE_LOG(LogTemp, Error, TEXT("DropItem: No PickupActorClass"));
+        UE_LOG(LogTemp, Error, TEXT("❌ DropItem: No PickupActorClass"));
         return false;
     }
 
     AActor* Owner = GetOwner();
-    if (!Owner)
-    {
-        return false;
-    }
-
-    UWorld* World = Owner->GetWorld();
-    if (!World)
+    UWorld* World = Owner ? Owner->GetWorld() : nullptr;
+    
+    if (!Owner || !World)
     {
         return false;
     }
@@ -774,17 +629,10 @@ bool UInventoryComponent::DropItem(FName ItemID, int32 Quantity)
     }
 
     // Remove from inventory
-    bool bRemoved = RemoveItem(ItemID, Quantity);
-    if (!bRemoved)
-    {
-        return false;
-    }
-
-    // Play drop sound
+    RemoveItem(ItemID, Quantity);
     PlayItemSound(ItemData.UseSound);
 
-    OnInventoryUpdated.Broadcast();
-    UE_LOG(LogTemp, Log, TEXT("DropItem: Dropped %d x %s"), Quantity, *ItemData.ItemName.ToString());
+    UE_LOG(LogTemp, Log, TEXT("✅ Dropped %d x %s"), Quantity, *ItemData.ItemName.ToString());
     return true;
 }
 
@@ -801,118 +649,84 @@ bool UInventoryComponent::DropEquippedItem()
 }
 
 // ============================================================================
-// QUICKBAR MANAGEMENT
+// QUICKBAR MANAGEMENT (IMPROVED)
 // ============================================================================
 
-bool UInventoryComponent::AssignToQuickbar(FName ItemID, int32 QuickbarIndex)
+bool UInventoryComponent::AssignToQuickbar(int32 InventoryIndex, int32 QuickbarIndex)
 {
     if (QuickbarIndex < 0 || QuickbarIndex >= QuickbarSize)
     {
+        UE_LOG(LogTemp, Warning, TEXT("❌ AssignToQuickbar: Invalid quickbar index %d"), QuickbarIndex);
         return false;
     }
 
-    if (!HasItem(ItemID, 1))
+    if (InventoryIndex < 0 || !InventorySlots.IsValidIndex(InventoryIndex))
     {
+        UE_LOG(LogTemp, Warning, TEXT("❌ AssignToQuickbar: Invalid inventory index %d"), InventoryIndex);
         return false;
     }
 
-    FInventorySlot* Slot = FindItemSlot(ItemID);
-    if (Slot)
+    if (!InventorySlots[InventoryIndex].IsValid())
     {
-        QuickbarSlots[QuickbarIndex] = FInventorySlot(ItemID, 1);
-        QuickbarSlots[QuickbarIndex].RemainingUses = Slot->RemainingUses;
-
-        OnInventoryUpdated.Broadcast();
-        return true;
+        UE_LOG(LogTemp, Warning, TEXT("❌ AssignToQuickbar: Empty inventory slot"));
+        return false;
     }
 
-    return false;
+    QuickbarSlotIndices[QuickbarIndex] = InventoryIndex;
+    OnInventoryUpdated.Broadcast();
+
+    UE_LOG(LogTemp, Log, TEXT("✅ Assigned inventory[%d] to quickbar[%d]"), InventoryIndex, QuickbarIndex);
+    return true;
 }
 
 bool UInventoryComponent::RemoveFromQuickbar(int32 QuickbarIndex)
 {
-    if (QuickbarIndex < 0 || QuickbarIndex >= QuickbarSlots.Num())
+    if (QuickbarIndex < 0 || QuickbarIndex >= QuickbarSlotIndices.Num())
     {
         return false;
     }
 
-    FInventorySlot& QSlot = QuickbarSlots[QuickbarIndex];
-    if (!QSlot.IsValid())
-    {
-        return true;
-    }
-
+    // Unequip if this slot is equipped
     if (CurrentEquippedSlotIndex == QuickbarIndex)
     {
         UnequipCurrentItem();
     }
 
-    QSlot = FInventorySlot();
+    QuickbarSlotIndices[QuickbarIndex] = -1;
     OnInventoryUpdated.Broadcast();
+    
+    UE_LOG(LogTemp, Log, TEXT("✅ Removed quickbar slot %d"), QuickbarIndex);
     return true;
 }
 
 FInventorySlot UInventoryComponent::GetQuickbarSlot(int32 Index) const
 {
-    if (Index >= 0 && Index < QuickbarSlots.Num())
+    if (Index < 0 || Index >= QuickbarSlotIndices.Num())
     {
-        FInventorySlot QSlot = QuickbarSlots[Index];
-        
-        if (QSlot.IsValid())
-        {
-            QSlot.Quantity = GetItemQuantity(QSlot.ItemID);
-            if (QSlot.Quantity <= 0)
-            {
-                return FInventorySlot();
-            }
-        }
-        
-        return QSlot;
+        return FInventorySlot();
     }
-    return FInventorySlot();
+
+    int32 InventoryIndex = QuickbarSlotIndices[Index];
+    
+    if (InventoryIndex < 0 || !InventorySlots.IsValidIndex(InventoryIndex))
+    {
+        return FInventorySlot();
+    }
+
+    return InventorySlots[InventoryIndex];
 }
 
-void UInventoryComponent::SyncQuickbarSlot(int32 QuickbarIndex)
+int32 UInventoryComponent::GetQuickbarInventoryIndex(int32 QuickbarIndex) const
 {
-    if (QuickbarIndex < 0 || QuickbarIndex >= QuickbarSlots.Num())
+    if (QuickbarIndex >= 0 && QuickbarIndex < QuickbarSlotIndices.Num())
     {
-        return;
+        return QuickbarSlotIndices[QuickbarIndex];
     }
-
-    FInventorySlot& QSlot = QuickbarSlots[QuickbarIndex];
-    if (!QSlot.IsValid())
-    {
-        return;
-    }
-
-    int32 InvIndex = FindInventorySlotByItemID(QSlot.ItemID);
-
-    if (InvIndex >= 0)
-    {
-        QSlot.Quantity = InventorySlots[InvIndex].Quantity;
-        QSlot.RemainingUses = InventorySlots[InvIndex].RemainingUses;
-    }
-    else
-    {
-        // Item not in inventory, clear quickbar
-        QuickbarSlots[QuickbarIndex] = FInventorySlot();
-        if (CurrentEquippedSlotIndex == QuickbarIndex)
-        {
-            UnequipCurrentItem();
-        }
-    }
-}
-
-void UInventoryComponent::SyncAllQuickbarSlots()
-{
-    for (int32 i = 0; i < QuickbarSlots.Num(); ++i)
-    {
-        SyncQuickbarSlot(i);
-    }
+    return -1;
 }
 
 // ============================================================================
-// DRAG & DROP SYSTEM
+// DRAG & DROP (IMPROVED)
 // ============================================================================
 
 bool UInventoryComponent::SwapInventorySlots(int32 SlotA, int32 SlotB)
@@ -924,97 +738,90 @@ bool UInventoryComponent::SwapInventorySlots(int32 SlotA, int32 SlotB)
         return false;
     }
 
+    UE_LOG(LogTemp, Log, TEXT("✅ SwapInventorySlots: %d ↔ %d"), SlotA, SlotB);
+
+    // Swap slots
     FInventorySlot TempA = InventorySlots[SlotA];
-    FInventorySlot TempB = InventorySlots[SlotB];
-
-    UE_LOG(LogTemp, Log, TEXT("✅ SwapInventorySlots: %d (%s) ↔ %d (%s)"),
-        SlotA, TempA.IsValid() ? *TempA.ItemID.ToString() : TEXT("Empty"),
-        SlotB, TempB.IsValid() ? *TempB.ItemID.ToString() : TEXT("Empty"));
-
-    // Swap
-    InventorySlots[SlotA] = TempB;
+    InventorySlots[SlotA] = InventorySlots[SlotB];
     InventorySlots[SlotB] = TempA;
 
-    // Sync quickbar
-    SyncAllQuickbarSlots();
+    for (int32 i = 0; i < QuickbarSlotIndices.Num(); i++)
+    {
+        if (QuickbarSlotIndices[i] == SlotA)
+        {
+            QuickbarSlotIndices[i] = SlotB;
+        }
+        else if (QuickbarSlotIndices[i] == SlotB)
+        {
+            QuickbarSlotIndices[i] = SlotA;
+        }
+    }
 
     OnInventoryUpdated.Broadcast();
     return true;
 }
 
-void UInventoryComponent::MoveItemToSlot(int32 SourceIndex, int32 TargetIndex)
+bool UInventoryComponent::MoveItemToSlot(int32 SourceIndex, int32 TargetIndex)
 {
-    // Validate
     if (!InventorySlots.IsValidIndex(SourceIndex) || !InventorySlots.IsValidIndex(TargetIndex))
     {
-        UE_LOG(LogTemp, Error, TEXT("MoveItemToSlot: Invalid indices %d → %d"), SourceIndex, TargetIndex);
-        return;
+        UE_LOG(LogTemp, Error, TEXT("❌ MoveItemToSlot: Invalid indices"));
+        return false;
     }
 
     if (SourceIndex == TargetIndex)
     {
-        return;
+        return true;
     }
 
-    // Check target is empty
     if (InventorySlots[TargetIndex].IsValid())
     {
-        UE_LOG(LogTemp, Warning, TEXT("MoveItemToSlot: Target slot %d is not empty!"), TargetIndex);
-        return;
+        UE_LOG(LogTemp, Warning, TEXT("❌ Target slot not empty! Use SwapInventorySlots instead"));
+        return false;
     }
 
-    // Get source slot data
-    FInventorySlot SourceSlot = InventorySlots[SourceIndex];
-    
-    if (!SourceSlot.IsValid())
-    {
-        UE_LOG(LogTemp, Warning, TEXT("MoveItemToSlot: Source slot %d is empty!"), SourceIndex);
-        return;
-    }
-
-    UE_LOG(LogTemp, Log, TEXT("✅ MoveItemToSlot: %d → %d (%s, Qty: %d)"),
-        SourceIndex, TargetIndex, *SourceSlot.ItemID.ToString(), SourceSlot.Quantity);
+    UE_LOG(LogTemp, Log, TEXT("✅ MoveItemToSlot: %d → %d"), SourceIndex, TargetIndex);
 
     // Move item
-    InventorySlots[TargetIndex] = SourceSlot;
-    InventorySlots[SourceIndex] = FInventorySlot(); // Clear source
+    InventorySlots[TargetIndex] = InventorySlots[SourceIndex];
+    InventorySlots[SourceIndex] = FInventorySlot();
 
-    // ✅ CRITICAL: Sync quickbar slots to point to new location
-    SyncAllQuickbarSlots();
+    for (int32 i = 0; i < QuickbarSlotIndices.Num(); i++)
+    {
+        if (QuickbarSlotIndices[i] == SourceIndex)
+        {
+            QuickbarSlotIndices[i] = TargetIndex;
+        }
+    }
 
     OnInventoryUpdated.Broadcast();
+    return true;
 }
 
 bool UInventoryComponent::SwapQuickbarSlots(int32 SlotA, int32 SlotB)
 {
-    if (SlotA < 0 || SlotA >= QuickbarSlots.Num() ||
-        SlotB < 0 || SlotB >= QuickbarSlots.Num() ||
+    if (SlotA < 0 || SlotA >= QuickbarSlotIndices.Num() ||
+        SlotB < 0 || SlotB >= QuickbarSlotIndices.Num() ||
         SlotA == SlotB)
     {
         return false;
     }
 
-    FInventorySlot TempA = QuickbarSlots[SlotA];
-    FInventorySlot TempB = QuickbarSlots[SlotB];
+    UE_LOG(LogTemp, Log, TEXT("✅ SwapQuickbarSlots: %d ↔ %d"), SlotA, SlotB);
 
-    UE_LOG(LogTemp, Log, TEXT("✅ SwapQuickbarSlots: %d (%s) ↔ %d (%s)"),
-        SlotA, TempA.IsValid() ? *TempA.ItemID.ToString() : TEXT("Empty"),
-        SlotB, TempB.IsValid() ? *TempB.ItemID.ToString() : TEXT("Empty"));
+    // Swap indices
+    int32 TempIndex = QuickbarSlotIndices[SlotA];
+    QuickbarSlotIndices[SlotA] = QuickbarSlotIndices[SlotB];
+    QuickbarSlotIndices[SlotB] = TempIndex;
 
-    // Swap
-    QuickbarSlots[SlotA] = TempB;
-    QuickbarSlots[SlotB] = TempA;
-
-    // Update equipped index if needed
+    // ✅ Update equipped slot index if needed
     if (CurrentEquippedSlotIndex == SlotA)
     {
         CurrentEquippedSlotIndex = SlotB;
-        UE_LOG(LogTemp, Log, TEXT("  → Equipped index moved: %d → %d"), SlotA, SlotB);
     }
     else if (CurrentEquippedSlotIndex == SlotB)
     {
         CurrentEquippedSlotIndex = SlotA;
-        UE_LOG(LogTemp, Log, TEXT("  → Equipped index moved: %d → %d"), SlotB, SlotA);
     }
 
     OnInventoryUpdated.Broadcast();
@@ -1023,46 +830,12 @@ bool UInventoryComponent::SwapQuickbarSlots(int32 SlotA, int32 SlotB)
 
 bool UInventoryComponent::MoveInventoryToQuickbar(int32 InventoryIndex, int32 QuickbarIndex)
 {
-    if (InventoryIndex < 0 || InventoryIndex >= InventorySlots.Num() ||
-        QuickbarIndex < 0 || QuickbarIndex >= QuickbarSlots.Num())
-    {
-        return false;
-    }
-
-    FInventorySlot& InvSlot = InventorySlots[InventoryIndex];
-    if (!InvSlot.IsValid())
-    {
-        return false;
-    }
-
-    // Simply create reference in quickbar
-    QuickbarSlots[QuickbarIndex] = InvSlot;
-    OnInventoryUpdated.Broadcast();
-    return true;
+    return AssignToQuickbar(InventoryIndex, QuickbarIndex);
 }
 
-bool UInventoryComponent::MoveQuickbarToInventory(int32 QuickbarIndex, int32 InventoryIndex)
+bool UInventoryComponent::RemoveQuickbarToInventory(int32 QuickbarIndex)
 {
-    if (QuickbarIndex < 0 || QuickbarIndex >= QuickbarSlots.Num())
-    {
-        return false;
-    }
-
-    FInventorySlot& QSlot = QuickbarSlots[QuickbarIndex];
-    if (!QSlot.IsValid())
-    {
-        return false;
-    }
-
-    // Just remove from quickbar (item stays in inventory)
-    if (CurrentEquippedSlotIndex == QuickbarIndex)
-    {
-        UnequipCurrentItem();
-    }
-
-    QuickbarSlots[QuickbarIndex] = FInventorySlot();
-    OnInventoryUpdated.Broadcast();
-    return true;
+    return RemoveFromQuickbar(QuickbarIndex);
 }
 
 // ============================================================================
@@ -1091,7 +864,7 @@ bool UInventoryComponent::GetItemData(FName ItemID, FItemData& OutItemData) cons
 {
     if (!ItemDataTable)
     {
-        UE_LOG(LogTemp, Error, TEXT("GetItemData: ItemDataTable is not set!"));
+        UE_LOG(LogTemp, Error, TEXT("❌ GetItemData: ItemDataTable is not set!"));
         return false;
     }
 
@@ -1153,19 +926,6 @@ bool UInventoryComponent::GetEquippedItem(FItemData& OutItemData) const
     return false;
 }
 
-bool UInventoryComponent::GetQuickbarSlotItem(int32 SlotIndex, FItemData& OutItemData) const
-{
-    if (SlotIndex >= 0 && SlotIndex < QuickbarSlots.Num())
-    {
-        const FInventorySlot& Slot = QuickbarSlots[SlotIndex];
-        if (Slot.IsValid())
-        {
-            return GetItemData(Slot.ItemID, OutItemData);
-        }
-    }
-    return false;
-}
-
 void UInventoryComponent::ClearInventory()
 {
     if (!CurrentEquippedItemID.IsNone())
@@ -1174,12 +934,11 @@ void UInventoryComponent::ClearInventory()
     }
 
     InventorySlots.Empty();
-    for (int32 i = 0; i < QuickbarSize; i++)
-    {
-        QuickbarSlots[i] = FInventorySlot();
-    }
+    QuickbarSlotIndices.Init(-1, QuickbarSize);
     
     OnInventoryUpdated.Broadcast();
+    
+    UE_LOG(LogTemp, Log, TEXT("✅ Inventory cleared"));
 }
 
 void UInventoryComponent::PrintInventory()
@@ -1187,22 +946,44 @@ void UInventoryComponent::PrintInventory()
     UE_LOG(LogTemp, Log, TEXT("========== INVENTORY =========="));
     UE_LOG(LogTemp, Log, TEXT("Slots: %d/%d"), InventorySlots.Num(), MaxInventorySlots);
     
-    for (const FInventorySlot& Slot : InventorySlots)
+    for (int32 i = 0; i < InventorySlots.Num(); i++)
     {
+        const FInventorySlot& Slot = InventorySlots[i];
         FItemData ItemData;
         if (GetItemData(Slot.ItemID, ItemData))
         {
-            UE_LOG(LogTemp, Log, TEXT("  %s x%d"), *ItemData.ItemName.ToString(), Slot.Quantity);
+            UE_LOG(LogTemp, Log, TEXT("  [%d] %s x%d"), i, *ItemData.ItemName.ToString(), Slot.Quantity);
         }
     }
     
-    UE_LOG(LogTemp, Log, TEXT("Equipped: %s"), 
-        CurrentEquippedItemID.IsNone() ? TEXT("None") : *CurrentEquippedItemID.ToString());
+    UE_LOG(LogTemp, Log, TEXT(""));
+    UE_LOG(LogTemp, Log, TEXT("Quickbar:"));
+    for (int32 i = 0; i < QuickbarSlotIndices.Num(); i++)
+    {
+        int32 InvIndex = QuickbarSlotIndices[i];
+        if (InvIndex >= 0 && InventorySlots.IsValidIndex(InvIndex))
+        {
+            FItemData ItemData;
+            if (GetItemData(InventorySlots[InvIndex].ItemID, ItemData))
+            {
+                UE_LOG(LogTemp, Log, TEXT("  [%d] → Inv[%d] %s"), i, InvIndex, *ItemData.ItemName.ToString());
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Log, TEXT("  [%d] → EMPTY"), i);
+        }
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT(""));
+    UE_LOG(LogTemp, Log, TEXT("Equipped: %s (Slot %d)"), 
+        CurrentEquippedItemID.IsNone() ? TEXT("None") : *CurrentEquippedItemID.ToString(),
+        CurrentEquippedSlotIndex);
     UE_LOG(LogTemp, Log, TEXT("==============================="));
 }
 
 // ============================================================================
-// ITEM EFFECTS (HORROR-SPECIFIC)
+// ITEM EFFECTS
 // ============================================================================
 
 bool UInventoryComponent::ApplyItemEffect(const FItemData& ItemData)
@@ -1223,19 +1004,9 @@ bool UInventoryComponent::ApplyItemEffect(const FItemData& ItemData)
             {
                 Sanity->RestoreSanity(ItemData.SanityRestoreAmount);
                 bEffectApplied = true;
-                UE_LOG(LogTemp, Log, TEXT("ApplyItemEffect: Restored %.1f sanity"), 
-                    ItemData.SanityRestoreAmount);
+                UE_LOG(LogTemp, Log, TEXT("  → Restored %.1f sanity"), ItemData.SanityRestoreAmount);
             }
         }
-    }
-
-    // Passive sanity drain reduction (Teddy Bear effect)
-    if (ItemData.PassiveSanityDrainReduction > 0.0f)
-    {
-        // This should be handled by the item being in inventory
-        // Not consumed on use
-        UE_LOG(LogTemp, Log, TEXT("ApplyItemEffect: Passive effect active"));
-        bEffectApplied = true;
     }
 
     return bEffectApplied;
@@ -1261,7 +1032,222 @@ float UInventoryComponent::GetPassiveSanityDrainReduction() const
 }
 
 // ============================================================================
-// AUDIO SYSTEM
+// SPAWNING & ATTACHMENT
+// ============================================================================
+
+bool UInventoryComponent::AttachItemToHand(const FItemData& ItemData)
+{
+    if (!CharacterMesh)
+    {
+        UE_LOG(LogTemp, Error, TEXT("❌ AttachItemToHand: No character mesh!"));
+        return false;
+    }
+
+    if (!ItemData.ItemMesh)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("⚠ AttachItemToHand: Item has no mesh"));
+        return true; // Not an error, just no visual
+    }
+
+    // Destroy existing mesh
+    if (EquippedItemMesh)
+    {
+        EquippedItemMesh->DestroyComponent();
+        EquippedItemMesh = nullptr;
+    }
+
+    // Create new static mesh component
+    EquippedItemMesh = NewObject<UStaticMeshComponent>(GetOwner());
+    if (!EquippedItemMesh)
+    {
+        UE_LOG(LogTemp, Error, TEXT("❌ Failed to create mesh component"));
+        return false;
+    }
+
+    EquippedItemMesh->RegisterComponent();
+    EquippedItemMesh->SetStaticMesh(ItemData.ItemMesh);
+    EquippedItemMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+    // Attach to hand socket
+    FName SocketName = TEXT("Item"); // Or "hand_r", "RightHandSocket"
+
+    if (!CharacterMesh->DoesSocketExist(SocketName))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("⚠ Socket '%s' not found, attaching to root"), *SocketName.ToString());
+        SocketName = NAME_None;
+    }
+
+    EquippedItemMesh->AttachToComponent(
+        CharacterMesh,
+        FAttachmentTransformRules::SnapToTargetNotIncludingScale,
+        SocketName
+    );
+
+    UE_LOG(LogTemp, Log, TEXT("  → Attached '%s' to hand"), *ItemData.ItemName.ToString());
+    return true;
+}
+
+bool UInventoryComponent::SpawnFlashlightActor(const FItemData& ItemData)
+{
+    ACharacter* Character = Cast<ACharacter>(GetOwner());
+    if (!Character)
+    {
+        UE_LOG(LogTemp, Error, TEXT("❌ SpawnFlashlightActor: Owner is not a character!"));
+        return false;
+    }
+
+    if (!FlashlightClass)
+    {
+        UE_LOG(LogTemp, Error, TEXT("❌ SpawnFlashlightActor: FlashlightClass not set!"));
+        UE_LOG(LogTemp, Error, TEXT("  → Set FlashlightClass in InventoryComponent Blueprint!"));
+        return false;
+    }
+
+    // ✅ Cleanup old flashlight
+    if (SpawnedFlashlightActor)
+    {
+        SpawnedFlashlightActor->Destroy();
+        SpawnedFlashlightActor = nullptr;
+    }
+
+    // Spawn new flashlight
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.Owner = Character;
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+    SpawnedFlashlightActor = GetWorld()->SpawnActor<AFlashlight>(
+        FlashlightClass,
+        FVector::ZeroVector,
+        FRotator::ZeroRotator,
+        SpawnParams
+    );
+
+    if (!SpawnedFlashlightActor)
+    {
+        UE_LOG(LogTemp, Error, TEXT("❌ Failed to spawn flashlight actor!"));
+        return false;
+    }
+
+    // Attach to hand socket
+    USkeletalMeshComponent* Mesh = Character->GetMesh();
+    FName SocketName = FName("Item");
+
+    if (Mesh && Mesh->DoesSocketExist(SocketName))
+    {
+        SpawnedFlashlightActor->AttachToComponent(
+            Mesh,
+            FAttachmentTransformRules::SnapToTargetIncludingScale,
+            SocketName
+        );
+        UE_LOG(LogTemp, Log, TEXT("  → Flashlight attached to socket '%s'"), *SocketName.ToString());
+    }
+    else
+    {
+        SpawnedFlashlightActor->AttachToActor(
+            Character,
+            FAttachmentTransformRules::KeepRelativeTransform
+        );
+        UE_LOG(LogTemp, Warning, TEXT("⚠ Socket '%s' not found, attached to root"), *SocketName.ToString());
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("✅ Flashlight spawned successfully"));
+    return true;
+}
+
+void UInventoryComponent::CleanupSpawnedActors()
+{
+    if (SpawnedFlashlightActor)
+    {
+        SpawnedFlashlightActor->Destroy();
+        SpawnedFlashlightActor = nullptr;
+    }
+
+    if (CurrentAttachedItemActor)
+    {
+        CurrentAttachedItemActor->Destroy();
+        CurrentAttachedItemActor = nullptr;
+    }
+
+    if (EquippedItemMesh)
+    {
+        EquippedItemMesh->DestroyComponent();
+        EquippedItemMesh = nullptr;
+    }
+}
+
+// ============================================================================
+// AUTO-ASSIGN & VALIDATION
+// ============================================================================
+
+void UInventoryComponent::TryAutoAssignToQuickbar(FName ItemID)
+{
+    FItemData ItemData;
+    if (!GetItemData(ItemID, ItemData))
+    {
+        return;
+    }
+
+    // Only auto-assign tools and consumables
+    if (ItemData.ItemType != EItemType::Tool && ItemData.ItemType != EItemType::Consumable)
+    {
+        return;
+    }
+
+    // Check if already in quickbar
+    int32 InventoryIndex = FindInventorySlotByItemID(ItemID);
+    if (InventoryIndex < 0)
+    {
+        return;
+    }
+
+    for (int32 i = 0; i < QuickbarSlotIndices.Num(); i++)
+    {
+        if (QuickbarSlotIndices[i] == InventoryIndex)
+        {
+            // Already in quickbar
+            return;
+        }
+    }
+
+    // Find first empty quickbar slot
+    for (int32 i = 0; i < QuickbarSlotIndices.Num(); i++)
+    {
+        if (QuickbarSlotIndices[i] < 0)
+        {
+            AssignToQuickbar(InventoryIndex, i);
+            UE_LOG(LogTemp, Log, TEXT("  → Auto-assigned to quickbar slot %d"), i);
+            return;
+        }
+    }
+}
+
+void UInventoryComponent::ValidateQuickbarReferences()
+{
+    for (int32 i = 0; i < QuickbarSlotIndices.Num(); i++)
+    {
+        int32 InvIndex = QuickbarSlotIndices[i];
+        
+        if (InvIndex < 0)
+        {
+            continue; // Empty slot
+        }
+
+        // Check if index is still valid
+        if (!InventorySlots.IsValidIndex(InvIndex) || !InventorySlots[InvIndex].IsValid())
+        {
+            UE_LOG(LogTemp, Warning, TEXT("⚠ Quickbar[%d] had invalid reference, clearing"), i);
+            QuickbarSlotIndices[i] = -1;
+            
+            if (CurrentEquippedSlotIndex == i)
+            {
+                UnequipCurrentItem();
+            }
+        }
+    }
+}
+
+// ============================================================================
+// AUDIO
 // ============================================================================
 
 void UInventoryComponent::PlayItemSound(USoundBase* Sound)
@@ -1273,7 +1259,7 @@ void UInventoryComponent::PlayItemSound(USoundBase* Sound)
             Sound,
             GetOwner()->GetActorLocation(),
             1.0f,
-            FMath::RandRange(0.95f, 1.05f) // Slight pitch variation for horror
+            FMath::RandRange(0.95f, 1.05f)
         );
     }
 }
@@ -1303,7 +1289,7 @@ void UInventoryComponent::PlayCannotDropSound()
 }
 
 // ============================================================================
-// SAVE/LOAD SUPPORT
+// SAVE/LOAD
 // ============================================================================
 
 TArray<FInventorySlot> UInventoryComponent::GetAllInventorySlots() const
@@ -1321,7 +1307,6 @@ void UInventoryComponent::LoadInventorySlots(const TArray<FInventorySlot>& Saved
         {
             AddItem(Slot.ItemID, Slot.Quantity);
             
-            // Restore durability
             FInventorySlot* NewSlot = FindItemSlot(Slot.ItemID);
             if (NewSlot)
             {
@@ -1331,42 +1316,38 @@ void UInventoryComponent::LoadInventorySlots(const TArray<FInventorySlot>& Saved
     }
     
     OnInventoryUpdated.Broadcast();
-    UE_LOG(LogTemp, Log, TEXT("LoadInventorySlots: Loaded %d items"), SavedSlots.Num());
+    UE_LOG(LogTemp, Log, TEXT("✅ Loaded %d items"), SavedSlots.Num());
 }
 
-void UInventoryComponent::SaveQuickbarSetup(TArray<FInventorySlot>& OutQuickbarSlots) const
+void UInventoryComponent::SaveQuickbarSetup(TArray<int32>& OutQuickbarIndices) const
 {
-    OutQuickbarSlots = QuickbarSlots;
+    OutQuickbarIndices = QuickbarSlotIndices;
 }
 
-void UInventoryComponent::LoadQuickbarSetup(const TArray<FInventorySlot>& SavedQuickbar)
+void UInventoryComponent::LoadQuickbarSetup(const TArray<int32>& SavedQuickbar)
 {
     if (SavedQuickbar.Num() != QuickbarSize)
     {
-        UE_LOG(LogTemp, Warning, TEXT("LoadQuickbarSetup: Quickbar size mismatch"));
+        UE_LOG(LogTemp, Warning, TEXT("⚠ LoadQuickbarSetup: Size mismatch"));
         return;
     }
     
-    for (int32 i = 0; i < QuickbarSize; i++)
-    {
-        if (SavedQuickbar[i].IsValid() && HasItem(SavedQuickbar[i].ItemID, 1))
-        {
-            AssignToQuickbar(SavedQuickbar[i].ItemID, i);
-        }
-    }
+    QuickbarSlotIndices = SavedQuickbar;
+    ValidateQuickbarReferences();
     
     OnInventoryUpdated.Broadcast();
+    UE_LOG(LogTemp, Log, TEXT("✅ Quickbar setup loaded"));
 }
 
 // ============================================================================
-// DEBUG / CHEAT COMMANDS
+// DEBUG
 // ============================================================================
 
 void UInventoryComponent::GiveAllItems()
 {
     if (!ItemDataTable)
     {
-        UE_LOG(LogTemp, Error, TEXT("GiveAllItems: No ItemDataTable set!"));
+        UE_LOG(LogTemp, Error, TEXT("❌ GiveAllItems: No ItemDataTable!"));
         return;
     }
 
@@ -1381,11 +1362,11 @@ void UInventoryComponent::GiveAllItems()
         }
     }
     
-    UE_LOG(LogTemp, Log, TEXT("GiveAllItems: Added %d item types"), RowNames.Num());
+    UE_LOG(LogTemp, Log, TEXT("✅ GiveAllItems: Added %d item types"), RowNames.Num());
 }
 
 void UInventoryComponent::RemoveAllItems()
 {
     ClearInventory();
-    UE_LOG(LogTemp, Log, TEXT("RemoveAllItems: Inventory cleared"));
+    UE_LOG(LogTemp, Log, TEXT("✅ RemoveAllItems: Inventory cleared"));
 }

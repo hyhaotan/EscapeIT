@@ -19,6 +19,8 @@
 #include "EscapeIT/EscapeITPlayerController.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
 #include "Sound/SoundBase.h"
+#include "EscapeIT/Actor/Components/FlashlightComponent.h"
+#include "EscapeIT/Actor/Item/Flashlight.h"
 
 // ==================== CONSTRUCTOR ====================
 
@@ -69,6 +71,7 @@ AEscapeITCharacter::AEscapeITCharacter()
 	HeaderBobComponent = CreateDefaultSubobject<UHeaderBobComponent>(TEXT("HeaderBobComponent"));
 	FootstepComponent = CreateDefaultSubobject<UFootstepComponent>(TEXT("FootstepComponent"));
 	StaminaComponent = CreateDefaultSubobject<UStaminaComponent>(TEXT("StaminaComponent"));
+	FlashlightComponent = CreateDefaultSubobject<UFlashlightComponent>(TEXT("FlashlightComponent"));
 
 	// Enable tick
 	PrimaryActorTick.bCanEverTick = true;
@@ -116,12 +119,6 @@ void AEscapeITCharacter::InitializeWidgetManager()
 	{
 		WidgetMgr->InitializeSanityWidget(SanityComponent);
 	}
-
-	// TODO: Initialize other UI elements here if needed
-	// if (StaminaComponent)
-	// {
-	//     WidgetMgr->InitializeStaminaWidget(StaminaComponent);
-	// }
 }
 
 void AEscapeITCharacter::InitializeMovementSpeeds()
@@ -141,6 +138,21 @@ void AEscapeITCharacter::BindComponentEvents()
 	{
 		StaminaComponent->OnStaminaExhausted.AddDynamic(this, &AEscapeITCharacter::OnStaminaExhausted);
 		StaminaComponent->OnStaminaRecovered.AddDynamic(this, &AEscapeITCharacter::OnStaminaRecovered);
+	}
+	
+	if (FlashlightComponent)
+	{
+		// Bind to flashlight events
+		FlashlightComponent->OnFlashlightToggled.AddDynamic(this, &AEscapeITCharacter::OnFlashlightToggled);
+		FlashlightComponent->OnBatteryChanged.AddDynamic(this, &AEscapeITCharacter::OnBatteryChanged);
+		FlashlightComponent->OnBatteryLow.AddDynamic(this, &AEscapeITCharacter::OnBatteryLow);
+		FlashlightComponent->OnBatteryDepleted.AddDynamic(this, &AEscapeITCharacter::OnBatteryDepleted);
+        
+		UE_LOG(LogTemp, Log, TEXT("AFlashlight: FlashlightComponent initialized"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("AFlashlight: FlashlightComponent is NULL!"));
 	}
 }
 
@@ -554,4 +566,25 @@ void AEscapeITCharacter::CheckCharacterDeath()
 			}
 		},3.0f,false);
 	}
+}
+
+void AEscapeITCharacter::OnFlashlightToggled(bool bIsOn)
+{
+	UE_LOG(LogTemp, Log, TEXT("Flashlight toggled: %s"), bIsOn ? TEXT("ON") : TEXT("OFF"));
+}
+
+void AEscapeITCharacter::OnBatteryChanged(float Current, float Max)
+{
+	float Percentage = (Current / Max) * 100.0f;
+	UE_LOG(LogTemp, Log, TEXT("Battery: %.1f%%"), Percentage);
+}
+
+void AEscapeITCharacter::OnBatteryLow()
+{
+	UE_LOG(LogTemp, Warning, TEXT("LOW BATTERY WARNING!"));
+}
+
+void AEscapeITCharacter::OnBatteryDepleted()
+{
+	UE_LOG(LogTemp, Error, TEXT("BATTERY DEPLETED!"));
 }

@@ -20,6 +20,7 @@ class UHeaderBobComponent;
 class UFootstepComponent;
 class UStaminaComponent;
 class UAnimMontage;
+class AFlashlight;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
@@ -70,6 +71,9 @@ public:
 	/** Stamina system component */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UStaminaComponent> StaminaComponent;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UFlashlightComponent> FlashlightComponent;
 
 	// ==================== INPUT ACTIONS ====================
 
@@ -288,6 +292,7 @@ public:
 	FORCEINLINE UHeaderBobComponent* GetHeaderBobComponent() const { return HeaderBobComponent; }
 	FORCEINLINE UFootstepComponent* GetFootstepComponent() const { return FootstepComponent; }
 	FORCEINLINE UStaminaComponent* GetStaminaComponent() const { return StaminaComponent; }
+	FORCEINLINE UFlashlightComponent* GetFlashlightComponent() const { return FlashlightComponent; }
 	
 private:
 	//** Check if Sanity Character <= 0*/
@@ -297,4 +302,15 @@ private:
 	UFUNCTION(Category = "Death")
 	void CheckCharacterDeath();
 	
+	UFUNCTION()
+	void OnFlashlightToggled(bool bIsOn);
+
+	UFUNCTION()
+	void OnBatteryChanged(float Current, float Max);
+
+	UFUNCTION()
+	void OnBatteryLow();
+
+	UFUNCTION()
+	void OnBatteryDepleted();
 };

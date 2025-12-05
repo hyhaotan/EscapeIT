@@ -29,15 +29,13 @@ void UNotificationWidget::ShowError(const FText& ErrorText)
 
 void UNotificationWidget::ShowNotification(const FText& Text)
 {
-    this->AddToViewport(999);
-    this->SetVisibility(ESlateVisibility::Visible);
+    AddToViewport(999);
     if (NotificationText)
     {
         NotificationText->SetText(Text);
         ShowAnimWidget();
     }
     SetDelayNotification(3.0f);
-
 }
 
 float UNotificationWidget::SetDelayNotification(float Delay)

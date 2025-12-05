@@ -50,33 +50,9 @@ protected:
     UPROPERTY()
     TObjectPtr<UFlashlightComponent> FlashlightComponent;
 
-    // ========== UI Widgets ==========
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
-    TSubclassOf<UInteractionPromptWidget> InteractionPromptWidgetClass;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
-    TSubclassOf<UQuickbarWidget> QuickbarWidgetClass;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
-    TSubclassOf<UInventoryWidget> InventoryWidgetClass;
-    
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
-    TSubclassOf<UNotificationWidget> NotificationWidgetClass;
-
-    UPROPERTY()
-    TObjectPtr<UInteractionPromptWidget> InteractionPromptWidget;
-
-    UPROPERTY()
-    TObjectPtr<UInventoryWidget> InventoryWidget;
-
-    UPROPERTY()
-    TObjectPtr<UQuickbarWidget> QuickbarWidget;
-
+    // ========== HUD UI Widgets ==========
     UPROPERTY()
     TObjectPtr<AWidgetManager> WidgetManagerHUD;
-    
-    UPROPERTY()
-    TObjectPtr<UNotificationWidget> NotificationWidget;
 
     // ========== Input Mapping ==========
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")

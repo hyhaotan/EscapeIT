@@ -63,26 +63,7 @@ bool UFlashlightComponent::SetLightEnabled(bool bEnabled)
     if (!SpotLight)
     {
         UE_LOG(LogTemp, Error, TEXT("SetLightEnabled: SpotLight component is NULL!"));
-        
-        // Try to find it again
-        if (CurrentFlashlightActor)
-        {
-            SpotLight = CurrentFlashlightActor->FindComponentByClass<USpotLightComponent>();
-            if (SpotLight)
-            {
-                UE_LOG(LogTemp, Warning, TEXT("SetLightEnabled: SpotLight re-acquired successfully"));
-            }
-            else
-            {
-                UE_LOG(LogTemp, Error, TEXT("SetLightEnabled: Failed to find SpotLight component!"));
-                return false;
-            }
-        }
-        else
-        {
-            UE_LOG(LogTemp, Error, TEXT("SetLightEnabled: No flashlight actor reference!"));
-            return false;
-        }
+        return false;
     }
 
     // Check if trying to turn on with no battery
@@ -97,29 +78,33 @@ bool UFlashlightComponent::SetLightEnabled(bool bEnabled)
     // Update state
     bIsLightOn = bEnabled;
 
-    // **FIX: Update both visibility AND intensity**
-    SpotLight->SetVisibility(bIsLightOn);
-    
     if (bIsLightOn)
     {
-        // Turn ON: Set proper intensity
-        UpdateLightIntensity();
-        
-        // **CRITICAL FIX: Force enable the light component**
+        // Turn ON: Enable everything
+        SpotLight->SetVisibility(true);
         SpotLight->SetHiddenInGame(false);
         SpotLight->SetActive(true);
         
-        UE_LOG(LogTemp, Log, TEXT("Flashlight Light: ON (Intensity: %.1f, Visible: %s)"), 
-            SpotLight->Intensity,
-            SpotLight->IsVisible() ? TEXT("YES") : TEXT("NO"));
+        // Set proper intensity
+        UpdateLightIntensity();
+        
+        // Force update to make sure it's visible
+        SpotLight->MarkRenderStateDirty();
+        
+        UE_LOG(LogTemp, Log, TEXT("✅ Flashlight Light: ON"));
+        UE_LOG(LogTemp, Log, TEXT("  - Intensity: %.1f"), SpotLight->Intensity);
+        UE_LOG(LogTemp, Log, TEXT("  - Visible: %s"), SpotLight->IsVisible() ? TEXT("YES") : TEXT("NO"));
+        UE_LOG(LogTemp, Log, TEXT("  - Active: %s"), SpotLight->IsActive() ? TEXT("YES") : TEXT("NO"));
+        UE_LOG(LogTemp, Log, TEXT("  - Battery: %.1f%%"), GetBatteryPercentage());
     }
     else
     {
-        // Turn OFF: Disable light
+        // Turn OFF: Disable everything
+        SpotLight->SetVisibility(false);
         SpotLight->SetHiddenInGame(true);
         SpotLight->SetActive(false);
         
-        UE_LOG(LogTemp, Log, TEXT("Flashlight Light: OFF"));
+        UE_LOG(LogTemp, Log, TEXT("❌ Flashlight Light: OFF"));
     }
 
     // Play toggle sound
@@ -146,10 +131,10 @@ void UFlashlightComponent::EquipFlashlight(AFlashlight* FlashlightActor)
     }
 
     // Store reference to flashlight actor
-    CurrentFlashlightActor = FlashlightActor;
+    // CurrentFlashlightActor = FlashlightActor;
 
     // Get SpotLight component from the flashlight actor
-    SpotLight = CurrentFlashlightActor->FindComponentByClass<USpotLightComponent>();
+    SpotLight = GetOwner()->FindComponentByClass<USpotLightComponent>();
     
     if (SpotLight)
     {
@@ -453,36 +438,57 @@ void UFlashlightComponent::PlayToggleSound()
 
 void UFlashlightComponent::InitializeFlashlight(AFlashlight* OwnerFlashlight, USpotLightComponent* Spotlight)
 {
+    if (!OwnerFlashlight || !Spotlight)
+    {
+        UE_LOG(LogTemp, Error, TEXT("InitializeFlashlight: NULL parameters!"));
+        return;
+    }
+
     CurrentFlashlightActor = OwnerFlashlight;
     SpotLight = Spotlight;
     
-    if (SpotLight)
-    {
-        // Initialize spotlight to OFF state
-        SpotLight->SetVisibility(false);
-        SpotLight->SetHiddenInGame(true);
-        SpotLight->SetActive(false);
-        SpotLight->SetIntensity(NormalIntensity);
-        
-        UE_LOG(LogTemp, Log, TEXT("InitializeFlashlight: SpotLight initialized"));
-        UE_LOG(LogTemp, Log, TEXT("  - Intensity: %.1f"), NormalIntensity);
-        UE_LOG(LogTemp, Log, TEXT("  - State: OFF"));
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("InitializeFlashlight: SpotLight is NULL!"));
-    }
+    // Initialize spotlight to OFF state
+    SpotLight->SetVisibility(false);
+    SpotLight->SetHiddenInGame(true);
+    SpotLight->SetActive(false);
+    SpotLight->SetIntensity(NormalIntensity);
+    
+    // Make sure it's properly configured
+    SpotLight->SetCastShadows(true);
+    SpotLight->SetLightColor(FLinearColor::White);
+    
+    bIsEquipped = true;
+    bIsLightOn = false;
+    
+    UE_LOG(LogTemp, Log, TEXT("✅ InitializeFlashlight: SUCCESS"));
+    UE_LOG(LogTemp, Log, TEXT("  - Flashlight Actor: %s"), *OwnerFlashlight->GetName());
+    UE_LOG(LogTemp, Log, TEXT("  - SpotLight: %s"), *Spotlight->GetName());
+    UE_LOG(LogTemp, Log, TEXT("  - Initial Intensity: %.1f"), NormalIntensity);
+    UE_LOG(LogTemp, Log, TEXT("  - Battery: %.1f%%"), GetBatteryPercentage());
+    UE_LOG(LogTemp, Log, TEXT("  - State: OFF (ready to toggle)"));
 }
 
 void UFlashlightComponent::SetEquipped(bool bEquipped)
 {
+    bool bWasEquipped = bIsEquipped;
     bIsEquipped = bEquipped;
     
-    if (!bIsEquipped && bIsLightOn)
+    if (!bIsEquipped)
     {
-        SetLightEnabled(false);
+        // Unequipping - turn off light if it's on
+        if (bIsLightOn)
+        {
+            SetLightEnabled(false);
+        }
+        
+        // Clear references
+        SpotLight = nullptr;
+        CurrentFlashlightActor = nullptr;
+        
+        UE_LOG(LogTemp, Log, TEXT("FlashlightComponent: UNEQUIPPED"));
     }
-    
-    UE_LOG(LogTemp, Log, TEXT("FlashlightComponent: %s"), 
-        bIsEquipped ? TEXT("EQUIPPED") : TEXT("UNEQUIPPED"));
+    else if (!bWasEquipped)
+    {
+        UE_LOG(LogTemp, Log, TEXT("FlashlightComponent: EQUIPPED"));
+    }
 }
