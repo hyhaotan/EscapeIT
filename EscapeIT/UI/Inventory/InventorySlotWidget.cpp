@@ -376,3 +376,4 @@ void UInventorySlotWidget::ClearDropFeedback()
     bIsDragging = false;
     UpdateVisuals();
 }
+

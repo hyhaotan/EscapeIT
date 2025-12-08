@@ -152,4 +152,10 @@ private:
     float BatteryCheckTimer = 0.0f;
     
     static constexpr float BATTERY_CHECK_INTERVAL = 0.1f;
+    
+    UFUNCTION()
+    void UpdateFlashlightIcon(UTexture2D* Icon);
+    
+    UPROPERTY()
+    TObjectPtr<UInventorySlotWidget> InventorySlotWidget;  
 };

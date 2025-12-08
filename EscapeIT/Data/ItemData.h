@@ -22,7 +22,8 @@ enum class EItemType : uint8
     Key             UMETA(DisplayName = "Key"),             // Keys for unlocking
     Document        UMETA(DisplayName = "Document"),        // Readable lore items
     QuestItem       UMETA(DisplayName = "Quest Item"),      // Story-critical items
-    Passive         UMETA(DisplayName = "Passive Effect")   // Items with passive effects
+    Passive         UMETA(DisplayName = "Passive Effect"),   // Items with passive effects
+    Chest          UMETA(DisplayName = "Chest")
 };
 
 // ============================================================================
@@ -69,6 +70,22 @@ enum class EToolType : uint8
 
 UENUM(BlueprintType)
 enum class EKeyType : uint8
+{
+    LibraryKey      UMETA(DisplayName = "Library Key"),     // Room 2
+    LabKey          UMETA(DisplayName = "Lab Key"),         // Room 3
+    BedroomKey      UMETA(DisplayName = "Bedroom Key"),     // Room 4
+    BasementKey     UMETA(DisplayName = "Basement Key"),    // Room 5
+    RitualKey       UMETA(DisplayName = "Ritual Key"),      // Room 6
+    MasterKey       UMETA(DisplayName = "Master Key"),      // Opens multiple
+    SpecialKey      UMETA(DisplayName = "Special Key")      // Bonus rooms
+};
+
+// ============================================================================
+// CHEST TYPES
+// ============================================================================
+
+UENUM(BlueprintType)
+enum class EChestType : uint8
 {
     LibraryKey      UMETA(DisplayName = "Library Key"),     // Room 2
     LabKey          UMETA(DisplayName = "Lab Key"),         // Room 3
@@ -154,9 +171,14 @@ struct FItemData : public FTableRowBase
 
     // Key subcategories
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Type Settings",
-        meta = (EditCondition = "ItemType == EItemType::Key", EditConditionHides))
+        meta = (EditCondition = "(ItemType == EItemType::Key) || (ItemType == EItemType::Chest && bIsRequireKey)", EditConditionHides))
     EKeyType KeyType;
-
+    
+    // Chest subcategories
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Type Settings",
+     meta = (EditCondition = "ItemType == EItemType::Chest", EditConditionHides))
+    EChestType ChestType;
+    
     // Document subcategories
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Type Settings",
         meta = (EditCondition = "ItemType == EItemType::Document", EditConditionHides))
@@ -257,6 +279,10 @@ struct FItemData : public FTableRowBase
         meta = (EditCondition = "ItemType == EItemType::Key", EditConditionHides,
                 Tooltip = "List of door IDs this key can unlock"))
     TArray<FName> CompatibleLockIDs;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Type Settings",
+     meta = (EditCondition = "ItemType == EItemType::Chest", EditConditionHides))
+    bool bIsRequireKey;
 
     // ========================================================================
     // DOCUMENT PROPERTIES
@@ -281,6 +307,18 @@ struct FItemData : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Quest",
         meta = (EditCondition = "ItemType == EItemType::QuestItem", EditConditionHides))
     bool bIsQuestComplete = false;
+    
+    // ========================================================================
+    // FLASHLIGHT ITEM PROPERTIES
+    // ========================================================================
+    
+    UPROPERTY(EditAnywhere,BlueprintReadWrite, Category = "Flashlight",
+        meta=(EditCondition = "ToolType == EToolType::Flashlight", EditConditionHides))
+    UTexture2D* FlashlightOn;
+    
+    UPROPERTY(EditAnywhere,BlueprintReadWrite, Category = "Flashlight",
+        meta=(EditCondition = "ToolType == EToolType::Flashlight", EditConditionHides))
+    UTexture2D* FlashlightOff;
 
     // ========================================================================
     // WORLD REPRESENTATION

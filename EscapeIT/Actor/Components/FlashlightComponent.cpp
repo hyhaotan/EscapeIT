@@ -1,4 +1,6 @@
 ﻿#include "FlashlightComponent.h"
+
+#include "InventoryComponent.h"
 #include "Components/SpotLightComponent.h"
 #include "GameFramework/Character.h"
 #include "Kismet/GameplayStatics.h"
@@ -112,6 +114,11 @@ bool UFlashlightComponent::SetLightEnabled(bool bEnabled)
 
     // Broadcast event
     OnFlashlightToggled.Broadcast(bIsLightOn);
+    
+    if (UTexture2D* NewIcon = UpdateFlashlightImage())
+    {
+        OnFlashlightImageChanged.Broadcast(NewIcon);
+    }
 
     return true;
 }
@@ -466,6 +473,28 @@ void UFlashlightComponent::InitializeFlashlight(AFlashlight* OwnerFlashlight, US
     UE_LOG(LogTemp, Log, TEXT("  - Initial Intensity: %.1f"), NormalIntensity);
     UE_LOG(LogTemp, Log, TEXT("  - Battery: %.1f%%"), GetBatteryPercentage());
     UE_LOG(LogTemp, Log, TEXT("  - State: OFF (ready to toggle)"));
+}
+
+UTexture2D* UFlashlightComponent::UpdateFlashlightImage() const
+{
+    if (!CurrentFlashlightActor) return nullptr;
+
+    if (ACharacter* Character = UGameplayStatics::GetPlayerCharacter(this,0))
+    {
+        if (UInventoryComponent* InvComp = Character->FindComponentByClass<UInventoryComponent>())
+        {
+            FItemData ItemData;
+            if (InvComp->GetEquippedItem(ItemData))
+            {
+                if (ItemData.ItemType == EItemType::Tool &&
+                    ItemData.ToolType == EToolType::Flashlight)
+                {
+                    return !bIsLightOn ? ItemData.FlashlightOn : ItemData.FlashlightOff;
+                }
+            }
+        }
+    }
+    return nullptr;
 }
 
 void UFlashlightComponent::SetEquipped(bool bEquipped)

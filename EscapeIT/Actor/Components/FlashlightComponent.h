@@ -16,6 +16,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnFlashlightToggled, bool, bIsOn);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnBatteryChanged, float, CurrentBattery, float, MaxBattery);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBatteryDepleted);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBatteryLow);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnFlashlightImageChanged, UTexture2D*, NewIcon);
 
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class ESCAPEIT_API UFlashlightComponent : public UActorComponent
@@ -130,6 +131,9 @@ public:
 
     UPROPERTY(BlueprintAssignable, Category = "Flashlight|Events")
     FOnBatteryLow OnBatteryLow;
+    
+    UPROPERTY(BlueprintAssignable, Category = "Flashlight|Events")
+    FOnFlashlightImageChanged OnFlashlightImageChanged;
 
     // ============================================
     // PUBLIC FUNCTIONS - TOGGLE & CONTROL
@@ -185,6 +189,8 @@ public:
     bool CanToggleLight() const;
     
     void InitializeFlashlight(AFlashlight* OwnerFlashlight, USpotLightComponent* Spotlight);
+    
+    UTexture2D* UpdateFlashlightImage() const;
 
 protected:
     // ============================================

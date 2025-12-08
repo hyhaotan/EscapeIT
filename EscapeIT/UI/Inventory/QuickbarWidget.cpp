@@ -26,6 +26,8 @@ void UQuickbarWidget::NativeConstruct()
     {
         BatteryIcon->SetVisibility(ESlateVisibility::Collapsed);
     }
+    
+    InventorySlotWidget = CreateWidget<UInventorySlotWidget>(GetWorld(),SlotWidgetClass);
 }
 
 void UQuickbarWidget::NativeDestruct()
@@ -121,6 +123,12 @@ void UQuickbarWidget::InitQuickBar(UInventoryComponent* InInventoryComp, UFlashl
         if (!FlashlightComponent->OnFlashlightToggled.IsAlreadyBound(this, &UQuickbarWidget::OnFlashlightToggled))
         {
             FlashlightComponent->OnFlashlightToggled.AddDynamic(this, &UQuickbarWidget::OnFlashlightToggled);
+        }
+        
+        
+        if (!FlashlightComponent->OnFlashlightImageChanged.IsAlreadyBound(this,&UQuickbarWidget::UpdateFlashlightIcon))
+        {
+            FlashlightComponent->OnFlashlightImageChanged.AddDynamic(this,&UQuickbarWidget::UpdateFlashlightIcon);
         }
     }
 
@@ -483,3 +491,25 @@ FLinearColor UQuickbarWidget::GetBatteryColor(float BatteryPercent) const
         return CriticalBatteryColor;
     }
 }
+
+void UQuickbarWidget::UpdateFlashlightIcon(UTexture2D* Icon)
+{
+    if (!Icon) return;
+    
+    int32 FlashlightSlotIndex = FindFlashlightSlot();
+
+    if (FlashlightSlotIndex == -1) return;
+
+    if (!QuickbarSlots.IsValidIndex(FlashlightSlotIndex)) return;
+    
+    UInventorySlotWidget* Slots = QuickbarSlots[FlashlightSlotIndex];
+
+    if (!Slots) return;
+
+    if (Slots->ItemIcon)
+    {
+        Slots->ItemIcon->SetBrushFromTexture(Icon);
+        Slots->ItemIcon->SetVisibility(ESlateVisibility::HitTestInvisible);
+    }
+}
+

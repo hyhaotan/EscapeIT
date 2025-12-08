@@ -49,6 +49,7 @@ void AChest::BeginPlay()
         OpenTimeline->SetTimelineFinishedFunc(TimelineFinishedCallback);
     }
     
+    
     if (NotificationWidgetClass)
     {
         NotificationWidget = CreateWidget<UNotificationWidget>(GetWorld(), NotificationWidgetClass);
@@ -264,9 +265,9 @@ UInventoryComponent* AChest::GetInventoryFromActor(AActor* Actor) const
     
     if (!Inventory)
     {
-        if (ACharacter* Character = Cast<ACharacter>(Actor))
+        if (APawn* Pawn = Cast<ACharacter>(Actor))
         {
-            Inventory = Character->FindComponentByClass<UInventoryComponent>();
+            Inventory = Pawn->FindComponentByClass<UInventoryComponent>();
         }
     }
 
