@@ -139,11 +139,7 @@ void UMainMenuWidget::OnOptionsButton()
 		if (MainMenuSettingWidget)
 		{
 			MainMenuSettingWidget->AddToViewport(1000);
-			// Set input focus to new widget
-			FInputModeUIOnly InputMode;
-			InputMode.SetWidgetToFocus(MainMenuSettingWidget->TakeWidget());
-			PC->SetInputMode(InputMode);
-			PC->bShowMouseCursor = true;
+			MainMenuSettingWidget->ShowSettingsMenu(true);
 		}
 	}
 }

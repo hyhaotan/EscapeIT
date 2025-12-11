@@ -74,15 +74,14 @@ public:
     UPROPERTY(BlueprintReadOnly, Category = "Inventory")
     TArray<FInventorySlot> InventorySlots;
 
-    // ✅ NEW: Quickbar now stores INDEX to inventory, not copy
     UPROPERTY(BlueprintReadOnly, Category = "Inventory")
-    TArray<int32> QuickbarSlotIndices; // -1 = empty
+    TArray<int32> QuickbarSlotIndices; 
 
     UPROPERTY(BlueprintReadOnly, Category = "Inventory")
     FName CurrentEquippedItemID = NAME_None;
 
     UPROPERTY(BlueprintReadOnly, Category = "Inventory")
-    int32 CurrentEquippedSlotIndex = -1; // Quickbar index
+    int32 CurrentEquippedSlotIndex = -1;
 
     // ========================================================================
     // EVENTS

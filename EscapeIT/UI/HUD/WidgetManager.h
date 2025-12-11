@@ -15,6 +15,7 @@ class UInventoryWidget;
 class UFPSWidget;
 class UInteractionPromptWidget;
 class UNotificationWidget;
+class UMainMenuSettingWidget;
 
 UCLASS()
 class ESCAPEIT_API AWidgetManager : public AHUD

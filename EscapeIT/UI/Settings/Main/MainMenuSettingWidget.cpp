@@ -291,7 +291,7 @@ void UMainMenuSettingWidget::OnBackButtonClicked()
 		return;
 	}
 
-	CloseSettingsMenu();
+	CloseSettingsMenu(true);
 }
 
 void UMainMenuSettingWidget::OnApplyAllButtonClicked()
@@ -582,13 +582,13 @@ void UMainMenuSettingWidget::OnUnsavedChangesDialogResponse(bool bSaveChanges)
 			FTimerHandle CloseDelayHandle;
 			World->GetTimerManager().SetTimer(CloseDelayHandle, [this]()
 				{
-					CloseSettingsMenu();
+					CloseSettingsMenu(true);
 				}, 0.5f, false);
 		}
 	}
 	else
 	{
-		CloseSettingsMenu();
+		CloseSettingsMenu(true);
 	}
 }
 
@@ -607,14 +607,19 @@ void UMainMenuSettingWidget::UpdateUnsavedIndicator()
 	}
 }
 
-void UMainMenuSettingWidget::CloseSettingsMenu()
+void UMainMenuSettingWidget::CloseSettingsMenu(bool bIsLobby)
 {
-	APlayerController* PlayerCon = GetOwningPlayer();
+	const auto PlayerCon = GetOwningPlayer();
 	if (PlayerCon)
 	{
-		PlayerCon->SetInputMode(FInputModeGameOnly());
-		PlayerCon->bShowMouseCursor = false;
+		RestorePlayerInputState();
 	}
+	
+	PlayerCon->bShowMouseCursor = true;
+	
+	FInputModeUIOnly InputMode;
+	InputMode.SetWidgetToFocus(this->TakeWidget());
+	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 
 	PlayUISound("ButtonClick");
 	OnBackClicked.Broadcast();
@@ -1677,5 +1682,83 @@ void UMainMenuSettingWidget::ForceApplySettings()
 	{
 		UE_LOG(LogTemp, Log, TEXT("MainMenuSettingWidget: Force applying settings"));
 		OnApplyAllButtonClicked();
+	}
+}
+
+void UMainMenuSettingWidget::ShowSettingsMenu(bool bIsLobby)
+{
+	bOpenedFromLobby = bIsLobby;
+	
+	const auto PC = GetOwningPlayer();
+	if (PC)
+	{
+		bSavedInputStateValid = PC->bShowMouseCursor;
+		bSavedInputStateValid = true;
+
+		if (PC->bShowMouseCursor)
+		{
+			SavedInputMode = ESavedInputMode::GameAndUI;
+		}
+		else
+		{
+			SavedInputMode = ESavedInputMode::GameOnly;
+		}
+		
+		FInputModeUIOnly InputMode;
+		InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+		PC->SetInputMode(InputMode);
+		PC->bShowMouseCursor = true;
+	}
+	
+	SetVisibility(ESlateVisibility::Visible);
+	PlayUISound("ButtonClick");
+}
+
+void UMainMenuSettingWidget::RestorePlayerInputState()
+{
+	const auto PC = GetOwningPlayer();
+	if (!PC) return;
+
+	if (bSavedInputStateValid)
+	{
+		switch (SavedInputMode)
+		{
+		case ESavedInputMode::GameOnly:
+			PC->SetInputMode(FInputModeGameOnly());
+			PC->bShowMouseCursor = false;
+			break;
+		case ESavedInputMode::UIOnly:
+			{
+				FInputModeUIOnly InputMode;
+				InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+				PC->SetInputMode(InputMode);
+				PC->bShowMouseCursor = true;
+			}
+			break;
+		case ESavedInputMode::GameAndUI:
+			{
+				FInputModeGameAndUI InputMode;
+				InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+				PC->SetInputMode(InputMode);
+				PC->bShowMouseCursor = bSavedShowMouseCursor;
+			}
+			break;
+		}
+		bSavedInputStateValid = false;
+	}
+	else
+	{
+		if (bOpenedFromLobby)
+		{
+			FInputModeUIOnly InputMode;
+			InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+			PC->SetInputMode(InputMode);
+			PC->bShowMouseCursor = true;
+		}
+		else
+		{
+			PC->SetInputMode(FInputModeGameOnly());
+			PC->bShowMouseCursor = false;
+		}
 	}
 }

@@ -31,6 +31,8 @@ AChest::AChest()
     
     OpenTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("OpenTimeline"));
     
+    // Default settings
+    ChestType = EKeyType::BasementKey;
     RequiredKeyType = EKeyType::BasementKey;
 }
 
@@ -38,6 +40,7 @@ void AChest::BeginPlay()
 {
     Super::BeginPlay();
     
+    // Setup timeline animation
     if (ChestCurve && OpenTimeline)
     {
         FOnTimelineFloat TimelineCallback;
@@ -48,12 +51,16 @@ void AChest::BeginPlay()
         TimelineFinishedCallback.BindUFunction(this, FName("OnOpenFinished"));
         OpenTimeline->SetTimelineFinishedFunc(TimelineFinishedCallback);
     }
-    
-    
+
     if (NotificationWidgetClass)
     {
         NotificationWidget = CreateWidget<UNotificationWidget>(GetWorld(), NotificationWidgetClass);
     }
+    
+    UE_LOG(LogTemp, Log, TEXT("Chest '%s' initialized - Type: %s, RequiresKey: %s"), 
+        *GetName(),
+        *UEnum::GetValueAsString(ChestType),
+        bRequiresKey ? TEXT("Yes") : TEXT("No"));
 }
 
 void AChest::Tick(float DeltaTime)
@@ -65,18 +72,22 @@ void AChest::Interact_Implementation(AActor* Interactor)
 {
     if (!Interactor)
     {
+        UE_LOG(LogTemp, Warning, TEXT("Chest Interact: No Interactor!"));
         return;
     }
 
+    // Chest đã mở rồi
     if (bIsOpen)
     {
         if (NotificationWidget)
         {
             NotificationWidget->ShowNotification(FText::FromString("Chest đã được mở rồi!"));
         }
+        UE_LOG(LogTemp, Log, TEXT("Chest '%s' already opened"), *GetName());
         return;
     }
     
+    // Kiểm tra điều kiện mở chest
     FString FailReason;
     if (CheckCanOpenChest(Interactor, FailReason))
     {
@@ -89,6 +100,7 @@ void AChest::Interact_Implementation(AActor* Interactor)
         {
             NotificationWidget->ShowNotification(FText::FromString(FailReason));
         }
+        UE_LOG(LogTemp, Warning, TEXT("Cannot open chest '%s': %s"), *GetName(), *FailReason);
     }
 }
 
@@ -104,35 +116,21 @@ bool AChest::CheckCanOpenChest(AActor* Interactor, FString& OutFailReason)
     // Nếu chest không cần key thì mở luôn
     if (!bRequiresKey)
     {
+        UE_LOG(LogTemp, Log, TEXT("Chest '%s' does not require key"), *GetName());
         return true;
     }
     
-    FName RequiredKeyItemID = NAME_None;
+    // Tìm key phù hợp trong inventory
+    FName RequiredKeyItemID = FindMatchingKeyItemID(Inventory, RequiredKeyType);
     
-    if (Inventory->ItemDataTable)
-    {
-        TArray<FName> RowNames = Inventory->ItemDataTable->GetRowNames();
-        
-        for (const FName& RowName : RowNames)
-        {
-            FItemData* ItemData = Inventory->ItemDataTable->FindRow<FItemData>(RowName, TEXT(""));
-            if (ItemData && 
-                ItemData->ItemType == EItemType::Key && 
-                ItemData->KeyType == RequiredKeyType)
-            {
-                RequiredKeyItemID = ItemData->ItemID;
-                break;
-            }
-        }
-    }
-
     if (RequiredKeyItemID.IsNone())
     {
-        OutFailReason = FString::Printf(TEXT("Không tìm thấy key phù hợp trong DataTable! (Cần: %s)"), 
+        OutFailReason = FString::Printf(TEXT("Không tìm thấy key phù hợp trong inventory! (Cần: %s)"), 
             *UEnum::GetValueAsString(RequiredKeyType));
         return false;
     }
     
+    // Kiểm tra xem có key trong inventory không
     if (!Inventory->HasItem(RequiredKeyItemID, 1))
     {
         OutFailReason = FString::Printf(TEXT("Bạn không có key phù hợp! (Cần: %s)"), 
@@ -152,6 +150,8 @@ bool AChest::CheckCanOpenChest(AActor* Interactor, FString& OutFailReason)
         }
     }
     
+    UE_LOG(LogTemp, Log, TEXT("Chest '%s' can be opened with key: %s"), 
+        *GetName(), *RequiredKeyItemID.ToString());
     return true;
 }
 
@@ -160,6 +160,7 @@ void AChest::OpenChest(AActor* Interactor)
     UInventoryComponent* Inventory = GetInventoryFromActor(Interactor);
     if (!Inventory)
     {
+        UE_LOG(LogTemp, Error, TEXT("Cannot open chest: No inventory found!"));
         return;
     }
     
@@ -168,51 +169,48 @@ void AChest::OpenChest(AActor* Interactor)
     // Tiêu hao key nếu cần
     if (bConsumeKeyOnOpen && bRequiresKey)
     {
-        FName RequiredKeyItemID = NAME_None;
+        FName RequiredKeyItemID = FindMatchingKeyItemID(Inventory, RequiredKeyType);
         
-        if (Inventory->ItemDataTable)
-        {
-            TArray<FName> RowNames = Inventory->ItemDataTable->GetRowNames();
-            
-            for (const FName& RowName : RowNames)
-            {
-                FItemData* ItemData = Inventory->ItemDataTable->FindRow<FItemData>(RowName, TEXT(""));
-                if (ItemData && 
-                    ItemData->ItemType == EItemType::Key && 
-                    ItemData->KeyType == RequiredKeyType)
-                {
-                    RequiredKeyItemID = ItemData->ItemID;
-                    break;
-                }
-            }
-        }
-
         if (!RequiredKeyItemID.IsNone())
         {
             Inventory->RemoveItem(RequiredKeyItemID, 1);
-            UE_LOG(LogTemp, Log, TEXT("Key đã bị tiêu hao: %s"), *RequiredKeyItemID.ToString());
+            UE_LOG(LogTemp, Log, TEXT("Key consumed: %s"), *RequiredKeyItemID.ToString());
         }
     }
     
     // Thêm items vào inventory
     int32 ItemsAdded = 0;
-    for (const FName& ItemID : ChestItems)
+    TArray<FString> ItemNames;
+    
+    for (const FName& ItemIDs : ChestItems)
     {
-        if (!ItemID.IsNone())
+        if (!ItemIDs.IsNone())
         {
-            bool bAdded = Inventory->AddItem(ItemID, 1);
+            bool bAdded = Inventory->AddItem(ItemIDs, 1);
             if (bAdded)
             {
                 ItemsAdded++;
-                UE_LOG(LogTemp, Log, TEXT("Đã nhận item: %s"), *ItemID.ToString());
+                
+                // Lấy tên item để hiển thị
+                if (Inventory->ItemDataTable)
+                {
+                    FItemData* ItemData = Inventory->ItemDataTable->FindRow<FItemData>(ItemIDs, TEXT(""));
+                    if (ItemData)
+                    {
+                        ItemNames.Add(ItemData->ItemName.ToString());
+                    }
+                }
+                
+                UE_LOG(LogTemp, Log, TEXT("Item added to inventory: %s"), *ItemIDs.ToString());
             }
             else
             {
-                UE_LOG(LogTemp, Warning, TEXT("Inventory đầy, không thể nhận item: %s"), *ItemID.ToString());
+                UE_LOG(LogTemp, Warning, TEXT("Inventory full, cannot add item: %s"), *ItemIDs.ToString());
             }
         }
     }
     
+    // Cập nhật trạng thái chest
     bIsOpen = true;
     bIsLocked = false;
     
@@ -227,9 +225,34 @@ void AChest::OpenChest(AActor* Interactor)
     // Hiển thị thông báo
     if (NotificationWidget)
     {
-        FString Message = FString::Printf(TEXT("Chest đã được mở! Nhận được %d item(s)"), ItemsAdded);
+        FString Message;
+        if (ItemsAdded > 0)
+        {
+            Message = FString::Printf(TEXT("Chest đã được mở! Nhận được %d item(s)"), ItemsAdded);
+            
+            if (ItemNames.Num() > 0)
+            {
+                Message += TEXT("\n");
+                for (int32 i = 0; i < ItemNames.Num(); i++)
+                {
+                    Message += ItemNames[i];
+                    if (i < ItemNames.Num() - 1)
+                    {
+                        Message += TEXT(", ");
+                    }
+                }
+            }
+        }
+        else
+        {
+            Message = TEXT("Chest đã được mở! (Rỗng)");
+        }
+        
         NotificationWidget->ShowNotification(FText::FromString(Message));
     }
+    
+    UE_LOG(LogTemp, Log, TEXT("Chest '%s' opened successfully! Items added: %d"), 
+        *GetName(), ItemsAdded);
 }
 
 void AChest::UpdateLidRotation(float Value)
@@ -243,7 +266,7 @@ void AChest::UpdateLidRotation(float Value)
 
 void AChest::OnOpenFinished()
 {
-    UE_LOG(LogTemp, Log, TEXT("Animation mở chest hoàn tất!"));
+    UE_LOG(LogTemp, Log, TEXT("Chest '%s' open animation finished!"), *GetName());
 }
 
 void AChest::PlayChestSound(USoundBase* Sound)
@@ -261,11 +284,17 @@ UInventoryComponent* AChest::GetInventoryFromActor(AActor* Actor) const
         return nullptr;
     }
     
+    // Thử tìm component trực tiếp
     UInventoryComponent* Inventory = Actor->FindComponentByClass<UInventoryComponent>();
     
+    // Nếu không có, thử cast sang Character/Pawn
     if (!Inventory)
     {
-        if (APawn* Pawn = Cast<ACharacter>(Actor))
+        if (ACharacter* Character = Cast<ACharacter>(Actor))
+        {
+            Inventory = Character->FindComponentByClass<UInventoryComponent>();
+        }
+        else if (APawn* Pawn = Cast<APawn>(Actor))
         {
             Inventory = Pawn->FindComponentByClass<UInventoryComponent>();
         }
@@ -274,11 +303,64 @@ UInventoryComponent* AChest::GetInventoryFromActor(AActor* Actor) const
     return Inventory;
 }
 
+FName AChest::FindMatchingKeyItemID(UInventoryComponent* Inventory, EKeyType InKeyType) const
+{
+    if (!Inventory || !Inventory->ItemDataTable)
+    {
+        UE_LOG(LogTemp, Error, TEXT("No inventory or DataTable!"));
+        return NAME_None;
+    }
+    
+    // Duyệt qua tất cả items trong DataTable
+    TArray<FName> RowNames = Inventory->ItemDataTable->GetRowNames();
+    
+    for (const FName& RowName : RowNames)
+    {
+        FItemData* ItemData = Inventory->ItemDataTable->FindRow<FItemData>(RowName, TEXT(""));
+        
+        // Tìm item có type là Key và KeyType khớp
+        if (ItemData && 
+            ItemData->ItemType == EItemType::Key && 
+            ItemData->KeyType == InKeyType)
+        {
+            UE_LOG(LogTemp, Log, TEXT("Found matching key: %s for KeyType: %s"), 
+                *ItemData->ItemID.ToString(),
+                *UEnum::GetValueAsString(InKeyType));
+            return ItemData->ItemID;
+        }
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("No matching key found in DataTable for KeyType: %s"), 
+        *UEnum::GetValueAsString(InKeyType));
+    return NAME_None;
+}
+
 bool AChest::CanBeOpenedWithKey(EKeyType InKeyType) const
 {
-    if (bIsOpen) return false;
-    if (!bRequiresKey) return true;
-    return RequiredKeyType == InKeyType;
+    // Chest đã mở rồi
+    if (bIsOpen)
+    {
+        UE_LOG(LogTemp, Log, TEXT("Chest '%s' is already open"), *GetName());
+        return false;
+    }
+    
+    // Chest không cần key
+    if (!bRequiresKey)
+    {
+        UE_LOG(LogTemp, Log, TEXT("Chest '%s' does not require key"), *GetName());
+        return true;
+    }
+    
+    // So sánh KeyType
+    bool bCanOpen = (RequiredKeyType == InKeyType);
+    
+    UE_LOG(LogTemp, Log, TEXT("Chest '%s' CanBeOpenedWithKey(%s): %s (Required: %s)"), 
+        *GetName(),
+        *UEnum::GetValueAsString(InKeyType),
+        bCanOpen ? TEXT("YES") : TEXT("NO"),
+        *UEnum::GetValueAsString(RequiredKeyType));
+    
+    return bCanOpen;
 }
 
 void AChest::UnlockWithKey(AActor* Interactor, EKeyType InKeyType)
@@ -290,8 +372,12 @@ void AChest::UnlockWithKey(AActor* Interactor, EKeyType InKeyType)
         {
             NotificationWidget->ShowNotification(FText::FromString("Key không phù hợp!"));
         }
+        UE_LOG(LogTemp, Warning, TEXT("Wrong key type for chest '%s'!"), *GetName());
         return;
     }
+    
+    UE_LOG(LogTemp, Log, TEXT("Unlocking chest '%s' with key type: %s"), 
+        *GetName(), *UEnum::GetValueAsString(InKeyType));
     
     OpenChest(Interactor);
 }

@@ -44,17 +44,10 @@ void UPauseMenuWidget::OnClickSettingButton()
     APlayerController* PC = GetOwningPlayer();
     if (PC && MainMenuSettingWidgetClass)
     {
-        UMainMenuSettingWidget* SettingWidget = CreateWidget<UMainMenuSettingWidget>(PC, MainMenuSettingWidgetClass);
-        if (SettingWidget)
+        if (UMainMenuSettingWidget* SettingWidget = CreateWidget<UMainMenuSettingWidget>(PC, MainMenuSettingWidgetClass))
         {
-            SettingWidget->AddToViewport(999);
-            PC->bShowMouseCursor = true;
-
-            // set input mode and focus widget:
-            FInputModeUIOnly InputMode;
-            InputMode.SetWidgetToFocus(SettingWidget->TakeWidget());
-            InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-            PC->SetInputMode(InputMode);
+            SettingWidget->AddToPlayerScreen(999);
+            SettingWidget->ShowSettingsMenu(false);
         }
     }
     SetVisibility(ESlateVisibility::Collapsed);

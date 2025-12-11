@@ -64,6 +64,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Settings")
 	FOnCategoryChangedSignature OnCategoryChanged;
+	
+	void ShowSettingsMenu(bool bIsLobby);
+	void RestorePlayerInputState();
 
 protected:
 	virtual void NativeConstruct() override;
@@ -355,7 +358,7 @@ protected:
 	void SaveCustomProfile(const FString& ProfileName);
 	void LoadCustomProfile(const FString& ProfileName);
 
-	void CloseSettingsMenu();
+	void CloseSettingsMenu(bool bIsLobby);
 	// ===== PROPERTIES =====
 
 	UPROPERTY()
@@ -401,4 +404,12 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Settings")
 	ESettingsCategory GetCurrentCategory() const;
+	
+private:
+	bool bSavedInputStateValid = false;
+	bool bSavedShowMouseCursor = false;
+	
+	enum class ESavedInputMode : uint8 {GameOnly,UIOnly,GameAndUI} SavedInputMode = ESavedInputMode::GameOnly;
+	
+	bool bOpenedFromLobby = false;
 };

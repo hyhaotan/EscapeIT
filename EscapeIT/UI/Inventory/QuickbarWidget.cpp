@@ -40,10 +40,9 @@ void UQuickbarWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
     Super::NativeTick(MyGeometry, InDeltaTime);
 
-    if (!bIsInitialized || !FlashlightComponent)
-    {
-        return;
-    }
+    if (!bIsInitialized || !FlashlightComponent) return;
+
+    if (!FlashlightComponent->IsEquipped()) return;
 
     // Throttle battery checks for performance
     BatteryCheckTimer += InDeltaTime;
@@ -68,30 +67,12 @@ void UQuickbarWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 void UQuickbarWidget::InitQuickBar(UInventoryComponent* InInventoryComp, UFlashlightComponent* InFlashlightComp)
 {
     // Validate required components
-    if (!InInventoryComp)
-    {
-        UE_LOG(LogTemp, Error, TEXT("❌ QuickbarWidget::InitQuickBar - InventoryComponent is NULL!"));
-        return;
-    }
-
-    if (!QuickbarContainer)
-    {
-        UE_LOG(LogTemp, Error, TEXT("❌ QuickbarWidget::InitQuickBar - QuickbarContainer is NULL!"));
-        return;
-    }
-
-    if (!SlotWidgetClass)
-    {
-        UE_LOG(LogTemp, Error, TEXT("❌ QuickbarWidget::InitQuickBar - SlotWidgetClass is NULL!"));
-        return;
-    }
+    if (!InInventoryComp) return;
+    if (!QuickbarContainer) return;
+    if (!SlotWidgetClass) return;
 
     // Prevent double initialization
-    if (bIsInitialized)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("⚠️ QuickbarWidget already initialized!"));
-        UnbindAllEvents();
-    }
+    if (bIsInitialized) UnbindAllEvents();
 
     InventoryComponent = InInventoryComp;
     FlashlightComponent = InFlashlightComp;
@@ -129,13 +110,16 @@ void UQuickbarWidget::InitQuickBar(UInventoryComponent* InInventoryComp, UFlashl
         if (!FlashlightComponent->OnFlashlightImageChanged.IsAlreadyBound(this,&UQuickbarWidget::UpdateFlashlightIcon))
         {
             FlashlightComponent->OnFlashlightImageChanged.AddDynamic(this,&UQuickbarWidget::UpdateFlashlightIcon);
+        }  
+        
+        if (!FlashlightComponent->OnFlashlightEquippedChanged.IsAlreadyBound(this,&UQuickbarWidget::OnFlashlightEquippedChanged))
+        {
+            FlashlightComponent->OnFlashlightEquippedChanged.AddDynamic(this,&UQuickbarWidget::OnFlashlightEquippedChanged);
         }
     }
 
     bIsInitialized = true;
     RefreshQuickbar();
-
-    UE_LOG(LogTemp, Log, TEXT("✅ QuickbarWidget initialized with %d slots"), QuickbarSlots.Num());
 }
 
 void UQuickbarWidget::UnbindAllEvents()
@@ -150,6 +134,8 @@ void UQuickbarWidget::UnbindAllEvents()
     {
         FlashlightComponent->OnBatteryChanged.RemoveDynamic(this, &UQuickbarWidget::OnBatteryChanged);
         FlashlightComponent->OnFlashlightToggled.RemoveDynamic(this, &UQuickbarWidget::OnFlashlightToggled);
+        FlashlightComponent->OnFlashlightImageChanged.RemoveDynamic(this, &UQuickbarWidget::UpdateFlashlightIcon);
+        FlashlightComponent->OnFlashlightEquippedChanged.RemoveDynamic(this, &UQuickbarWidget::OnFlashlightEquippedChanged);
     }
 }
 
@@ -226,18 +212,12 @@ void UQuickbarWidget::RefreshQuickbar()
 
 void UQuickbarWidget::UpdateSlot(int32 SlotIndex)
 {
-    if (!InventoryComponent || !QuickbarSlots.IsValidIndex(SlotIndex))
-    {
-        return;
-    }
+    if (!InventoryComponent || !QuickbarSlots.IsValidIndex(SlotIndex)) return;
 
     FInventorySlot SlotData = InventoryComponent->GetQuickbarSlot(SlotIndex);
     UInventorySlotWidget* SlotWidget = QuickbarSlots[SlotIndex];
     
-    if (!SlotWidget)
-    {
-        return;
-    }
+    if (!SlotWidget) return;
 
     SlotWidget->UpdateSlot(SlotData);
 
@@ -249,11 +229,7 @@ void UQuickbarWidget::UpdateSlot(int32 SlotIndex)
 void UQuickbarWidget::HighlightSlot(int32 SlotIndex)
 {
     // Validate slot index
-    if (!QuickbarSlots.IsValidIndex(SlotIndex))
-    {
-        UE_LOG(LogTemp, Warning, TEXT("⚠️ Invalid slot index: %d"), SlotIndex);
-        return;
-    }
+    if (!QuickbarSlots.IsValidIndex(SlotIndex)) return;
 
     // Clear previous highlight
     ClearHighlight();
@@ -293,15 +269,18 @@ void UQuickbarWidget::OnItemAdded(FName ItemID, int32 Quantity)
     
     if (IsFlashlightItem(ItemID))
     {
-        CachedFlashlightSlot = -1; // Force re-cache
-        UpdateBatteryBarVisibility();
-        UE_LOG(LogTemp, Log, TEXT("✅ Flashlight added - Battery bar updated"));
+        if (FlashlightComponent->IsEquipped())
+        {
+            CachedFlashlightSlot = -1;
+            UpdateBatteryBarVisibility();
+            UE_LOG(LogTemp, Log, TEXT("✅ Flashlight added - Battery bar updated"));
+        }
     }
 }
 
 void UQuickbarWidget::OnBatteryChanged(float CurrentBattery, float MaxBattery)
 {
-    UpdateBatteryBar();
+    if (FlashlightComponent && FlashlightComponent->IsEquipped()) UpdateBatteryBar();
 }
 
 void UQuickbarWidget::OnFlashlightToggled(bool bIsOn)
@@ -324,79 +303,119 @@ void UQuickbarWidget::OnFlashlightToggled(bool bIsOn)
     }
 }
 
+void UQuickbarWidget::OnFlashlightEquippedChanged(bool bIsEquipped)
+{
+    CachedFlashlightSlot = -1;
+    UpdateBatteryBarVisibility();
+
+    if (bIsEquipped)
+    {
+        UpdateBatteryBar();
+    }
+    else
+    {
+        bLowBatteryWarningActive = false;
+        if (CurrentSelectedSlot != -1)
+        {
+            ResetSlotVisuals(CurrentSelectedSlot);
+        }
+    }
+}
+
 void UQuickbarWidget::UpdateBatteryBarVisibility()
 {
+    if (!FlashlightComponent)
+    {
+        // Không có FlashlightComponent -> ẩn battery bar
+        HideBatteryBar();
+        return;
+    }
+
+    // Kiểm tra xem flashlight có được equipped không
+    bool bIsEquipped = FlashlightComponent->IsEquipped();
+    
+    // Tìm flashlight slot (để đảm bảo flashlight vẫn trong quickbar)
     int32 FlashlightSlotIndex = FindFlashlightSlot();
-    bool bHasFlashlight = (FlashlightSlotIndex != -1);
+    bool bHasFlashlightInQuickbar = (FlashlightSlotIndex != -1);
     
     // Update cached slot
     CachedFlashlightSlot = FlashlightSlotIndex;
     
-    // Update visibility
-    ESlateVisibility TargetVisibility = bHasFlashlight ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed;
+    // ✅ CHỈ HIỆN KHI: Có flashlight trong quickbar VÀ đang được equipped
+    bool bShouldShow = bHasFlashlightInQuickbar && bIsEquipped;
     
+    if (bShouldShow)
+    {
+        ShowBatteryBar();
+        UpdateBatteryBar(); // Update giá trị ngay lập tức
+    }
+    else
+    {
+        HideBatteryBar();
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("🔋 Battery Bar: %s (InQuickbar: %s | Equipped: %s | Slot: %d)"), 
+        bShouldShow ? TEXT("VISIBLE") : TEXT("HIDDEN"),
+        bHasFlashlightInQuickbar ? TEXT("YES") : TEXT("NO"),
+        bIsEquipped ? TEXT("YES") : TEXT("NO"),
+        FlashlightSlotIndex);
+}
+
+void UQuickbarWidget::ShowBatteryBar()
+{
     if (BatteryBar)
     {
-        BatteryBar->SetVisibility(TargetVisibility);
+        BatteryBar->SetVisibility(ESlateVisibility::HitTestInvisible);
     }
     
     if (BatteryIcon)
     {
-        BatteryIcon->SetVisibility(TargetVisibility);
+        BatteryIcon->SetVisibility(ESlateVisibility::HitTestInvisible);
+    }
+}
+
+void UQuickbarWidget::HideBatteryBar()
+{
+    if (BatteryBar)
+    {
+        BatteryBar->SetVisibility(ESlateVisibility::Collapsed);
     }
     
-    UE_LOG(LogTemp, Log, TEXT("🔋 Battery Bar: %s (Slot: %d)"), 
-        bHasFlashlight ? TEXT("VISIBLE") : TEXT("HIDDEN"), 
-        FlashlightSlotIndex);
-    
-    // Update bar immediately if visible
-    if (bHasFlashlight)
+    if (BatteryIcon)
     {
-        UpdateBatteryBar();
+        BatteryIcon->SetVisibility(ESlateVisibility::Collapsed);
     }
 }
 
 void UQuickbarWidget::UpdateBatteryBar()
 {
-    if (!FlashlightComponent || !BatteryBar)
-    {
-        return;
-    }
+    if (!FlashlightComponent || !BatteryBar) return;
+
+    if (!FlashlightComponent->IsEquipped()) return;
     
     float BatteryPercent = FlashlightComponent->GetBatteryPercentage();
     
-    // Clamp value for safety
     BatteryPercent = FMath::Clamp(BatteryPercent, 0.0f, 100.0f);
     float BatteryValue = BatteryPercent / 100.0f;
     
-    // Update progress bar
     BatteryBar->SetPercent(BatteryValue);
     
-    // Update color based on battery level
     FLinearColor BarColor = GetBatteryColor(BatteryPercent);
     BatteryBar->SetFillColorAndOpacity(BarColor);
 }
 
 void UQuickbarWidget::UpdateLowBatteryWarning(float DeltaTime)
 {
-    if (!FlashlightComponent || CachedFlashlightSlot == -1)
-    {
-        return;
-    }
+    if (!FlashlightComponent || CachedFlashlightSlot == -1) return;
+    if (!FlashlightComponent->IsEquipped()) return;
 
     float BatteryPercent = FlashlightComponent->GetBatteryPercentage();
     bool bShouldWarn = (BatteryPercent < LowBatteryThreshold && FlashlightComponent->IsLightOn());
 
-    if (!QuickbarSlots.IsValidIndex(CachedFlashlightSlot))
-    {
-        return;
-    }
+    if (!QuickbarSlots.IsValidIndex(CachedFlashlightSlot)) return;
 
     UInventorySlotWidget* FlashlightSlot = QuickbarSlots[CachedFlashlightSlot];
-    if (!FlashlightSlot || !FlashlightSlot->SlotBorder)
-    {
-        return;
-    }
+    if (!FlashlightSlot || !FlashlightSlot->SlotBorder) return;
 
     if (bShouldWarn)
     {
@@ -422,10 +441,7 @@ void UQuickbarWidget::UpdateLowBatteryWarning(float DeltaTime)
 
 void UQuickbarWidget::ResetSlotVisuals(int32 SlotIndex)
 {
-    if (!QuickbarSlots.IsValidIndex(SlotIndex))
-    {
-        return;
-    }
+    if (!QuickbarSlots.IsValidIndex(SlotIndex)) return;
 
     UInventorySlotWidget* Slots = QuickbarSlots[SlotIndex];
     if (Slots)
@@ -437,12 +453,8 @@ void UQuickbarWidget::ResetSlotVisuals(int32 SlotIndex)
 
 int32 UQuickbarWidget::FindFlashlightSlot() const
 {
-    if (!InventoryComponent)
-    {
-        return -1;
-    }
+    if (!InventoryComponent) return -1;
     
-    // Search through quickbar slots
     for (int32 i = 0; i < QuickbarSlotCount; i++)
     {
         FInventorySlot SlotData = InventoryComponent->GetQuickbarSlot(i);
@@ -512,4 +524,5 @@ void UQuickbarWidget::UpdateFlashlightIcon(UTexture2D* Icon)
         Slots->ItemIcon->SetVisibility(ESlateVisibility::HitTestInvisible);
     }
 }
+
 

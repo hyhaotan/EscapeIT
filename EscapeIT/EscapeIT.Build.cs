@@ -9,7 +9,11 @@ public class EscapeIT : ModuleRules
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
         PublicDependencyModuleNames.AddRange(new string[]
-        {   "Core",
+        {  
+        });
+
+        PrivateDependencyModuleNames.AddRange(new string[] 
+        {  "Core",
             "CoreUObject",
             "Engine",
             "InputCore",
@@ -30,10 +34,7 @@ public class EscapeIT : ModuleRules
             "RHI",
             "RenderCore",
             "ApplicationCore",
-            "PhysicsCore"
-        });
-
-        PrivateDependencyModuleNames.AddRange(new string[] { });
+            "PhysicsCore"});
 
         PublicIncludePaths.AddRange(new string[] {
             "EscapeIT",

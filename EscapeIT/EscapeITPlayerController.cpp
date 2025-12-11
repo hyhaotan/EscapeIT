@@ -633,7 +633,7 @@ void AEscapeITPlayerController::ChargeBattery()
         return;
     }
    
-    if (FlashlightComponent->CurrentBattery <= 100.0f)
+    if (FlashlightComponent->CurrentBattery < 100.0f)
     {
         FlashlightComponent->AddBatteryCharge(BatteryData.BatteryChargePercent);
         

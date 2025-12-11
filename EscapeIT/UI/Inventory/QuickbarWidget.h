@@ -107,6 +107,9 @@ protected:
 
     UFUNCTION()
     void OnFlashlightToggled(bool bIsOn);
+    
+    UFUNCTION()
+    void OnFlashlightEquippedChanged(bool bIsEquipped);
 
     // ========================================================================
     // INTERNAL FUNCTIONS
@@ -155,6 +158,9 @@ private:
     
     UFUNCTION()
     void UpdateFlashlightIcon(UTexture2D* Icon);
+    
+    void ShowBatteryBar();
+    void HideBatteryBar();
     
     UPROPERTY()
     TObjectPtr<UInventorySlotWidget> InventorySlotWidget;  

@@ -92,12 +92,6 @@ bool UFlashlightComponent::SetLightEnabled(bool bEnabled)
         
         // Force update to make sure it's visible
         SpotLight->MarkRenderStateDirty();
-        
-        UE_LOG(LogTemp, Log, TEXT("✅ Flashlight Light: ON"));
-        UE_LOG(LogTemp, Log, TEXT("  - Intensity: %.1f"), SpotLight->Intensity);
-        UE_LOG(LogTemp, Log, TEXT("  - Visible: %s"), SpotLight->IsVisible() ? TEXT("YES") : TEXT("NO"));
-        UE_LOG(LogTemp, Log, TEXT("  - Active: %s"), SpotLight->IsActive() ? TEXT("YES") : TEXT("NO"));
-        UE_LOG(LogTemp, Log, TEXT("  - Battery: %.1f%%"), GetBatteryPercentage());
     }
     else
     {
@@ -105,8 +99,6 @@ bool UFlashlightComponent::SetLightEnabled(bool bEnabled)
         SpotLight->SetVisibility(false);
         SpotLight->SetHiddenInGame(true);
         SpotLight->SetActive(false);
-        
-        UE_LOG(LogTemp, Log, TEXT("❌ Flashlight Light: OFF"));
     }
 
     // Play toggle sound
@@ -138,10 +130,10 @@ void UFlashlightComponent::EquipFlashlight(AFlashlight* FlashlightActor)
     }
 
     // Store reference to flashlight actor
-    // CurrentFlashlightActor = FlashlightActor;
+    CurrentFlashlightActor = FlashlightActor;
 
     // Get SpotLight component from the flashlight actor
-    SpotLight = GetOwner()->FindComponentByClass<USpotLightComponent>();
+    SpotLight = FlashlightActor->FindComponentByClass<USpotLightComponent>();
     
     if (SpotLight)
     {
@@ -150,12 +142,6 @@ void UFlashlightComponent::EquipFlashlight(AFlashlight* FlashlightActor)
         SpotLight->SetHiddenInGame(true);
         SpotLight->SetActive(false);
         SpotLight->SetIntensity(NormalIntensity);
-        
-        UE_LOG(LogTemp, Log, TEXT("EquipFlashlight: SpotLight found and initialized"));
-        UE_LOG(LogTemp, Log, TEXT("  - Initial Intensity: %.1f"), NormalIntensity);
-        UE_LOG(LogTemp, Log, TEXT("  - Initial State: OFF"));
-        UE_LOG(LogTemp, Log, TEXT("  - Outer Cone Angle: %.1f"), SpotLight->OuterConeAngle);
-        UE_LOG(LogTemp, Log, TEXT("  - Attenuation Radius: %.1f"), SpotLight->AttenuationRadius);
     }
     else
     {
@@ -173,7 +159,9 @@ void UFlashlightComponent::EquipFlashlight(AFlashlight* FlashlightActor)
 
     // Set equipped state
     bIsEquipped = true;
-    bIsLightOn = false; // **FIX: Explicitly set to false**
+    bIsLightOn = false;
+    
+    OnFlashlightEquippedChanged.Broadcast(true);
 
     // Play equip animation if available
     if (EquipFlashlightAnim)
@@ -222,6 +210,8 @@ void UFlashlightComponent::UnequipFlashlight()
     // Set unequipped state
     bIsEquipped = false;
     bIsLightOn = false;
+    
+    OnFlashlightEquippedChanged.Broadcast(false);
 
     UE_LOG(LogTemp, Log, TEXT("Flashlight: Unequipped"));
 }
@@ -467,12 +457,7 @@ void UFlashlightComponent::InitializeFlashlight(AFlashlight* OwnerFlashlight, US
     bIsEquipped = true;
     bIsLightOn = false;
     
-    UE_LOG(LogTemp, Log, TEXT("✅ InitializeFlashlight: SUCCESS"));
-    UE_LOG(LogTemp, Log, TEXT("  - Flashlight Actor: %s"), *OwnerFlashlight->GetName());
-    UE_LOG(LogTemp, Log, TEXT("  - SpotLight: %s"), *Spotlight->GetName());
-    UE_LOG(LogTemp, Log, TEXT("  - Initial Intensity: %.1f"), NormalIntensity);
-    UE_LOG(LogTemp, Log, TEXT("  - Battery: %.1f%%"), GetBatteryPercentage());
-    UE_LOG(LogTemp, Log, TEXT("  - State: OFF (ready to toggle)"));
+    OnFlashlightEquippedChanged.Broadcast(true);
 }
 
 UTexture2D* UFlashlightComponent::UpdateFlashlightImage() const
@@ -519,5 +504,10 @@ void UFlashlightComponent::SetEquipped(bool bEquipped)
     else if (!bWasEquipped)
     {
         UE_LOG(LogTemp, Log, TEXT("FlashlightComponent: EQUIPPED"));
+    }
+
+    if (bWasEquipped != bIsEquipped)
+    {
+        OnFlashlightEquippedChanged.Broadcast(bIsEquipped);
     }
 }

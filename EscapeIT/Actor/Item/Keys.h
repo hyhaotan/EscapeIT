@@ -3,39 +3,65 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Actor/ItemPickupActor.h"
-#include "EscapeIT/Actor/Item/Keys.h"
+#include "EscapeIT/Actor/ItemPickupActor.h"
 #include "EscapeIT/Data/ItemData.h"
 #include "Keys.generated.h"
 
 class AChest;
+class UNotificationWidget;
 
 UCLASS()
 class ESCAPEIT_API AKeys : public AItemPickupActor
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
     
-public:    
-	AKeys();
-    
-	virtual void UseItem_Implementation() override;
-    
+public:
+    AKeys();
+
+    // Override UseItem to implement key usage logic
+    virtual void UseItem_Implementation() override;
+
 protected:
-	virtual void BeginPlay() override;
+    virtual void BeginPlay() override;
+
+    // ========================================================================
+    // KEY PROPERTIES
+    // ========================================================================
     
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Key Settings")
-	EKeyType KeyType;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Key Settings")
+    EKeyType KeyType;
     
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Key Settings")
-	float InteractionRange = 200.0f; // 2 meters
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Key Settings",
+        meta = (ClampMin = "100.0", ClampMax = "1000.0", Units = "cm"))
+    float InteractionRange = 300.0f;  // 3 meters default
+
+    // ========================================================================
+    // CHEST INTERACTION
+    // ========================================================================
+
+    UFUNCTION(BlueprintCallable, Category = "Key")
+    bool TryUnlockChest();
     
-private:
-	// Chest interaction
-	bool TryUnlockChest();
-	AChest* FindChestInRange();
-	AChest* FindNearestChest();
+    UFUNCTION(BlueprintCallable, Category = "Key")
+    AChest* FindChestInRange();
     
-	// Door interaction (TODO)
-	bool TryUnlockDoor();
-	AActor* FindDoorInRange();
+    UFUNCTION(BlueprintCallable, Category = "Key")
+    AChest* FindNearestChest();
+
+    // ========================================================================
+    // DOOR INTERACTION (For future implementation)
+    // ========================================================================
+
+    UFUNCTION(BlueprintCallable, Category = "Key")
+    bool TryUnlockDoor();
+    
+    UFUNCTION(BlueprintCallable, Category = "Key")
+    AActor* FindDoorInRange();
+
+    // ========================================================================
+    // HELPER FUNCTIONS
+    // ========================================================================
+
+    void ShowWrongKeyNotification();
+    void ShowNoTargetNotification();
 };

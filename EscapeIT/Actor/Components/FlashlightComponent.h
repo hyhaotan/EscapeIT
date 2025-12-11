@@ -14,6 +14,7 @@ class UAnimMontage;
 // ============================================
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnFlashlightToggled, bool, bIsOn);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnBatteryChanged, float, CurrentBattery, float, MaxBattery);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnFlashlightEquippedChanged, bool, bIsEquipped);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBatteryDepleted);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBatteryLow);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnFlashlightImageChanged, UTexture2D*, NewIcon);
@@ -134,6 +135,9 @@ public:
     
     UPROPERTY(BlueprintAssignable, Category = "Flashlight|Events")
     FOnFlashlightImageChanged OnFlashlightImageChanged;
+    
+    UPROPERTY(BlueprintAssignable, Category = "Flashlight|Events")
+    FOnFlashlightEquippedChanged OnFlashlightEquippedChanged;
 
     // ============================================
     // PUBLIC FUNCTIONS - TOGGLE & CONTROL
