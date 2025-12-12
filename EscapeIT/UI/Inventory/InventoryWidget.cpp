@@ -182,6 +182,9 @@ void UInventoryWidget::RefreshInventory()
     {
         return;
     }
+    
+    // Validate selected slot before refreshing
+    ValidateSelectedSlot();
 
     // Update all slots
     for (int32 i = 0; i < SlotWidgets.Num(); i++)
@@ -191,6 +194,12 @@ void UInventoryWidget::RefreshInventory()
     
     UpdateFilterButtonStates();
     HighlightEquippedSlots();
+    
+    // Refresh details if a slot is selected
+    if (SelectedSlotIndex >= 0 && SelectedSlotIndex < InventoryComponent->InventorySlots.Num())
+    {
+        ShowItemDetails(SelectedSlotIndex);
+    }
 }
 
 void UInventoryWidget::RefreshQuickbar()
@@ -430,50 +439,119 @@ void UInventoryWidget::ShowAllItems()
 
 void UInventoryWidget::OnUseButtonClicked()
 {
-    if (!InventoryComponent || SelectedSlotIndex < 0)
+      if (!InventoryComponent || SelectedSlotIndex < 0)
     {
         return;
     }
 
+    // Validate slot index
     if (SelectedSlotIndex >= InventoryComponent->InventorySlots.Num())
     {
+        UE_LOG(LogTemp, Warning, TEXT("Invalid selected slot index"));
+        HideItemDetails();
         return;
     }
 
     FInventorySlot SlotData = InventoryComponent->InventorySlots[SelectedSlotIndex];
     if (!SlotData.IsValid())
     {
+        UE_LOG(LogTemp, Warning, TEXT("Invalid slot data"));
+        HideItemDetails();
         return;
     }
 
     FItemData ItemData;
-    if (InventoryComponent->GetItemData(SlotData.ItemID, ItemData))
+    if (!InventoryComponent->GetItemData(SlotData.ItemID, ItemData))
     {
-        if (ItemData.ItemType == EItemType::Tool)
+        UE_LOG(LogTemp, Error, TEXT("Cannot get item data for %s"), *SlotData.ItemID.ToString());
+        return;
+    }
+
+    // ========================================================================
+    // TOOL ITEMS (Need to equip to quickbar)
+    // ========================================================================
+    if (ItemData.ItemType == EItemType::Tool)
+    {
+        // Check if item is already in quickbar
+        int32 QuickbarIndex = InventoryComponent->FindQuickbarSlotByInventoryIndex(SelectedSlotIndex);
+        
+        if (QuickbarIndex < 0)
         {
-            // ✅ Find or assign to quickbar, then equip
-            int32 QuickbarIndex = FindItemInQuickbar(SlotData.ItemID);
+            // Not in quickbar - try to assign
+            QuickbarIndex = InventoryComponent->GetFirstEmptyQuickbarSlot();
             
             if (QuickbarIndex < 0)
             {
-                // Assign to first empty quickbar slot
-                QuickbarIndex = FindEmptyQuickbarSlot();
-                if (QuickbarIndex >= 0)
-                {
-                    InventoryComponent->AssignToQuickbar(SelectedSlotIndex, QuickbarIndex);
-                }
+                UE_LOG(LogTemp, Warning, TEXT("Quickbar is full! Cannot equip tool."));
+                ShowQuickbarFullMessage();
+                return;
             }
             
-            if (QuickbarIndex >= 0)
+            // Assign to quickbar
+            if (!InventoryComponent->AssignToQuickbar(SelectedSlotIndex, QuickbarIndex))
             {
-                InventoryComponent->EquipQuickbarSlot(QuickbarIndex);
+                UE_LOG(LogTemp, Error, TEXT("Failed to assign to quickbar"));
+                return;
+            }
+            
+            UE_LOG(LogTemp, Log, TEXT("Assigned to quickbar slot %d"), QuickbarIndex);
+        }
+        
+        // Equip the tool
+        bool bSuccess = InventoryComponent->EquipQuickbarSlot(QuickbarIndex);
+        
+        if (bSuccess)
+        {
+            UE_LOG(LogTemp, Log, TEXT("Equipped %s"), *ItemData.ItemName.ToString());
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("Failed to equip item"));
+        }
+        
+        return;
+    }
+    
+    // ========================================================================
+    // CONSUMABLE ITEMS (Use directly)
+    // ========================================================================
+    if (ItemData.ItemType == EItemType::Consumable)
+    {
+        bool bSuccess = InventoryComponent->UseItem(SlotData.ItemID);
+        
+        if (bSuccess)
+        {
+            UE_LOG(LogTemp, Log, TEXT("Used consumable: %s"), *ItemData.ItemName.ToString());
+            
+            // Hide details if item was consumed
+            if (InventoryComponent->GetItemQuantity(SlotData.ItemID) <= 0)
+            {
+                HideItemDetails();
+            }
+            else
+            {
+                // Refresh if there are more items
+                ShowItemDetails(SelectedSlotIndex);
             }
         }
         else
         {
-            // Consumable - use directly
-            InventoryComponent->UseItem(SlotData.ItemID);
+            UE_LOG(LogTemp, Warning, TEXT("Failed to use item"));
         }
+        
+        return;
+    }
+    
+    // ========================================================================
+    // OTHER ITEMS
+    // ========================================================================
+    if (ItemData.bCanBeUsed)
+    {
+        InventoryComponent->UseItem(SlotData.ItemID);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Item cannot be used"));
     }
 }
 
@@ -705,7 +783,7 @@ void UInventoryWidget::HighlightEquippedSlots()
         return;
     }
 
-    // Clear all
+    // Clear all highlights first
     for (UInventorySlotWidget* SlotWidget : SlotWidgets)
     {
         if (SlotWidget)
@@ -722,23 +800,27 @@ void UInventoryWidget::HighlightEquippedSlots()
         }
     }
 
-    // Highlight equipped quickbar slot
+    // Get equipped slot
     int32 EquippedQuickbarIndex = InventoryComponent->CurrentEquippedSlotIndex;
 
+    // Validate equipped slot
+    if (EquippedQuickbarIndex < 0 || EquippedQuickbarIndex >= QuickbarSlotWidgets.Num())
+    {
+        return; // No valid equipped slot
+    }
+
+    // Highlight quickbar slot
     if (QuickbarSlotWidgets.IsValidIndex(EquippedQuickbarIndex))
     {
         QuickbarSlotWidgets[EquippedQuickbarIndex]->SetEquipped(true);
     }
 
-    // ✅ Highlight corresponding inventory slot
-    if (EquippedQuickbarIndex >= 0)
+    // Highlight corresponding inventory slot
+    int32 EquippedInventoryIndex = InventoryComponent->GetQuickbarInventoryIndex(EquippedQuickbarIndex);
+    
+    if (EquippedInventoryIndex >= 0 && SlotWidgets.IsValidIndex(EquippedInventoryIndex))
     {
-        int32 EquippedInventoryIndex = InventoryComponent->GetQuickbarInventoryIndex(EquippedQuickbarIndex);
-        
-        if (SlotWidgets.IsValidIndex(EquippedInventoryIndex))
-        {
-            SlotWidgets[EquippedInventoryIndex]->SetEquipped(true);
-        }
+        SlotWidgets[EquippedInventoryIndex]->SetEquipped(true);
     }
 }
 
@@ -806,7 +888,7 @@ int32 UInventoryWidget::FindItemInQuickbar(FName ItemID) const
     return -1;
 }
 
-int32 UInventoryWidget::FindEmptyQuickbarSlot() const
+int32 UInventoryWidget::FindQuickbarSlotByItemID(FName ItemID) const
 {
     if (!InventoryComponent)
     {
@@ -816,11 +898,80 @@ int32 UInventoryWidget::FindEmptyQuickbarSlot() const
     for (int32 i = 0; i < 3; i++)
     {
         FInventorySlot QBSlot = InventoryComponent->GetQuickbarSlot(i);
-        if (!QBSlot.IsValid())
+        if (QBSlot.IsValid() && QBSlot.ItemID == ItemID)
         {
             return i;
         }
     }
 
     return -1;
+}
+
+int32 UInventoryWidget::FindEmptyQuickbarSlot() const
+{
+    if (!InventoryComponent)
+    {
+        return -1;
+    }
+
+    return InventoryComponent->GetFirstEmptyQuickbarSlot();
+}
+
+void UInventoryWidget::ShowQuickbarFullMessage()
+{
+    // Implement visual feedback (e.g., flash quickbar, show text)
+    if (QuickbarGrid)
+    {
+        // Flash effect hoặc thông báo UI
+        UE_LOG(LogTemp, Warning, TEXT("QUICKBAR FULL - Clear a slot first!"));
+        
+        // PlayAnimation(QuickbarFullAnim);
+    }
+}
+
+bool UInventoryWidget::TryAssignItemToQuickbar(int32 InventorySlotIndex, FName ItemID)
+{
+    if (!InventoryComponent)
+    {
+        return false;
+    }
+    
+    // Check if already in quickbar
+    if (InventoryComponent->FindQuickbarSlotByInventoryIndex(InventorySlotIndex) >= 0)
+    {
+        return true; // Already Assign
+    }
+    
+    // Find empty slot
+    int32 EmptySlot = InventoryComponent->GetFirstEmptyQuickbarSlot();
+
+    if (EmptySlot < 0)
+    {
+        return false; // Quickbar full
+    }
+    
+    // Assign
+    return InventoryComponent->AssignToQuickbar(InventorySlotIndex,EmptySlot);
+}
+
+void UInventoryWidget::ValidateSelectedSlot()
+{
+    if (SelectedSlotIndex < 0)
+    {
+        return;
+    }
+
+    // Check if slot still exists
+    if (SelectedSlotIndex >= InventoryComponent->InventorySlots.Num())
+    {
+        HideItemDetails();
+        return;
+    }
+
+    // Check if slot is still valid
+    if (!InventoryComponent->InventorySlots[SelectedSlotIndex].IsValid())
+    {
+        HideItemDetails();
+        return;
+    }
 }

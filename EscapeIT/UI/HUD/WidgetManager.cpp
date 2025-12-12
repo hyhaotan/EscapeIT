@@ -23,7 +23,6 @@ void AWidgetManager::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Lấy PlayerController reference
 	PlayerController = GetOwningPlayerController();
 	if (!PlayerController)
 	{
@@ -31,7 +30,6 @@ void AWidgetManager::BeginPlay()
 		return;
 	}
 
-	// Tự động khởi tạo widgets khi game bắt đầu
 	InitializeWidgets();
 }
 
@@ -48,7 +46,7 @@ void AWidgetManager::InitializeWidgets()
 		SanityWidget = CreateWidget<USanityWidget>(GetWorld(), SanityWidgetClass);
 		if (SanityWidget)
 		{
-			SanityWidget->AddToViewport();
+			SanityWidget->AddToViewport(0);
 		}
 	}
 	
@@ -75,7 +73,7 @@ void AWidgetManager::InitializeWidgets()
 		CrossHair = CreateWidget<UUserWidget>(GetWorld(), CrossHairClass);
 		if (CrossHair)
 		{
-			CrossHair->AddToViewport();
+			CrossHair->AddToViewport(0);
 		}
 	}
 	
@@ -84,7 +82,7 @@ void AWidgetManager::InitializeWidgets()
 		QuickbarWidget = CreateWidget<UQuickbarWidget>(GetWorld(), QuickbarWidgetClass);
 		if (QuickbarWidget)
 		{
-			QuickbarWidget->AddToViewport();
+			QuickbarWidget->AddToViewport(0);
 			
 			GetWorld()->GetTimerManager().SetTimerForNextTick([this]()
 			{
@@ -136,7 +134,7 @@ void AWidgetManager::InitializeWidgets()
 		StaminaWidget = CreateWidget<UUserWidget>(GetWorld(), StaminaWidgetClass);
 		if (StaminaWidget)
 		{
-			StaminaWidget->AddToViewport();
+			StaminaWidget->AddToViewport(0);
 		}
 	}
 	
@@ -150,7 +148,7 @@ void AWidgetManager::InitializeWidgets()
 		FPSWidget = CreateWidget<UFPSWidget>(GetWorld(),FPSWidgetClass);
 		if (FPSWidget)
 		{
-			FPSWidget->AddToViewport();
+			FPSWidget->AddToViewport(0);
 		}
 	}
 

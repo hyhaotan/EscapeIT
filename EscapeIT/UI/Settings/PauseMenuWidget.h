@@ -32,6 +32,9 @@ private:
 
     UFUNCTION()
     void OnClickBackButton();
+    
+    UFUNCTION()
+    void OnSettingsMenuClosed();
 
     UPROPERTY(meta = (BindWidget))
     UButton* ResumeButton;

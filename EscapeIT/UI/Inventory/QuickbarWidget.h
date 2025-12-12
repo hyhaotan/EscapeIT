@@ -121,6 +121,9 @@ protected:
     void UpdateBatteryBar();
     void UpdateLowBatteryWarning(float DeltaTime);
     void ResetSlotVisuals(int32 SlotIndex);
+    void ActivateLowBatteryWarning();
+    void DeactivateLowBatteryWarning();
+    bool ValidateQuickbarState();
     
     int32 FindFlashlightSlot() const;
     bool IsFlashlightItem(FName ItemID) const;

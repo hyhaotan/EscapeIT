@@ -224,6 +224,10 @@ protected:
     // Quickbar helpers
     int32 FindItemInQuickbar(FName ItemID) const;
     int32 FindEmptyQuickbarSlot() const;
+    int32 FindQuickbarSlotByItemID(FName ItemID) const;
+    void ShowQuickbarFullMessage();
+    bool TryAssignItemToQuickbar(int32 InventorySlotIndex, FName ItemID);
+    void ValidateSelectedSlot();
 
 private:
     // ========================================================================

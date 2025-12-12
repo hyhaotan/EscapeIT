@@ -119,6 +119,9 @@ public:
     bool UseItem(FName ItemID);
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
+    void RemoveSlotAndUpdateReferences(int32 SlotIndexToRemove);
+    
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
     bool UseEquippedItem();
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
@@ -242,6 +245,17 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Inventory|Get")
     AFlashlight* GetFlashlight(){return SpawnedFlashlightActor;}
+    
+    // ========================================================================
+    // Quickbar
+    // ========================================================================
+    
+    bool IsQuickbarFull() const;
+    int32 GetFirstEmptyQuickbarSlot() const;
+    int32 FindQuickbarSlotByInventoryIndex(int32 InventoryIndex) const;
+    bool IsItemInQuickbar(FName ItemID)const;
+    void CompactInventory();
+    void SortInventoryByType();
 protected:
     // ========================================================================
     // INTERNAL HELPERS
@@ -260,9 +274,11 @@ protected:
     void PlayItemBreakSound();
     void PlayCannotDropSound();
 
-    void TryAutoAssignToQuickbar(FName ItemID);
+    void TryAutoAssignToQuickbar(FName ItemID,int32 PreferredInventoryIndex);
 
     void ValidateQuickbarReferences();
+    void ValidateInventoryIntegrity();
+    void DebugPrintQuickbarState() const;
 
 private:
     // ========================================================================

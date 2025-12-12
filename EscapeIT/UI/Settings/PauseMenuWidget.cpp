@@ -46,8 +46,9 @@ void UPauseMenuWidget::OnClickSettingButton()
     {
         if (UMainMenuSettingWidget* SettingWidget = CreateWidget<UMainMenuSettingWidget>(PC, MainMenuSettingWidgetClass))
         {
-            SettingWidget->AddToPlayerScreen(999);
+            SettingWidget->AddToViewport(999);
             SettingWidget->ShowSettingsMenu(false);
+            SettingWidget->OnBackClicked.AddDynamic(this,&UPauseMenuWidget::OnSettingsMenuClosed);
         }
     }
     SetVisibility(ESlateVisibility::Collapsed);
@@ -57,4 +58,17 @@ void UPauseMenuWidget::OnClickBackButton()
 {
     SetVisibility(ESlateVisibility::Collapsed);
     UGameplayStatics::OpenLevel(GetWorld(), TEXT("Lobby"));
+}
+
+void UPauseMenuWidget::OnSettingsMenuClosed()
+{
+    SetVisibility(ESlateVisibility::Visible);
+    const auto PC = GetOwningPlayer();
+    if (PC)
+    {
+        FInputModeUIOnly InputMode;
+        InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+        PC->SetInputMode(InputMode);
+        PC->bShowMouseCursor = true;
+    }
 }
