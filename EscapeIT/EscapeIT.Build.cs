@@ -37,7 +37,12 @@ public class EscapeIT : ModuleRules
             "PhysicsCore"});
 
         PublicIncludePaths.AddRange(new string[] {
-            "EscapeIT",
+            "EscapeIT/Public",
+        });
+        
+        PrivateIncludePaths.AddRange(new string[]
+        {
+            "EscapeIT/Private"
         });
 
         // Uncomment if you are using Slate UI
