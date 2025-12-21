@@ -166,7 +166,7 @@ void AWidgetManager::InitializeWidgets()
 					}
 					else
 					{
-						// Không add to viewport nếu setting là Off
+						FPSWidget->SetVisibility(ESlateVisibility::Collapsed);
 						UE_LOG(LogTemp, Log, TEXT("WidgetManager: FPS Widget hidden (from saved settings)"));
 					}
 				}
@@ -211,6 +211,7 @@ void AWidgetManager::ShowPauseMenu()
 		{
 			PauseMenu->AddToViewport(10);
 			PauseMenu->WidgetManager = this;
+			PauseMenu->InitializeWithWidgetManager();
 		}
 		PauseMenu->SetVisibility(ESlateVisibility::Visible);
 

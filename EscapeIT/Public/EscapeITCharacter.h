@@ -26,6 +26,13 @@ DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
 // ==================== ENUMS ====================
 
+UENUM(Blueprintable)
+enum class EAnimState : uint8
+{
+	Unarmed UMETA(DisplayName = "Unarmed"),
+	Flashlight UMETA(DisplayName = "Flashlight")
+};
+
 UENUM(BlueprintType)
 enum class EMovementState : uint8
 {
@@ -213,6 +220,9 @@ public:
 	/** Minimum speed required to start sprinting */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Sprint")
 	float MinSprintSpeed = 50.0f;
+	
+	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="Anim")
+	EAnimState AnimState;
 
 	// ==================== STAMINA PROPERTIES ====================
 
@@ -256,11 +266,12 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Death")
 	bool bIsDeath = false;
 	
-	UPROPERTY(BlueprintReadOnly, Category = "Animation")
-	bool bIsHoldingFlashlight;
-	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Death")
 	UAnimMontage* DeathMontage;
+	
+	// ===================== STATE FLASHLIGHT ==================
+	UPROPERTY(BlueprintReadWrite, Category = "Animation")
+	bool bIsHoldingFlashlight;	
 	// ==================== GETTERS ====================
 
 	/** Get current movement speed */

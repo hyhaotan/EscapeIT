@@ -3,6 +3,7 @@
 #include "UI/Settings/Row/SelectionSettingRow.h"
 #include "Settings/Core/SettingsSubsystem.h"
 #include "GameFramework/GameUserSettings.h"
+#include "Kismet/GameplayStatics.h"
 #include "UI/FPSWidget.h"
 #include "UI/HUD/WidgetManager.h"
 
@@ -10,6 +11,7 @@ UGraphicWidget::UGraphicWidget(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
     , bIsLoadingSettings(false)
     , SettingsSubsystem(nullptr)
+    , WidgetManager(nullptr) 
 {
 }
 
@@ -30,6 +32,18 @@ void UGraphicWidget::NativeConstruct()
 
     // Initialize selection rows and bind their delegates
     InitializeSelectionRows();
+
+    if (APlayerController* PC = GetOwningPlayer())
+    {
+        if (AWidgetManager* HUD = Cast<AWidgetManager>(PC->GetHUD()))
+        {
+            SetWidgetManager(HUD);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("GraphicWidget: HUD is not WidgetManager"));
+        }
+    }
 
     // Load current settings either from subsystem (if available) or defaults
     if (SettingsSubsystem)
@@ -314,8 +328,15 @@ void UGraphicWidget::LoadSettings(const FS_GraphicsSettings& Settings)
     
     if (FPSRow)
         FPSRow->SetCurrentSelection(CurrentSettings.bFPSEnable ? 1 : 0, false);
-    
-    UpdateFPSWidgetVisibility(CurrentSettings.bFPSEnable);
+
+    if (WidgetManager)
+    {
+        UpdateFPSWidgetVisibility(CurrentSettings.bFPSEnable);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Log, TEXT("GraphicWidget: LoadSettings - WidgetManager not yet set, FPS visibility will be updated later"));
+    }
 
     bIsLoadingSettings = false;
 }
@@ -719,26 +740,24 @@ void UGraphicWidget::SetWidgetManager(AWidgetManager* InWidgetManager)
     
     if (WidgetManager)
     {
+        UE_LOG(LogTemp, Log, TEXT("GraphicWidget: WidgetManager set successfully"));
+        
+        // Apply current FPS visibility setting
         UpdateFPSWidgetVisibility(CurrentSettings.bFPSEnable);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("GraphicWidget: WidgetManager is NULL!"));
     }
 }
 
 void UGraphicWidget::UpdateFPSWidgetVisibility(bool bShouldShow)
 {
-    if (!WidgetManager)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("GraphicWidget: WidgetManager not set, cannot update FPS visibility"));
+    if (!WidgetManager || !WidgetManager->FPSWidget)
         return;
-    }
 
     if (bShouldShow)
-    {
         WidgetManager->ShowWidget(WidgetManager->FPSWidget);
-        UE_LOG(LogTemp, Log, TEXT("GraphicWidget: FPS Widget shown"));
-    }
     else
-    {
         WidgetManager->HideWidget(WidgetManager->FPSWidget);
-        UE_LOG(LogTemp, Log, TEXT("GraphicWidget: FPS Widget hidden"));
-    }
 }
