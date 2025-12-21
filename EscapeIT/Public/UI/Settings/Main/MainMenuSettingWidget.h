@@ -24,6 +24,7 @@ class USoundBase;
 class UNotificationWidget;
 class UConfirmationDialogWidget;
 class ULoadingScreenWidget;
+class AWidgetManager;
 
 USTRUCT(BlueprintType)
 struct FSettingChange
@@ -150,6 +151,9 @@ protected:
 	// Optional Notification Widget
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UNotificationWidget> NotificationWidget;
+	
+	UPROPERTY()
+	TObjectPtr<AWidgetManager> WidgetManager;
 
 	// ===== ANIMATIONS =====
 
@@ -401,6 +405,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Settings")
 	bool HasUnsavedChanges() const { return bHasUnsavedChanges; }
+	
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	void SetWidgetManager(AWidgetManager* InWidgetManager);
 
 	UFUNCTION(BlueprintPure, Category = "Settings")
 	ESettingsCategory GetCurrentCategory() const;
@@ -412,4 +419,6 @@ private:
 	enum class ESavedInputMode : uint8 {GameOnly,UIOnly,GameAndUI} SavedInputMode = ESavedInputMode::GameOnly;
 	
 	bool bOpenedFromLobby = false;
+	
+	void InitializeTabWidgets();
 };

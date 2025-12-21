@@ -148,7 +148,10 @@ protected:
     
 private:
     UPROPERTY()
-    TObjectPtr<AWidgetManager> WidgetManager;
+    TObjectPtr<AWidgetManager> WidgetManager;  
+    
+    UPROPERTY(EditAnywhere)
+    TSubclassOf<AWidgetManager> WidgetManagerClass;
     
     void UpdateFPSWidgetVisibility(bool bShouldShow);
 };

@@ -75,6 +75,8 @@ AEscapeITCharacter::AEscapeITCharacter()
 
 	// Enable tick
 	PrimaryActorTick.bCanEverTick = true;
+	
+	AnimState = EAnimState::Unarmed;
 }
 
 // ==================== INITIALIZATION ====================

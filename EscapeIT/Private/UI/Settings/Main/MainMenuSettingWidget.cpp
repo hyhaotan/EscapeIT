@@ -74,6 +74,12 @@ void UMainMenuSettingWidget::NativeConstruct()
 		SearchBox->SetHintText(FText::FromString(TEXT("Search settings...")));
 	}
 
+
+	if (WidgetManager)
+	{
+		InitializeTabWidgets();
+	}
+
 	// Refresh all widgets to sync with current settings
 	RefreshAllWidgets();
 
@@ -445,6 +451,37 @@ void UMainMenuSettingWidget::NavigateToPreviousCategory()
 ESettingsCategory UMainMenuSettingWidget::GetCurrentCategory() const
 {
 	return static_cast<ESettingsCategory>(CurrentCategoryIndex + 1);
+}
+
+void UMainMenuSettingWidget::SetWidgetManager(AWidgetManager* InWidgetManager)
+{
+	WidgetManager = InWidgetManager;
+    
+	if (WidgetManager)
+	{
+		UE_LOG(LogTemp, Log, TEXT("MainMenuSettingWidget: WidgetManager set successfully"));
+
+		InitializeTabWidgets();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("MainMenuSettingWidget: WidgetManager is NULL!"));
+	}
+}
+
+void UMainMenuSettingWidget::InitializeTabWidgets()
+{ 
+	if (!WidgetManager)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("MainMenuSettingWidget: WidgetManager not set, cannot initialize tabs"));
+		return;
+	}
+	
+	if (GraphicWidget)
+	{
+		GraphicWidget->SetWidgetManager(WidgetManager);
+		UE_LOG(LogTemp, Log, TEXT("MainMenuSettingWidget: GraphicWidget initialized with WidgetManager"));
+	}
 }
 
 void UMainMenuSettingWidget::UpdateCategoryButtons(ESettingsCategory ActiveCategory)

@@ -15,6 +15,15 @@ UFlashlightComponent::UFlashlightComponent()
     // Initialize battery to max
     CurrentBattery = MaxBatteryDuration;
     LastBatteryPercentage = 100.0f;
+    CurrentLightIntensity = 0.0f;
+    TargetLightIntensity = 0.0f;
+    
+    // Initialize state
+    CurrentState = EFlashlightState::Unequipped;
+    bIsLightOn = false;
+    bWasLightOnBeforeUnequip = false;
+    bLowBatterySoundPlayed = false;
+    bIsFadingLight = false;
 }
 
 void UFlashlightComponent::BeginPlay()
@@ -30,21 +39,98 @@ void UFlashlightComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 {
     Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-    // Only update if equipped and light is on
-    if (bIsEquipped && bIsLightOn)
+    // Only process if equipped
+    if (CurrentState != EFlashlightState::Equipped)
+    {
+        return;
+    }
+
+    // Update battery drain
+    if (bIsLightOn && !IsBatteryDepleted())
     {
         UpdateBattery(DeltaTime);
+    }
 
-        // Apply visual effects based on battery level
-        if (IsBatteryLow())
+    // Update light intensity (smooth transitions + flicker)
+    UpdateLightIntensity(DeltaTime);
+}
+
+// ============================================
+// STATE MANAGEMENT
+// ============================================
+
+void UFlashlightComponent::SetState(EFlashlightState NewState)
+{
+    if (CurrentState == NewState)
+    {
+        return;
+    }
+
+    if (!ValidateStateTransition(NewState))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Invalid state transition: %d -> %d"), 
+            (int32)CurrentState, (int32)NewState);
+        return;
+    }
+
+    EFlashlightState OldState = CurrentState;
+    CurrentState = NewState;
+
+    OnFlashlightStateChanged.Broadcast(NewState);
+
+    UE_LOG(LogTemp, Log, TEXT("Flashlight state: %d -> %d"), (int32)OldState, (int32)NewState);
+}
+
+bool UFlashlightComponent::ValidateStateTransition(EFlashlightState NewState) const
+{
+    switch (CurrentState)
+    {
+    case EFlashlightState::Unequipped:
+        return NewState == EFlashlightState::Equipping;
+
+    case EFlashlightState::Equipping:
+        return NewState == EFlashlightState::Equipped || NewState == EFlashlightState::Unequipped;
+
+    case EFlashlightState::Equipped:
+        return NewState == EFlashlightState::Unequipping;
+
+    case EFlashlightState::Unequipping:
+        return NewState == EFlashlightState::Unequipped || NewState == EFlashlightState::Equipped;
+
+    default:
+        return false;
+    }
+}
+
+void UFlashlightComponent::OnEquipAnimationComplete()
+{
+    if (CurrentState == EFlashlightState::Equipping)
+    {
+        SetState(EFlashlightState::Equipped);
+        
+        // Restore previous light state if enabled
+        if (bRememberLightState && bWasLightOnBeforeUnequip)
         {
-            ApplyFlickerEffect(DeltaTime);
+            SetLightEnabled(true);
         }
+        
+        UE_LOG(LogTemp, Log, TEXT("Flashlight: Equip animation complete"));
+    }
+}
+
+void UFlashlightComponent::OnUnequipAnimationComplete()
+{
+    if (CurrentState == EFlashlightState::Unequipping)
+    {
+        SetState(EFlashlightState::Unequipped);
+        CleanupFlashlight();
+        
+        UE_LOG(LogTemp, Log, TEXT("Flashlight: Unequip animation complete"));
     }
 }
 
 // ============================================
-// TOGGLE & CONTROL
+// PUBLIC API - TOGGLE & CONTROL
 // ============================================
 
 bool UFlashlightComponent::ToggleLight()
@@ -54,135 +140,154 @@ bool UFlashlightComponent::ToggleLight()
 
 bool UFlashlightComponent::SetLightEnabled(bool bEnabled)
 {
-    // Check if flashlight is equipped
-    if (!bIsEquipped)
+    // Validate state
+    if (CurrentState != EFlashlightState::Equipped)
     {
-        UE_LOG(LogTemp, Warning, TEXT("SetLightEnabled: Flashlight not equipped!"));
+        UE_LOG(LogTemp, Warning, TEXT("Cannot toggle light: Not equipped (State: %d)"), (int32)CurrentState);
         return false;
     }
 
-    // Validate SpotLight component
     if (!SpotLight)
     {
-        UE_LOG(LogTemp, Error, TEXT("SetLightEnabled: SpotLight component is NULL!"));
+        UE_LOG(LogTemp, Error, TEXT("Cannot toggle light: SpotLight is NULL"));
         return false;
     }
 
-    // Check if trying to turn on with no battery
+    // Check battery if trying to turn on
     if (bEnabled && IsBatteryDepleted())
     {
-        UE_LOG(LogTemp, Warning, TEXT("SetLightEnabled: Cannot turn on - Battery depleted!"));
+        UE_LOG(LogTemp, Warning, TEXT("Cannot turn on: Battery depleted"));
         PlaySound(NoBatterySound);
         OnBatteryDepleted.Broadcast();
         return false;
     }
 
-    // Update state
+    // Already in desired state
+    if (bIsLightOn == bEnabled)
+    {
+        return true;
+    }
+
+    // Change state
     bIsLightOn = bEnabled;
 
+    // Set target intensity for smooth fade
     if (bIsLightOn)
     {
-        // Turn ON: Enable everything
-        SpotLight->SetVisibility(true);
-        SpotLight->SetHiddenInGame(false);
-        SpotLight->SetActive(true);
-        
-        // Set proper intensity
-        UpdateLightIntensity();
-        
-        // Force update to make sure it's visible
-        SpotLight->MarkRenderStateDirty();
+        TurnLightOn();
     }
     else
     {
-        // Turn OFF: Disable everything
-        SpotLight->SetVisibility(false);
-        SpotLight->SetHiddenInGame(true);
-        SpotLight->SetActive(false);
+        TurnLightOff();
     }
 
-    // Play toggle sound
+    // Play audio feedback
     PlayToggleSound();
 
-    // Broadcast event
+    // Broadcast events
     OnFlashlightToggled.Broadcast(bIsLightOn);
-    
-    if (UTexture2D* NewIcon = UpdateFlashlightImage())
-    {
-        OnFlashlightImageChanged.Broadcast(NewIcon);
-    }
+
+    UE_LOG(LogTemp, Log, TEXT("Flashlight: %s (Battery: %.1f%%)"),
+        bIsLightOn ? TEXT("ON") : TEXT("OFF"),
+        GetBatteryPercentage());
 
     return true;
 }
 
-void UFlashlightComponent::EquipFlashlight(AFlashlight* FlashlightActor)
+bool UFlashlightComponent::EquipFlashlight(AFlashlight* FlashlightActor)
 {
-    if (bIsEquipped)
+    // Validate state
+    if (CurrentState != EFlashlightState::Unequipped)
     {
-        UE_LOG(LogTemp, Warning, TEXT("EquipFlashlight: Already equipped"));
-        return;
+        UE_LOG(LogTemp, Warning, TEXT("EquipFlashlight: Already equipped or equipping"));
+        return false;
     }
 
     if (!FlashlightActor)
     {
-        UE_LOG(LogTemp, Error, TEXT("EquipFlashlight: FlashlightActor is NULL!"));
-        return;
+        UE_LOG(LogTemp, Error, TEXT("EquipFlashlight: FlashlightActor is NULL"));
+        return false;
     }
 
-    // Store reference to flashlight actor
+    // Store reference
     CurrentFlashlightActor = FlashlightActor;
 
-    // Get SpotLight component from the flashlight actor
+    // Get SpotLight component
     SpotLight = FlashlightActor->FindComponentByClass<USpotLightComponent>();
     
-    if (SpotLight)
+    if (!SpotLight)
     {
-        // **FIX: Initialize spotlight to OFF state properly**
-        SpotLight->SetVisibility(false);
-        SpotLight->SetHiddenInGame(true);
-        SpotLight->SetActive(false);
-        SpotLight->SetIntensity(NormalIntensity);
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("EquipFlashlight: No SpotLightComponent found on flashlight actor!"));
-        return;
+        UE_LOG(LogTemp, Error, TEXT("EquipFlashlight: No SpotLightComponent found"));
+        CurrentFlashlightActor = nullptr;
+        return false;
     }
 
-    // Get character reference
-    ACharacter* Character = UGameplayStatics::GetPlayerCharacter(this, 0);
-    if (!Character)
-    {
-        UE_LOG(LogTemp, Error, TEXT("EquipFlashlight: No character found!"));
-        return;
-    }
+    // Initialize spotlight in OFF state
+    SpotLight->SetVisibility(false);
+    SpotLight->SetHiddenInGame(true);
+    SpotLight->SetActive(false);
+    SpotLight->SetIntensity(0.0f);
+    CurrentLightIntensity = 0.0f;
+    TargetLightIntensity = 0.0f;
 
-    // Set equipped state
-    bIsEquipped = true;
-    bIsLightOn = false;
-    
-    OnFlashlightEquippedChanged.Broadcast(true);
+    // Change state to equipping
+    SetState(EFlashlightState::Equipping);
 
     // Play equip animation if available
     if (EquipFlashlightAnim)
     {
-        float AnimDuration = Character->PlayAnimMontage(EquipFlashlightAnim, 1.0f);
-        
-        if (AnimDuration > 0.0f)
+        ACharacter* Character = UGameplayStatics::GetPlayerCharacter(this, 0);
+        if (Character)
         {
-            UE_LOG(LogTemp, Log, TEXT("EquipFlashlight: Playing equip animation (%.2fs)"), AnimDuration);
+            float AnimDuration = Character->PlayAnimMontage(EquipFlashlightAnim, 1.0f);
+            
+            if (AnimDuration > 0.0f)
+            {
+                // Set timer for animation complete
+                GetWorld()->GetTimerManager().SetTimer(
+                    EquipAnimationTimer,
+                    this,
+                    &UFlashlightComponent::OnEquipAnimationComplete,
+                    AnimDuration,
+                    false
+                );
+                
+                UE_LOG(LogTemp, Log, TEXT("Flashlight: Playing equip animation (%.2fs)"), AnimDuration);
+            }
+            else
+            {
+                // Animation failed, complete immediately
+                OnEquipAnimationComplete();
+            }
+        }
+        else
+        {
+            OnEquipAnimationComplete();
         }
     }
+    else
+    {
+        // No animation, complete immediately
+        OnEquipAnimationComplete();
+    }
 
-    UE_LOG(LogTemp, Log, TEXT("Flashlight: Equipped successfully (Battery: %.1f%%)"), GetBatteryPercentage());
+    UE_LOG(LogTemp, Log, TEXT("Flashlight: Equipping... (Battery: %.1f%%)"), GetBatteryPercentage());
+    return true;
 }
 
 void UFlashlightComponent::UnequipFlashlight()
 {
-    if (!bIsEquipped)
+    // Validate state
+    if (CurrentState != EFlashlightState::Equipped)
     {
         UE_LOG(LogTemp, Warning, TEXT("UnequipFlashlight: Not equipped"));
         return;
+    }
+
+    // Remember light state for re-equip
+    if (bRememberLightState)
+    {
+        bWasLightOnBeforeUnequip = bIsLightOn;
     }
 
     // Turn off light if it's on
@@ -191,34 +296,96 @@ void UFlashlightComponent::UnequipFlashlight()
         SetLightEnabled(false);
     }
 
-    // Get character reference
-    ACharacter* Character = UGameplayStatics::GetPlayerCharacter(this, 0);
-    if (Character && UnequipFlashlightAnim)
+    // Stop all timers
+    StopLowBatteryBeep();
+
+    // Change state to unequipping
+    SetState(EFlashlightState::Unequipping);
+
+    // Play unequip animation if available
+    if (UnequipFlashlightAnim)
     {
-        float AnimDuration = Character->PlayAnimMontage(UnequipFlashlightAnim, 1.0f);
-        
-        if (AnimDuration > 0.0f)
+        ACharacter* Character = UGameplayStatics::GetPlayerCharacter(this, 0);
+        if (Character)
         {
-            UE_LOG(LogTemp, Log, TEXT("UnequipFlashlight: Playing unequip animation (%.2fs)"), AnimDuration);
+            float AnimDuration = Character->PlayAnimMontage(UnequipFlashlightAnim, 1.0f);
+            
+            if (AnimDuration > 0.0f)
+            {
+                // Set timer for animation complete
+                GetWorld()->GetTimerManager().SetTimer(
+                    UnequipAnimationTimer,
+                    this,
+                    &UFlashlightComponent::OnUnequipAnimationComplete,
+                    AnimDuration,
+                    false
+                );
+                
+                UE_LOG(LogTemp, Log, TEXT("Flashlight: Playing unequip animation (%.2fs)"), AnimDuration);
+            }
+            else
+            {
+                // Animation failed, complete immediately
+                OnUnequipAnimationComplete();
+            }
+        }
+        else
+        {
+            OnUnequipAnimationComplete();
         }
     }
+    else
+    {
+        // No animation, complete immediately
+        OnUnequipAnimationComplete();
+    }
 
-    // Clear references
-    SpotLight = nullptr;
-    CurrentFlashlightActor = nullptr;
-    
-    // Set unequipped state
-    bIsEquipped = false;
-    bIsLightOn = false;
-    
-    OnFlashlightEquippedChanged.Broadcast(false);
-
-    UE_LOG(LogTemp, Log, TEXT("Flashlight: Unequipped"));
+    UE_LOG(LogTemp, Log, TEXT("Flashlight: Unequipping..."));
 }
 
 // ============================================
 // BATTERY MANAGEMENT
 // ============================================
+
+void UFlashlightComponent::AddBatteryCharge(float ChargePercent)
+{
+    if (ChargePercent <= 0.0f)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Invalid charge amount: %.1f%%"), ChargePercent);
+        return;
+    }
+
+    float OldPercent = GetBatteryPercentage();
+
+    // Convert percentage to seconds
+    float ChargeSeconds = (ChargePercent / 100.0f) * MaxBatteryDuration;
+    CurrentBattery = FMath::Clamp(CurrentBattery + ChargeSeconds, 0.0f, MaxBatteryDuration);
+
+    float NewPercent = GetBatteryPercentage();
+    float AddedPercent = NewPercent - OldPercent;
+
+    // Reset low battery warning if charged above threshold
+    if (OldPercent <= LowBatteryThreshold && NewPercent > LowBatteryThreshold)
+    {
+        bLowBatterySoundPlayed = false;
+        StopLowBatteryBeep();
+    }
+
+    // Update light intensity if currently on
+    if (bIsLightOn)
+    {
+        TargetLightIntensity = CalculateTargetIntensity();
+    }
+
+    // Broadcast event
+    OnBatteryChanged.Broadcast(CurrentBattery, MaxBatteryDuration);
+
+    // Play charge sound
+    PlaySound(BatteryReplaceSound);
+
+    UE_LOG(LogTemp, Log, TEXT("Battery: Charged +%.1f%% (%.1f%% → %.1f%%)"),
+        AddedPercent, OldPercent, NewPercent);
+}
 
 void UFlashlightComponent::ReplaceBattery()
 {
@@ -226,68 +393,18 @@ void UFlashlightComponent::ReplaceBattery()
     LastBatteryPercentage = 100.0f;
     bLowBatterySoundPlayed = false;
 
-    UpdateLightIntensity();
+    StopLowBatteryBeep();
+    
+    if (bIsLightOn)
+    {
+        TargetLightIntensity = NormalIntensity;
+    }
+
     PlaySound(BatteryReplaceSound);
     OnBatteryChanged.Broadcast(CurrentBattery, MaxBatteryDuration);
 
-    UE_LOG(LogTemp, Log, TEXT("Battery: Replaced (100%% - %.1fs duration)"), MaxBatteryDuration);
+    UE_LOG(LogTemp, Log, TEXT("Battery: Replaced (100%%)"));
 }
-
-void UFlashlightComponent::AddBatteryCharge(float Amount)
-{
-    if (Amount <= 0.0f)
-    {
-        return;
-    }
-
-    float OldBattery = CurrentBattery;
-    CurrentBattery = FMath::Clamp(CurrentBattery + Amount, 0.0f, MaxBatteryDuration);
-
-    if (IsBatteryLow() && GetBatteryPercentage() > LowBatteryThreshold)
-    {
-        bLowBatterySoundPlayed = false;
-    }
-
-    if (bIsLightOn)
-    {
-        UpdateLightIntensity();
-    }
-
-    OnBatteryChanged.Broadcast(CurrentBattery, MaxBatteryDuration);
-
-    UE_LOG(LogTemp, Log, TEXT("Battery: Added %.1fs charge (%.1f%% -> %.1f%%)"), 
-        Amount, 
-        (OldBattery / MaxBatteryDuration) * 100.0f,
-        GetBatteryPercentage());
-}
-
-float UFlashlightComponent::GetBatteryPercentage() const
-{
-    if (MaxBatteryDuration <= 0.0f)
-    {
-        return 0.0f;
-    }
-    return (CurrentBattery / MaxBatteryDuration) * 100.0f;
-}
-
-bool UFlashlightComponent::IsBatteryLow() const
-{
-    return GetBatteryPercentage() <= LowBatteryThreshold;
-}
-
-bool UFlashlightComponent::IsBatteryDepleted() const
-{
-    return CurrentBattery <= 0.0f;
-}
-
-bool UFlashlightComponent::CanToggleLight() const
-{
-    return bIsEquipped && !IsBatteryDepleted();
-}
-
-// ============================================
-// INTERNAL FUNCTIONS - BATTERY
-// ============================================
 
 void UFlashlightComponent::UpdateBattery(float DeltaTime)
 {
@@ -296,82 +413,172 @@ void UFlashlightComponent::UpdateBattery(float DeltaTime)
         return;
     }
 
-    CurrentBattery -= DrainRate * DeltaTime;
-    CurrentBattery = FMath::Max(CurrentBattery, 0.0f);
+    // Drain battery
+    float DrainAmount = DrainRate * DeltaTime;
+    CurrentBattery = FMath::Max(CurrentBattery - DrainAmount, 0.0f);
 
     float CurrentPercentage = GetBatteryPercentage();
 
+    // Broadcast battery change
     OnBatteryChanged.Broadcast(CurrentBattery, MaxBatteryDuration);
 
+    // Check for low battery warning
     if (!bLowBatterySoundPlayed && CurrentPercentage <= LowBatteryThreshold && LastBatteryPercentage > LowBatteryThreshold)
     {
-        PlaySound(LowBatterySound);
-        OnBatteryLow.Broadcast();
-        bLowBatterySoundPlayed = true;
-        
-        UE_LOG(LogTemp, Warning, TEXT("Battery: LOW! (%.1f%%)"), CurrentPercentage);
+        HandleBatteryLow();
     }
 
+    // Check for battery depletion
     if (IsBatteryDepleted())
     {
-        SetLightEnabled(false);
-        OnBatteryDepleted.Broadcast();
-        
-        UE_LOG(LogTemp, Warning, TEXT("Battery: DEPLETED!"));
-    }
-
-    UpdateLightIntensity();
-
-    if (CurrentPercentage < 5.0f)
-    {
-        HandleCriticalBattery();
+        HandleBatteryDepleted();
     }
 
     LastBatteryPercentage = CurrentPercentage;
 }
 
-void UFlashlightComponent::UpdateLightIntensity()
+void UFlashlightComponent::HandleBatteryDepleted()
 {
-    if (!SpotLight || !bIsLightOn)
-    {
-        return;
-    }
+    SetLightEnabled(false);
+    OnBatteryDepleted.Broadcast();
+    
+    UE_LOG(LogTemp, Warning, TEXT("Battery: DEPLETED!"));
+}
 
-    float TargetIntensity = NormalIntensity;
-    float CurrentPercentage = GetBatteryPercentage();
-
-    if (IsBatteryLow())
-    {
-        float Alpha = CurrentPercentage / LowBatteryThreshold;
-        TargetIntensity = FMath::Lerp(LowBatteryIntensity, NormalIntensity, Alpha);
-    }
-
-    SpotLight->SetIntensity(TargetIntensity);
+void UFlashlightComponent::HandleBatteryLow()
+{
+    PlaySound(LowBatterySound);
+    OnBatteryLow.Broadcast();
+    StartLowBatteryBeep();
+    bLowBatterySoundPlayed = true;
+    
+    UE_LOG(LogTemp, Warning, TEXT("Battery: LOW! (%.1f%%)"), GetBatteryPercentage());
 }
 
 // ============================================
-// INTERNAL FUNCTIONS - VISUAL EFFECTS
+// LIGHT CONTROL
 // ============================================
+
+void UFlashlightComponent::TurnLightOn()
+{
+    if (!SpotLight) return;
+
+    // Enable visibility
+    SpotLight->SetVisibility(true);
+    SpotLight->SetHiddenInGame(false);
+    SpotLight->SetActive(true);
+    
+    // Set target intensity for smooth fade-in
+    TargetLightIntensity = CalculateTargetIntensity();
+    bIsFadingLight = true;
+    
+    // Force render state update
+    SpotLight->MarkRenderStateDirty();
+    
+    // Start low battery beep if needed
+    if (IsBatteryLow())
+    {
+        StartLowBatteryBeep();
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("Light: Turning ON (Target Intensity: %.1f)"), TargetLightIntensity);
+}
+
+void UFlashlightComponent::TurnLightOff()
+{
+    if (!SpotLight) return;
+
+    // Set target intensity to 0 for smooth fade-out
+    TargetLightIntensity = 0.0f;
+    bIsFadingLight = true;
+    
+    // Stop low battery beep
+    StopLowBatteryBeep();
+
+    UE_LOG(LogTemp, Log, TEXT("Light: Turning OFF"));
+}
+
+float UFlashlightComponent::CalculateTargetIntensity() const
+{
+    if (!bIsLightOn)
+    {
+        return 0.0f;
+    }
+
+    float CurrentPercentage = GetBatteryPercentage();
+
+    // Normal intensity when battery is above low threshold
+    if (CurrentPercentage > LowBatteryThreshold)
+    {
+        return NormalIntensity;
+    }
+
+    // Reduced intensity when battery is low
+    float Alpha = FMath::Clamp(CurrentPercentage / LowBatteryThreshold, 0.0f, 1.0f);
+    return FMath::Lerp(LowBatteryIntensity, NormalIntensity, Alpha);
+}
+
+void UFlashlightComponent::UpdateLightIntensity(float DeltaTime)
+{
+    if (!SpotLight) return;
+
+    // Update target intensity based on battery level
+    if (bIsLightOn)
+    {
+        TargetLightIntensity = CalculateTargetIntensity();
+    }
+
+    // Smooth transition to target intensity
+    if (!FMath::IsNearlyEqual(CurrentLightIntensity, TargetLightIntensity, 0.1f))
+    {
+        CurrentLightIntensity = FMath::FInterpTo(
+            CurrentLightIntensity,
+            TargetLightIntensity,
+            DeltaTime,
+            LightFadeSpeed
+        );
+        
+        bIsFadingLight = true;
+    }
+    else
+    {
+        CurrentLightIntensity = TargetLightIntensity;
+        
+        // If faded to 0, disable the light completely
+        if (CurrentLightIntensity <= 0.1f && !bIsLightOn)
+        {
+            SpotLight->SetVisibility(false);
+            SpotLight->SetHiddenInGame(true);
+            SpotLight->SetActive(false);
+        }
+        
+        bIsFadingLight = false;
+    }
+
+    // Apply flicker effect if enabled and battery is low
+    float FinalIntensity = CurrentLightIntensity;
+    
+    if (bEnableFlickerEffect && bIsLightOn && IsBatteryLow())
+    {
+        ApplyFlickerEffect(DeltaTime);
+        
+        // Calculate flicker
+        float FlickerAmount = FMath::Sin(FlickerTimer) * FlickerIntensity * 0.5f + (1.0f - FlickerIntensity * 0.5f);
+        FinalIntensity *= FlickerAmount;
+    }
+
+    // Handle critical battery effects
+    if (bIsLightOn && GetBatteryPercentage() < CriticalBatteryThreshold)
+    {
+        HandleCriticalBattery();
+    }
+
+    SpotLight->SetIntensity(FinalIntensity);
+}
 
 void UFlashlightComponent::ApplyFlickerEffect(float DeltaTime)
 {
-    if (!SpotLight || !bIsLightOn)
-    {
-        return;
-    }
-
     FlickerTimer += DeltaTime * FlickerSpeed;
-    float FlickerAmount = FMath::Sin(FlickerTimer) * FlickerIntensity * 0.5f + (1.0f - FlickerIntensity * 0.5f);
-
-    float BaseIntensity = NormalIntensity;
-    if (IsBatteryLow())
-    {
-        float Alpha = GetBatteryPercentage() / LowBatteryThreshold;
-        BaseIntensity = FMath::Lerp(LowBatteryIntensity, NormalIntensity, Alpha);
-    }
-
-    float FlickeredIntensity = BaseIntensity * FlickerAmount;
-    SpotLight->SetIntensity(FlickeredIntensity);
 }
 
 void UFlashlightComponent::HandleCriticalBattery()
@@ -381,14 +588,17 @@ void UFlashlightComponent::HandleCriticalBattery()
         return;
     }
 
-    if (FMath::RandRange(0.0f, 1.0f) < 0.01f)
+    // Random chance for temporary blackout
+    if (FMath::RandRange(0.0f, 1.0f) < 0.01f) // 1% chance per frame
     {
+        // Temporary blackout
         SpotLight->SetVisibility(false);
         SpotLight->SetHiddenInGame(true);
 
-        FTimerHandle TimerHandle;
+        // Restore after short delay
+        FTimerHandle TempTimer;
         GetWorld()->GetTimerManager().SetTimer(
-            TimerHandle,
+            TempTimer,
             [this]()
             {
                 if (SpotLight && bIsLightOn && !IsBatteryDepleted())
@@ -404,15 +614,15 @@ void UFlashlightComponent::HandleCriticalBattery()
 }
 
 // ============================================
-// INTERNAL FUNCTIONS - AUDIO
+// AUDIO
 // ============================================
 
-void UFlashlightComponent::PlaySound(USoundBase* Sound)
+void UFlashlightComponent::PlaySound(USoundBase* Sound) const
 {
-    if (Sound && GetOwner())
+    if (Sound && GetOwner() && GetWorld())
     {
         UGameplayStatics::PlaySoundAtLocation(
-            this,
+            GetWorld(),
             Sound,
             GetOwner()->GetActorLocation(),
             1.0f,
@@ -423,91 +633,135 @@ void UFlashlightComponent::PlaySound(USoundBase* Sound)
 
 void UFlashlightComponent::PlayToggleSound()
 {
-    if (bIsLightOn)
-    {
-        PlaySound(ToggleOnSound);
-    }
-    else
-    {
-        PlaySound(ToggleOffSound);
-    }
+    USoundBase* SoundToPlay = bIsLightOn ? ToggleOnSound : ToggleOffSound;
+    PlaySound(SoundToPlay);
 }
 
-void UFlashlightComponent::InitializeFlashlight(AFlashlight* OwnerFlashlight, USpotLightComponent* Spotlight)
+void UFlashlightComponent::StartLowBatteryBeep()
 {
-    if (!OwnerFlashlight || !Spotlight)
+    if (!GetWorld()) return;
+
+    StopLowBatteryBeep();
+
+    GetWorld()->GetTimerManager().SetTimer(
+        LowBatteryBeepTimer,
+        this,
+        &UFlashlightComponent::LowBatteryBeep,
+        LowBatteryBeepIntervalBase,
+        false
+    );
+}
+
+void UFlashlightComponent::LowBatteryBeep()
+{
+    if (!GetWorld()) return;
+
+    PlaySound(LowBatteryBeepSound);
+
+    float CurrentPercent = GetBatteryPercentage();
+
+    // Stop beeping if battery is no longer low or depleted
+    if (CurrentPercent > LowBatteryThreshold || IsBatteryDepleted())
     {
-        UE_LOG(LogTemp, Error, TEXT("InitializeFlashlight: NULL parameters!"));
+        StopLowBatteryBeep();
         return;
     }
 
-    CurrentFlashlightActor = OwnerFlashlight;
-    SpotLight = Spotlight;
-    
-    // Initialize spotlight to OFF state
-    SpotLight->SetVisibility(false);
-    SpotLight->SetHiddenInGame(true);
-    SpotLight->SetActive(false);
-    SpotLight->SetIntensity(NormalIntensity);
-    
-    // Make sure it's properly configured
-    SpotLight->SetCastShadows(true);
-    SpotLight->SetLightColor(FLinearColor::White);
-    
-    bIsEquipped = true;
-    bIsLightOn = false;
-    
-    OnFlashlightEquippedChanged.Broadcast(true);
+    // Calculate next beep interval (faster as battery gets lower)
+    float Threshold = FMath::Max(0.01f, LowBatteryThreshold);
+    float NextInterval = FMath::Clamp(
+        0.1f + (CurrentPercent / Threshold) * LowBatteryBeepIntervalBase,
+        0.1f,
+        LowBatteryBeepIntervalBase
+    );
+
+    // Schedule next beep
+    GetWorld()->GetTimerManager().SetTimer(
+        LowBatteryBeepTimer,
+        this,
+        &UFlashlightComponent::LowBatteryBeep,
+        NextInterval,
+        false
+    );
 }
 
-UTexture2D* UFlashlightComponent::UpdateFlashlightImage() const
+void UFlashlightComponent::StopLowBatteryBeep()
+{
+    if (GetWorld())
+    {
+        GetWorld()->GetTimerManager().ClearTimer(LowBatteryBeepTimer);
+    }
+}
+
+// ============================================
+// CLEANUP
+// ============================================
+
+void UFlashlightComponent::CleanupFlashlight()
+{
+    // Stop all timers
+    if (GetWorld())
+    {
+        GetWorld()->GetTimerManager().ClearTimer(LowBatteryBeepTimer);
+        GetWorld()->GetTimerManager().ClearTimer(EquipAnimationTimer);
+        GetWorld()->GetTimerManager().ClearTimer(UnequipAnimationTimer);
+    }
+
+    // Clear references
+    SpotLight = nullptr;
+    CurrentFlashlightActor = nullptr;
+    
+    // Reset state
+    bIsLightOn = false;
+    CurrentLightIntensity = 0.0f;
+    TargetLightIntensity = 0.0f;
+}
+
+// ============================================
+// GETTERS
+// ============================================
+
+float UFlashlightComponent::GetBatteryPercentage() const
+{
+    if (MaxBatteryDuration <= 0.0f)
+    {
+        return 0.0f;
+    }
+    return FMath::Clamp((CurrentBattery / MaxBatteryDuration) * 100.0f, 0.0f, 100.0f);
+}
+
+bool UFlashlightComponent::IsBatteryLow() const
+{
+    return GetBatteryPercentage() <= LowBatteryThreshold;
+}
+
+bool UFlashlightComponent::IsBatteryDepleted() const
+{
+    return CurrentBattery <= 0.0f;
+}
+
+bool UFlashlightComponent::CanToggleLight() const
+{
+    return (CurrentState == EFlashlightState::Equipped) && !IsBatteryDepleted();
+}
+
+UTexture2D* UFlashlightComponent::GetFlashlightIcon() const
 {
     if (!CurrentFlashlightActor) return nullptr;
 
-    if (ACharacter* Character = UGameplayStatics::GetPlayerCharacter(this,0))
-    {
-        if (UInventoryComponent* InvComp = Character->FindComponentByClass<UInventoryComponent>())
-        {
-            FItemData ItemData;
-            if (InvComp->GetEquippedItem(ItemData))
-            {
-                if (ItemData.ItemType == EItemType::Tool &&
-                    ItemData.ToolType == EToolType::Flashlight)
-                {
-                    return !bIsLightOn ? ItemData.FlashlightOn : ItemData.FlashlightOff;
-                }
-            }
-        }
-    }
-    return nullptr;
-}
+    ACharacter* Character = UGameplayStatics::GetPlayerCharacter(this, 0);
+    if (!Character) return nullptr;
 
-void UFlashlightComponent::SetEquipped(bool bEquipped)
-{
-    bool bWasEquipped = bIsEquipped;
-    bIsEquipped = bEquipped;
+    UInventoryComponent* InvComp = Character->FindComponentByClass<UInventoryComponent>();
+    if (!InvComp) return nullptr;
+
+    FItemData ItemData;
+    if (!InvComp->GetEquippedItem(ItemData)) return nullptr;
+
+    if (ItemData.ItemType != EItemType::Tool || ItemData.ToolType != EToolType::Flashlight)
+    {
+        return nullptr;
+    }
     
-    if (!bIsEquipped)
-    {
-        // Unequipping - turn off light if it's on
-        if (bIsLightOn)
-        {
-            SetLightEnabled(false);
-        }
-        
-        // Clear references
-        SpotLight = nullptr;
-        CurrentFlashlightActor = nullptr;
-        
-        UE_LOG(LogTemp, Log, TEXT("FlashlightComponent: UNEQUIPPED"));
-    }
-    else if (!bWasEquipped)
-    {
-        UE_LOG(LogTemp, Log, TEXT("FlashlightComponent: EQUIPPED"));
-    }
-
-    if (bWasEquipped != bIsEquipped)
-    {
-        OnFlashlightEquippedChanged.Broadcast(bIsEquipped);
-    }
+    return bIsLightOn ? ItemData.FlashlightOn : ItemData.FlashlightOff;
 }

@@ -19,6 +19,11 @@ public:
 
     UPROPERTY()
     TObjectPtr<AWidgetManager> WidgetManager;
+    
+    UPROPERTY()
+    UMainMenuSettingWidget* SettingsWidget;
+    
+    void InitializeWithWidgetManager();
 
 protected:
     virtual void NativeConstruct() override;

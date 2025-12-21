@@ -6,7 +6,14 @@
 #include "Kismet/GameplayStatics.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
 #include "UI/HUD/WidgetManager.h"
-#include "UI/Settings/Tab/GraphicWidget.h"
+
+void UPauseMenuWidget::InitializeWithWidgetManager()
+{
+    if (SettingsWidget && WidgetManager)
+    {
+        SettingsWidget->SetWidgetManager(WidgetManager);
+    }
+}
 
 void UPauseMenuWidget::NativeConstruct()
 {
@@ -17,18 +24,6 @@ void UPauseMenuWidget::NativeConstruct()
 	if (SettingsButton) SettingsButton->OnClicked.AddDynamic(this, &UPauseMenuWidget::OnClickSettingButton);
 
 	if (BackButton) BackButton->OnClicked.AddDynamic(this, &UPauseMenuWidget::OnClickBackButton);
-    
-    if (GraphicWidget && WidgetManager)
-    {
-        GraphicWidget->SetWidgetManager(WidgetManager);
-        UE_LOG(LogTemp, Log, TEXT("PauseMenuWidget: GraphicWidget connected to WidgetManager"));
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("PauseMenuWidget: Failed to connect - GraphicWidget=%s, WidgetManager=%s"),
-               GraphicWidget ? TEXT("Valid") : TEXT("NULL"),
-               WidgetManager ? TEXT("Valid") : TEXT("NULL"));
-    }
 }
 
 void UPauseMenuWidget::OnClickResumeButton()
