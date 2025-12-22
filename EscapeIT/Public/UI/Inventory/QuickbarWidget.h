@@ -1,4 +1,3 @@
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -55,6 +54,12 @@ public:
     TObjectPtr<UTextBlock> BatteryWarningText;  
     
     UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UTextBlock> TutorialInteractText; 
+    
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UTextBlock> TutorialBatteryText;  
+    
+    UPROPERTY(meta = (BindWidgetOptional))
     TObjectPtr<UWidgetAnimation> BatteryWarningAnimation;
 
     // ========================================================================
@@ -84,6 +89,9 @@ public:
     
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Quickbar|Config")
     float PulseSpeed = 5.0f;
+    
+    UPROPERTY(EditAnywhere,BlueprintReadWrite, Category = "Quickbar|Config")
+    TObjectPtr<UTexture2D> LeftClickTexture;
 
     // ========================================================================
     // PUBLIC API
@@ -100,6 +108,12 @@ public:
     
     UFUNCTION(BlueprintCallable, Category = "Quickbar")
     void ClearHighlight();
+    
+    UFUNCTION(BlueprintCallable, Category = "Quickbar")
+    void UpdateTutorialTextForEquippedItem();
+    
+    UFUNCTION(BlueprintCallable,Category="Quickbar")
+    void ShowTutorialBatteryText();
 
 protected:
     // ========================================================================
@@ -141,9 +155,12 @@ protected:
     void DeactivateLowBatteryWarning();
     bool ValidateQuickbarState();
     
-    int32 FindFlashlightSlot() const;
+    int32 FindFlashlightSlot();
+    
     bool IsFlashlightItem(FName ItemID) const;
+    
     FLinearColor GetBatteryColor(float BatteryPercent) const;
+    void UpdateBatteryTextColor(float BatteryPercent);
 
 private:
     // ========================================================================
@@ -174,14 +191,17 @@ private:
     float BatteryCheckTimer = 0.0f;
     
     static constexpr float BATTERY_CHECK_INTERVAL = 0.1f;
+    static constexpr float MEDIUM_BATTERY_THRESHOLD = 50.0f;
+    static constexpr float LOW_BATTERY_VISUAL_THRESHOLD = 20.0f;
     
     UFUNCTION()
     void UpdateFlashlightIcon(UTexture2D* Icon);
     
     void ShowBatteryBar();
     void HideBatteryBar();
-    void SetBatterPercentText();
     
-    UPROPERTY()
-    TObjectPtr<UInventorySlotWidget> InventorySlotWidget;  
+    void SetBatteryPercentText();
+    
+    void UpdateTutorialText(int32 EquippedSlotIndex);
+    void HideTextBlock(UTextBlock* Text);
 };

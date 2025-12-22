@@ -60,7 +60,7 @@ enum class EToolType : uint8
     Flashlight      UMETA(DisplayName = "Flashlight"),      // Main light source
     Lighter         UMETA(DisplayName = "Lighter"),         // Temporary light
     Wrench          UMETA(DisplayName = "Wrench"),          // Opens panels
-    MasterKey       UMETA(DisplayName = "Master Key"),      // Opens multiple doors
+    Lockpick       UMETA(DisplayName = "Lockpick"),      // Opens multiple doors
     Other           UMETA(DisplayName = "Other")
 };
 
@@ -233,6 +233,11 @@ struct FItemData : public FTableRowBase
         meta = (EditCondition = "ConsumableType == EConsumableType::Battery && ItemType == EItemType::Consumable", EditConditionHides,
                 Tooltip = "Battery duration in seconds (GDD: 120s standard)"))
     float BatteryDuration = 120.0f;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battery",
+    meta = (EditCondition = "ConsumableType == EConsumableType::Battery && ItemType == EItemType::Consumable", EditConditionHides,
+            Tooltip = "Battery duration rate"))
+    float BatteryDrainRate = 1.0f; 
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battery",
         meta = (EditCondition = "ConsumableType == EConsumableType::Battery && ItemType == EItemType::Consumable", EditConditionHides,

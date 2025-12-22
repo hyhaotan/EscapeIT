@@ -106,10 +106,10 @@ public:
     TSubclassOf<UInventorySlotWidget> SlotWidgetClass;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory|Config")
-    int32 GridRows = 2;
+    int32 GridRows = 4;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory|Config")
-    int32 GridColumns = 5;
+    int32 GridColumns = 4;
 
     // ========================================================================
     // BATTERY COLORS
@@ -226,7 +226,7 @@ protected:
     int32 FindEmptyQuickbarSlot() const;
     int32 FindQuickbarSlotByItemID(FName ItemID) const;
     void ShowQuickbarFullMessage();
-    bool TryAssignItemToQuickbar(int32 InventorySlotIndex, FName ItemID);
+    bool TryAssignItemToQuickbar(int32 InventorySlotIndex, FName ItemID, int32 TargetQuickbarSlot);
     void ValidateSelectedSlot();
 
 private:

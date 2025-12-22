@@ -1,5 +1,4 @@
-﻿
-#include "UI/Inventory/QuickbarWidget.h"
+﻿#include "UI/Inventory/QuickbarWidget.h"
 #include "Actor/Components/InventoryComponent.h"
 #include "Actor/Components/FlashlightComponent.h"
 #include "Components/HorizontalBox.h"
@@ -29,9 +28,25 @@ void UQuickbarWidget::NativeConstruct()
     if (BatteryTextPercent)
     {
         BatteryTextPercent->SetVisibility(ESlateVisibility::Collapsed);
+        BatteryTextPercent->SetText(FText::FromString(TEXT("100%")));
+        BatteryTextPercent->SetColorAndOpacity(HighBatteryColor);
+    }   
+    
+    if (BatteryWarningText)
+    {
+        BatteryWarningText->SetVisibility(ESlateVisibility::Collapsed);
+    } 
+    
+    if (TutorialInteractText)
+    {
+        TutorialInteractText->SetVisibility(ESlateVisibility::Collapsed);
+        TutorialInteractText->SetText(FText::GetEmpty());
     }
     
-    InventorySlotWidget = CreateWidget<UInventorySlotWidget>(GetWorld(),SlotWidgetClass);
+    if (TutorialBatteryText)
+    {
+        TutorialBatteryText->SetVisibility(ESlateVisibility::Collapsed);
+    }
 }
 
 void UQuickbarWidget::NativeDestruct()
@@ -47,14 +62,18 @@ void UQuickbarWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
     if (!bIsInitialized || !FlashlightComponent) return;
 
     if (!FlashlightComponent->IsEquipped()) return;
+    
+    bool bIsLightOn = FlashlightComponent->IsLightOn();
 
     // Throttle battery checks for performance
     BatteryCheckTimer += InDeltaTime;
-    if (BatteryCheckTimer >= BATTERY_CHECK_INTERVAL)
+    
+    float UpdateInterval = bIsLightOn ? 0.05f : BATTERY_CHECK_INTERVAL;
+    
+    if (BatteryCheckTimer >= UpdateInterval)
     {
         BatteryCheckTimer = 0.0f;
         
-        // Cache flashlight slot to avoid repeated searches
         if (CachedFlashlightSlot == -1)
         {
             CachedFlashlightSlot = FindFlashlightSlot();
@@ -110,7 +129,6 @@ void UQuickbarWidget::InitQuickBar(UInventoryComponent* InInventoryComp, UFlashl
             FlashlightComponent->OnFlashlightToggled.AddDynamic(this, &UQuickbarWidget::OnFlashlightToggled);
         }
         
-        
         if (!FlashlightComponent->OnFlashlightStateChanged.IsAlreadyBound(this, &UQuickbarWidget::OnFlashlightStateChanged))
         {
             FlashlightComponent->OnFlashlightStateChanged.AddDynamic(this, &UQuickbarWidget::OnFlashlightStateChanged);
@@ -124,7 +142,12 @@ void UQuickbarWidget::InitQuickBar(UInventoryComponent* InInventoryComp, UFlashl
         if (!FlashlightComponent->OnBatteryDepleted.IsAlreadyBound(this,&UQuickbarWidget::OnBatteryDepleted))
         {
             FlashlightComponent->OnBatteryDepleted.AddDynamic(this,&UQuickbarWidget::OnBatteryDepleted);
-        }   
+        }
+     
+        if (!FlashlightComponent->OnFlashlightImageChanged.IsAlreadyBound(this, &UQuickbarWidget::UpdateFlashlightIcon))
+        {
+            FlashlightComponent->OnFlashlightImageChanged.AddDynamic(this, &UQuickbarWidget::UpdateFlashlightIcon);
+        }
     }
 
     bIsInitialized = true;
@@ -144,9 +167,7 @@ void UQuickbarWidget::UnbindAllEvents()
         FlashlightComponent->OnBatteryChanged.RemoveDynamic(this, &UQuickbarWidget::OnBatteryChanged);
         FlashlightComponent->OnFlashlightToggled.RemoveDynamic(this, &UQuickbarWidget::OnFlashlightToggled);
         FlashlightComponent->OnFlashlightImageChanged.RemoveDynamic(this, &UQuickbarWidget::UpdateFlashlightIcon);
-        
         FlashlightComponent->OnFlashlightStateChanged.RemoveDynamic(this, &UQuickbarWidget::OnFlashlightStateChanged);
-        
         FlashlightComponent->OnBatteryLow.RemoveDynamic(this, &UQuickbarWidget::OnBatteryLow);
         FlashlightComponent->OnBatteryDepleted.RemoveDynamic(this, &UQuickbarWidget::OnBatteryDepleted);
     }
@@ -158,7 +179,7 @@ void UQuickbarWidget::CreateQuickbarSlots()
 {
     if (!QuickbarContainer || !SlotWidgetClass)
     {
-        UE_LOG(LogTemp, Error, TEXT("❌ CreateQuickbarSlots: Missing required components!"));
+        UE_LOG(LogTemp, Error, TEXT("CreateQuickbarSlots: Missing required components!"));
         return;
     }
 
@@ -173,7 +194,7 @@ void UQuickbarWidget::CreateQuickbarSlots()
         
         if (!NewSlot)
         {
-            UE_LOG(LogTemp, Error, TEXT("❌ Failed to create slot widget %d"), i);
+            UE_LOG(LogTemp, Error, TEXT("Failed to create slot widget %d"), i);
             continue;
         }
 
@@ -203,14 +224,14 @@ void UQuickbarWidget::CreateQuickbarSlots()
         QuickbarSlots.Add(NewSlot);
     }
 
-    UE_LOG(LogTemp, Log, TEXT("✅ Created %d quickbar slots"), QuickbarSlots.Num());
+    UE_LOG(LogTemp, Log, TEXT("Created %d quickbar slots"), QuickbarSlots.Num());
 }
 
 void UQuickbarWidget::RefreshQuickbar()
 {
     if (!InventoryComponent)
     {
-        UE_LOG(LogTemp, Warning, TEXT("⚠️ RefreshQuickbar called with null InventoryComponent"));
+        UE_LOG(LogTemp, Warning, TEXT("RefreshQuickbar called with null InventoryComponent"));
         return;
     }
 
@@ -223,6 +244,8 @@ void UQuickbarWidget::RefreshQuickbar()
     // Reset cached flashlight slot to force re-search
     CachedFlashlightSlot = -1;
     UpdateBatteryBarVisibility();
+    
+    UpdateTutorialTextForEquippedItem();
 }
 
 void UQuickbarWidget::UpdateSlot(int32 SlotIndex)
@@ -239,6 +262,18 @@ void UQuickbarWidget::UpdateSlot(int32 SlotIndex)
     // Update equipped state
     bool bIsEquipped = (InventoryComponent->CurrentEquippedSlotIndex == SlotIndex);
     SlotWidget->SetEquipped(bIsEquipped);
+
+    if (bIsEquipped)
+    {
+        UpdateTutorialText(SlotIndex);
+        ShowTutorialBatteryText();
+       
+    }
+    else if (InventoryComponent->CurrentEquippedSlotIndex == -1)
+    {
+        HideTextBlock(TutorialInteractText);
+        HideTextBlock(TutorialBatteryText);
+    }
 }
 
 void UQuickbarWidget::HighlightSlot(int32 SlotIndex)
@@ -284,6 +319,8 @@ void UQuickbarWidget::OnInventoryUpdated()
     CachedFlashlightSlot = -1;
     
     RefreshQuickbar();
+    
+    UpdateTutorialTextForEquippedItem();
 }
 
 void UQuickbarWidget::OnItemAdded(FName ItemID, int32 Quantity)
@@ -308,7 +345,10 @@ void UQuickbarWidget::OnItemAdded(FName ItemID, int32 Quantity)
 
 void UQuickbarWidget::OnBatteryChanged(float CurrentBattery, float MaxBattery)
 {
-    if (FlashlightComponent && FlashlightComponent->IsEquipped()) UpdateBatteryBar();
+    if (FlashlightComponent && FlashlightComponent->IsEquipped()) 
+    {
+        UpdateBatteryBar();
+    }
 }
 
 void UQuickbarWidget::OnFlashlightToggled(bool bIsOn)
@@ -323,11 +363,15 @@ void UQuickbarWidget::OnFlashlightToggled(bool bIsOn)
     if (bIsOn)
     {
         HighlightSlot(FlashlightSlotIndex);
+        UpdateBatteryBar();
+        SetBatteryPercentText();
     }
     else if (CurrentSelectedSlot == FlashlightSlotIndex)
     {
         ResetSlotVisuals(FlashlightSlotIndex);
         CurrentSelectedSlot = -1;
+        UpdateBatteryBar();
+        SetBatteryPercentText();
     }
 }
 
@@ -346,6 +390,18 @@ void UQuickbarWidget::OnFlashlightStateChanged(EFlashlightState NewState)
         {
             BatteryIcon->SetVisibility(ESlateVisibility::Collapsed);
         }
+        if (BatteryTextPercent)
+        {
+            BatteryTextPercent->SetVisibility(ESlateVisibility::Collapsed);
+        }   
+          
+        if (TutorialBatteryText)
+        {
+            TutorialBatteryText->SetVisibility(ESlateVisibility::Collapsed);
+        }
+
+        HideTextBlock(TutorialInteractText);
+        HideTextBlock(TutorialBatteryText);
         break;
 
     case EFlashlightState::Equipping:
@@ -362,14 +418,27 @@ void UQuickbarWidget::OnFlashlightStateChanged(EFlashlightState NewState)
         {
             BatteryIcon->SetVisibility(ESlateVisibility::Visible);
         }
+        if (BatteryTextPercent)
+        {
+            BatteryTextPercent->SetVisibility(ESlateVisibility::Visible);
+        }   
+        
+        if (TutorialBatteryText)
+        {
+            TutorialBatteryText->SetVisibility(ESlateVisibility::Visible);
+        }   
         
         // Update battery display
         if (FlashlightComponent)
         {
-            OnBatteryChanged(
-                FlashlightComponent->GetCurrentBattery(),
-                FlashlightComponent->GetMaxBatteryDuration()
-            );
+            float CurrentBattery = FlashlightComponent->GetCurrentBattery();
+            float MaxBattery = FlashlightComponent->GetMaxBatteryDuration();
+            
+            OnBatteryChanged(CurrentBattery, MaxBattery);
+            
+            SetBatteryPercentText();
+            
+            UpdateTutorialTextForEquippedItem();
         }
         break;
 
@@ -407,7 +476,7 @@ void UQuickbarWidget::OnBatteryDepleted()
     {
         BatteryWarningText->SetVisibility(ESlateVisibility::Visible);
         BatteryWarningText->SetColorAndOpacity(FLinearColor::Red);
-        BatteryWarningText->SetText(FText::FromString(TEXT("✖ Battery Depleted")));
+        BatteryWarningText->SetText(FText::FromString(TEXT("Battery Depleted")));
     }
     
     // Stop warning animation, show critical state
@@ -451,7 +520,7 @@ void UQuickbarWidget::UpdateBatteryBarVisibility()
         bLowBatteryWarningActive = false;
     }
     
-    UE_LOG(LogTemp, Log, TEXT("🔋 Battery Visibility: %s (QB:%s | Equip:%s | Slot:%d)"), 
+    UE_LOG(LogTemp, Log, TEXT("Battery Visibility: %s (QB:%s | Equip:%s | Slot:%d)"), 
         bShouldShow ? TEXT("SHOW") : TEXT("HIDE"),
         bHasFlashlightInQuickbar ? TEXT("Y") : TEXT("N"),
         bIsEquipped ? TEXT("Y") : TEXT("N"),
@@ -473,6 +542,8 @@ void UQuickbarWidget::ShowBatteryBar()
     if (BatteryTextPercent)
     {
         BatteryTextPercent->SetVisibility(ESlateVisibility::HitTestInvisible);
+
+        SetBatteryPercentText();
     }
 }
 
@@ -494,17 +565,148 @@ void UQuickbarWidget::HideBatteryBar()
     }
 }
 
-void UQuickbarWidget::SetBatterPercentText()
+void UQuickbarWidget::SetBatteryPercentText()
 {
-    if (!FlashlightComponent && !BatteryTextPercent) return;
+    if (!FlashlightComponent || !BatteryTextPercent) 
+    {
+        return;
+    }
     
-    float Battery = FlashlightComponent->GetBatteryPercentage();
+    float Raw = FlashlightComponent->GetBatteryPercentage();
     
-   float Raw = FlashlightComponent->GetBatteryPercentage();
-    
+    // Handle both 0-1 range and 0-100 range
     float Normalized = (Raw <= 1.01f) ? (Raw * 100.0f) : Raw;
-    int32 Percent = FMath::RoundToInt(FMath::Clamp(Normalized,0.0f,100.0f));
-    BatteryTextPercent->SetText(FText::FromString(FString::Printf(TEXT("%d%%"), Percent)));
+    int32 Percent = FMath::RoundToInt(FMath::Clamp(Normalized, 0.0f, 100.0f));
+    
+    FText PercentText = FText::FromString(FString::Printf(TEXT("%d%%"), Percent));
+    BatteryTextPercent->SetText(PercentText);
+    
+    UE_LOG(LogTemp, VeryVerbose, TEXT("Battery Text Set: %d%% (Raw: %.2f)"), Percent, Raw);
+}
+
+void UQuickbarWidget::UpdateTutorialText(int32 EquippedSlotIndex)
+{
+    if (!TutorialInteractText || !InventoryComponent) return;
+
+    if (EquippedSlotIndex < 0 || !QuickbarSlots.IsValidIndex(EquippedSlotIndex))
+    {
+        HideTextBlock(TutorialInteractText);
+        return;
+    }
+    
+    FInventorySlot SlotData = InventoryComponent->GetQuickbarSlot(EquippedSlotIndex);
+
+    if (!SlotData.IsValid())
+    {
+        HideTextBlock(TutorialInteractText);
+        return;
+    }
+    
+    FItemData ItemData;
+    if (!InventoryComponent->GetItemData(SlotData.ItemID, ItemData))
+    {
+        HideTextBlock(TutorialInteractText);
+        return;
+    }
+    
+    FString TutorialText;
+
+    switch (ItemData.ItemType)
+    {
+    case EItemType::Tool:
+        if (ItemData.ToolType == EToolType::Flashlight)
+        {
+            TutorialText = TEXT("Press [F] to Toggle Light");
+        }
+        else if (ItemData.ToolType == EToolType::Lockpick)
+        {
+            TutorialText = TEXT("Use on Locked Doors");
+        }
+        else
+        {
+            TutorialText = TEXT("Left Mouse to Use");
+        }
+        break;
+
+    case EItemType::Consumable:
+        TutorialText = TEXT("Left Mouse to Consume");
+        break;
+
+    case EItemType::Key:
+        TutorialText = TEXT("Use on Locked Objects");
+        break;
+
+    case EItemType::Document:
+        TutorialText = TEXT("Left Mouse to Read");
+        break;
+
+    case EItemType::QuestItem:
+        TutorialText = TEXT("Quest Item - Check Objectives");
+        break;
+
+    default:
+        TutorialText = TEXT("Left Mouse to Use");
+        break;
+    }
+    
+    TutorialInteractText->SetText(FText::FromString(TutorialText));
+    TutorialInteractText->SetVisibility(ESlateVisibility::HitTestInvisible);
+    
+    UE_LOG(LogTemp, Verbose, TEXT("Tutorial Text Updated: %s"), *TutorialText);
+}
+
+void UQuickbarWidget::HideTextBlock(UTextBlock* Text)
+{
+    if (Text)
+    {
+        Text->SetVisibility(ESlateVisibility::Collapsed);
+        UE_LOG(LogTemp, Verbose, TEXT("Tutorial Text Hidden"));
+    }
+}
+
+void UQuickbarWidget::UpdateTutorialTextForEquippedItem()
+{
+    if (!InventoryComponent)
+    {
+        HideTextBlock(TutorialInteractText);
+        return;
+    }
+    
+    int32 EquippedSlotIndex = InventoryComponent->CurrentEquippedSlotIndex;
+    
+    if (EquippedSlotIndex >= 0 && EquippedSlotIndex < QuickbarSlotCount)
+    {
+        UpdateTutorialText(EquippedSlotIndex);
+    }
+    else
+    {
+        HideTextBlock(TutorialInteractText);
+    }
+}
+
+void UQuickbarWidget::ShowTutorialBatteryText()
+{
+    if (!TutorialBatteryText || !InventoryComponent) return;
+    
+    int32 EquippedSlotIndex = InventoryComponent->CurrentEquippedSlotIndex;
+    
+    if (EquippedSlotIndex < 0 || EquippedSlotIndex >= QuickbarSlotCount)
+    {
+        TutorialBatteryText->SetVisibility(ESlateVisibility::Collapsed);
+        return;
+    }
+    
+    FInventorySlot SlotData = InventoryComponent->GetQuickbarSlot(EquippedSlotIndex);
+    
+    if (SlotData.IsValid() && IsFlashlightItem(SlotData.ItemID))
+    {
+        TutorialBatteryText->SetText(FText::FromString("Press [R] to Charge Battery"));
+        TutorialBatteryText->SetVisibility(ESlateVisibility::HitTestInvisible);
+    }
+    else
+    {
+        TutorialBatteryText->SetVisibility(ESlateVisibility::Collapsed);
+    }
 }
 
 void UQuickbarWidget::UpdateBatteryBar()
@@ -521,12 +723,6 @@ void UQuickbarWidget::UpdateBatteryBar()
         return;
     }
     
-    // Validate battery bar is visible
-    if (BatteryBar->GetVisibility() != ESlateVisibility::HitTestInvisible)
-    {
-        return;
-    }
-    
     float BatteryPercent = FlashlightComponent->GetBatteryPercentage();
     BatteryPercent = FMath::Clamp(BatteryPercent, 0.0f, 100.0f);
     
@@ -536,7 +732,9 @@ void UQuickbarWidget::UpdateBatteryBar()
     FLinearColor BarColor = GetBatteryColor(BatteryPercent);
     BatteryBar->SetFillColorAndOpacity(BarColor);
     
-    SetBatterPercentText();
+    UpdateBatteryTextColor(BatteryPercent);
+    
+    SetBatteryPercentText();
 }
 
 void UQuickbarWidget::UpdateLowBatteryWarning(float DeltaTime)
@@ -632,7 +830,7 @@ void UQuickbarWidget::ResetSlotVisuals(int32 SlotIndex)
     }
 }
 
-int32 UQuickbarWidget::FindFlashlightSlot() const
+int32 UQuickbarWidget::FindFlashlightSlot()
 {
     if (!InventoryComponent)
     {
@@ -656,6 +854,7 @@ int32 UQuickbarWidget::FindFlashlightSlot() const
         
         if (SlotData.IsValid() && IsFlashlightItem(SlotData.ItemID))
         {
+            CachedFlashlightSlot = i;
             return i;
         }
     }
@@ -681,27 +880,33 @@ bool UQuickbarWidget::IsFlashlightItem(FName ItemID) const
 
 FLinearColor UQuickbarWidget::GetBatteryColor(float BatteryPercent) const
 {
-    if (BatteryPercent > 50.0f)
+    if (BatteryPercent > MEDIUM_BATTERY_THRESHOLD)
     {
-        BatteryTextPercent->SetColorAndOpacity(HighBatteryColor);
         return HighBatteryColor;
     }
-    else if (BatteryPercent > 20.0f)
+    else if (BatteryPercent > LOW_BATTERY_VISUAL_THRESHOLD)
     {
-        BatteryTextPercent->SetColorAndOpacity(MediumBatteryColor);
         return MediumBatteryColor;
     }
     else if (BatteryPercent > LowBatteryThreshold)
     {
-        BatteryTextPercent->SetColorAndOpacity(LowBatteryColor);
         return LowBatteryColor;
     }
     else
     {
-        BatteryTextPercent->SetColorAndOpacity(CriticalBatteryColor);
         return CriticalBatteryColor;
     }
-    
+}
+
+void UQuickbarWidget::UpdateBatteryTextColor(float BatteryPercent)
+{
+    if (!BatteryTextPercent)
+    {
+        return;
+    }
+
+    FLinearColor TextColor = GetBatteryColor(BatteryPercent);
+    BatteryTextPercent->SetColorAndOpacity(TextColor);
 }
 
 void UQuickbarWidget::UpdateFlashlightIcon(UTexture2D* Icon)

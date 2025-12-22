@@ -618,7 +618,7 @@ void AEscapeITPlayerController::EquipQuickbarSlot(int32 SlotIndex)
                 {
                     PerformEquipAction(SlotIndex);
                 },
-                0.5f, // Wait for unequip animation
+                0.5f,
                 false
             );
             return;

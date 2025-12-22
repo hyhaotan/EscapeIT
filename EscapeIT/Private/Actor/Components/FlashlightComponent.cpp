@@ -6,6 +6,7 @@
 #include "Actor/Item/Flashlight.h"
 #include "TimerManager.h"
 #include "Actor/Components/InventoryComponent.h"
+#include "Components/TextBlock.h"
 
 UFlashlightComponent::UFlashlightComponent()
 {
@@ -13,7 +14,7 @@ UFlashlightComponent::UFlashlightComponent()
     PrimaryComponentTick.bStartWithTickEnabled = true;
     
     // Initialize battery to max
-    CurrentBattery = MaxBatteryDuration;
+    CurrentBattery = ItemData.BatteryDuration;
     LastBatteryPercentage = 100.0f;
     CurrentLightIntensity = 0.0f;
     TargetLightIntensity = 0.0f;
@@ -186,6 +187,12 @@ bool UFlashlightComponent::SetLightEnabled(bool bEnabled)
 
     // Broadcast events
     OnFlashlightToggled.Broadcast(bIsLightOn);
+    
+    UTexture2D* NewIcon = GetFlashlightIcon();
+    if (NewIcon)
+    {
+        OnFlashlightImageChanged.Broadcast(NewIcon);
+    }
 
     UE_LOG(LogTemp, Log, TEXT("Flashlight: %s (Battery: %.1f%%)"),
         bIsLightOn ? TEXT("ON") : TEXT("OFF"),
@@ -356,10 +363,10 @@ void UFlashlightComponent::AddBatteryCharge(float ChargePercent)
     }
 
     float OldPercent = GetBatteryPercentage();
-
+    
     // Convert percentage to seconds
-    float ChargeSeconds = (ChargePercent / 100.0f) * MaxBatteryDuration;
-    CurrentBattery = FMath::Clamp(CurrentBattery + ChargeSeconds, 0.0f, MaxBatteryDuration);
+    float ChargeSeconds = (ChargePercent / 100.0f) * ItemData.BatteryDuration;
+    CurrentBattery = FMath::Clamp(CurrentBattery + ChargeSeconds, 0.0f, ItemData.BatteryDuration);
 
     float NewPercent = GetBatteryPercentage();
     float AddedPercent = NewPercent - OldPercent;
@@ -378,7 +385,7 @@ void UFlashlightComponent::AddBatteryCharge(float ChargePercent)
     }
 
     // Broadcast event
-    OnBatteryChanged.Broadcast(CurrentBattery, MaxBatteryDuration);
+    OnBatteryChanged.Broadcast(CurrentBattery, ItemData.BatteryDuration);
 
     // Play charge sound
     PlaySound(BatteryReplaceSound);
@@ -389,7 +396,7 @@ void UFlashlightComponent::AddBatteryCharge(float ChargePercent)
 
 void UFlashlightComponent::ReplaceBattery()
 {
-    CurrentBattery = MaxBatteryDuration;
+    CurrentBattery = ItemData.BatteryDuration;
     LastBatteryPercentage = 100.0f;
     bLowBatterySoundPlayed = false;
 
@@ -401,7 +408,7 @@ void UFlashlightComponent::ReplaceBattery()
     }
 
     PlaySound(BatteryReplaceSound);
-    OnBatteryChanged.Broadcast(CurrentBattery, MaxBatteryDuration);
+    OnBatteryChanged.Broadcast(CurrentBattery, ItemData.BatteryDuration);
 
     UE_LOG(LogTemp, Log, TEXT("Battery: Replaced (100%%)"));
 }
@@ -414,13 +421,13 @@ void UFlashlightComponent::UpdateBattery(float DeltaTime)
     }
 
     // Drain battery
-    float DrainAmount = DrainRate * DeltaTime;
+    float DrainAmount = ItemData.BatteryDrainRate * DeltaTime;
     CurrentBattery = FMath::Max(CurrentBattery - DrainAmount, 0.0f);
 
     float CurrentPercentage = GetBatteryPercentage();
 
     // Broadcast battery change
-    OnBatteryChanged.Broadcast(CurrentBattery, MaxBatteryDuration);
+    OnBatteryChanged.Broadcast(CurrentBattery, ItemData.BatteryDuration);
 
     // Check for low battery warning
     if (!bLowBatterySoundPlayed && CurrentPercentage <= LowBatteryThreshold && LastBatteryPercentage > LowBatteryThreshold)
@@ -715,6 +722,9 @@ void UFlashlightComponent::CleanupFlashlight()
     bIsLightOn = false;
     CurrentLightIntensity = 0.0f;
     TargetLightIntensity = 0.0f;
+    bIsFadingLight = false;
+    
+    CurrentState = EFlashlightState::Unequipped;
 }
 
 // ============================================
@@ -723,11 +733,11 @@ void UFlashlightComponent::CleanupFlashlight()
 
 float UFlashlightComponent::GetBatteryPercentage() const
 {
-    if (MaxBatteryDuration <= 0.0f)
+    if (ItemData.BatteryDuration <= 0.0f)
     {
         return 0.0f;
     }
-    return FMath::Clamp((CurrentBattery / MaxBatteryDuration) * 100.0f, 0.0f, 100.0f);
+    return FMath::Clamp((CurrentBattery / ItemData.BatteryDuration) * 100.0f, 0.0f, 100.0f);
 }
 
 bool UFlashlightComponent::IsBatteryLow() const
@@ -755,13 +765,13 @@ UTexture2D* UFlashlightComponent::GetFlashlightIcon() const
     UInventoryComponent* InvComp = Character->FindComponentByClass<UInventoryComponent>();
     if (!InvComp) return nullptr;
 
-    FItemData ItemData;
-    if (!InvComp->GetEquippedItem(ItemData)) return nullptr;
+    FItemData ItemDatas;
+    if (!InvComp->GetEquippedItem(ItemDatas)) return nullptr;
 
-    if (ItemData.ItemType != EItemType::Tool || ItemData.ToolType != EToolType::Flashlight)
+    if (ItemDatas.ItemType != EItemType::Tool || ItemDatas.ToolType != EToolType::Flashlight)
     {
         return nullptr;
     }
     
-    return bIsLightOn ? ItemData.FlashlightOn : ItemData.FlashlightOff;
+    return !bIsLightOn ? ItemDatas.FlashlightOn : ItemDatas.FlashlightOff;
 }

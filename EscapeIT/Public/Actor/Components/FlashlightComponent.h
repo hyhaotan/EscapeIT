@@ -3,6 +3,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Data/ItemData.h"
 #include "FlashlightComponent.generated.h"
 
 // Forward declarations
@@ -87,7 +88,7 @@ public:
     float GetCurrentBattery() const { return CurrentBattery; }
 
     UFUNCTION(BlueprintPure, Category = "Flashlight|Battery")
-    float GetMaxBatteryDuration() const { return MaxBatteryDuration; }
+    float GetMaxBatteryDuration() const { return ItemData.BatteryDuration; }
 
     UFUNCTION(BlueprintPure, Category = "Flashlight|Battery")
     bool IsBatteryLow() const;
@@ -130,18 +131,12 @@ public:
     // CONFIGURATION - Battery
     // ============================================
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Flashlight|Battery")
-    float MaxBatteryDuration = 300.0f; // 5 minutes
-
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Flashlight|Battery")
-    float DrainRate = 1.0f; // Seconds per second
-
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Flashlight|Battery", meta = (ClampMin = "0", ClampMax = "100"))
-    float LowBatteryThreshold = 20.0f; // Percentage
+    float LowBatteryThreshold = 20.0f;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Flashlight|Battery")
-    float CriticalBatteryThreshold = 5.0f; // Percentage
-
+    float CriticalBatteryThreshold = 5.0f; 
+    
     // ============================================
     // CONFIGURATION - Light Properties
     // ============================================
@@ -283,4 +278,6 @@ private:
     FTimerHandle LowBatteryBeepTimer;
     FTimerHandle EquipAnimationTimer;
     FTimerHandle UnequipAnimationTimer;
+    
+    FItemData ItemData;
 };

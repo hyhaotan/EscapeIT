@@ -533,6 +533,26 @@ bool UInventoryComponent::EquipFlashlight(const FItemData& ItemData, int32 Quick
         return false;
     }
 
+    if (FlashlightComp->IsEquipped() || FlashlightComp->GetCurrentState() != EFlashlightState::Unequipped)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Forcing flashlight cleanup before re-equip"));
+        FlashlightComp->UnequipFlashlight();
+        
+        // Wait for cleanup to complete
+        FTimerHandle WaitTimer;
+        GetWorld()->GetTimerManager().SetTimer(
+            WaitTimer,
+            [this, ItemData, QuickbarIndex]()
+            {
+                // Retry equip after cleanup
+                EquipFlashlight(ItemData, QuickbarIndex);
+            },
+            0.5f,
+            false
+        );
+        return false;
+    }
+
     // Clean up existing flashlight if any
     if (SpawnedFlashlightActor)
     {
@@ -965,9 +985,16 @@ bool UInventoryComponent::SwapInventorySlots(int32 SlotA, int32 SlotB)
 
 bool UInventoryComponent::MoveItemToSlot(int32 SourceIndex, int32 TargetIndex)
 {
-    if (!InventorySlots.IsValidIndex(SourceIndex) || !InventorySlots.IsValidIndex(TargetIndex))
+    if (!InventorySlots.IsValidIndex(SourceIndex))
     {
-        UE_LOG(LogTemp, Error, TEXT("MoveItemToSlot: Invalid indices"));
+        UE_LOG(LogTemp, Error, TEXT("MoveItemToSlot: Invalid source index %d"), SourceIndex);
+        return false;
+    }
+
+    if (TargetIndex < 0 || TargetIndex >= MaxInventorySlots)
+    {
+        UE_LOG(LogTemp, Error, TEXT("MoveItemToSlot: Target index %d out of bounds (max: %d)"), 
+            TargetIndex, MaxInventorySlots);
         return false;
     }
 
@@ -976,24 +1003,33 @@ bool UInventoryComponent::MoveItemToSlot(int32 SourceIndex, int32 TargetIndex)
         return true;
     }
 
-    if (InventorySlots[TargetIndex].IsValid())
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Target slot not empty! Use SwapInventorySlots instead"));
-        return false;
-    }
-
     UE_LOG(LogTemp, Log, TEXT("MoveItemToSlot: %d → %d"), SourceIndex, TargetIndex);
 
-    // Move item
+    if (TargetIndex >= InventorySlots.Num())
+    {
+        int32 SlotsToAdd = (TargetIndex - InventorySlots.Num()) + 1;
+        for (int32 i = 0; i < SlotsToAdd; i++)
+        {
+            InventorySlots.Add(FInventorySlot());
+        }
+        UE_LOG(LogTemp, Log, TEXT("Expanded array to %d slots"), InventorySlots.Num());
+    }
+
+    if (InventorySlots[TargetIndex].IsValid())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Target slot occupied! Use SwapInventorySlots instead"));
+        return SwapInventorySlots(SourceIndex, TargetIndex);
+    }
+
     InventorySlots[TargetIndex] = InventorySlots[SourceIndex];
     InventorySlots[SourceIndex] = FInventorySlot();
 
-    // Update quickbar references
     for (int32 i = 0; i < QuickbarSlotIndices.Num(); i++)
     {
         if (QuickbarSlotIndices[i] == SourceIndex)
         {
             QuickbarSlotIndices[i] = TargetIndex;
+            UE_LOG(LogTemp, Log, TEXT("  → Updated quickbar[%d]: %d → %d"), i, SourceIndex, TargetIndex);
         }
     }
 
@@ -1778,7 +1814,7 @@ void UInventoryComponent::ValidateInventoryIntegrity()
     {
         if (!InventorySlots[i].IsValid())
         {
-            UE_LOG(LogTemp, Error, TEXT("❌ Invalid slot at index %d"), i);
+            UE_LOG(LogTemp, Error, TEXT("Invalid slot at index %d"), i);
             ErrorCount++;
         }
         else
@@ -1786,7 +1822,7 @@ void UInventoryComponent::ValidateInventoryIntegrity()
             FItemData ItemData;
             if (!GetItemData(InventorySlots[i].ItemID, ItemData))
             {
-                UE_LOG(LogTemp, Error, TEXT("❌ Unknown ItemID '%s' at index %d"), 
+                UE_LOG(LogTemp, Error, TEXT("Unknown ItemID '%s' at index %d"), 
                     *InventorySlots[i].ItemID.ToString(), i);
                 ErrorCount++;
             }
@@ -1802,12 +1838,12 @@ void UInventoryComponent::ValidateInventoryIntegrity()
         {
             if (!InventorySlots.IsValidIndex(InvIndex))
             {
-                UE_LOG(LogTemp, Error, TEXT("❌ Quickbar[%d] references invalid index %d"), i, InvIndex);
+                UE_LOG(LogTemp, Error, TEXT("Quickbar[%d] references invalid index %d"), i, InvIndex);
                 ErrorCount++;
             }
             else if (!InventorySlots[InvIndex].IsValid())
             {
-                UE_LOG(LogTemp, Error, TEXT("❌ Quickbar[%d] references empty slot %d"), i, InvIndex);
+                UE_LOG(LogTemp, Error, TEXT("Quickbar[%d] references empty slot %d"), i, InvIndex);
                 ErrorCount++;
             }
         }
@@ -1818,7 +1854,7 @@ void UInventoryComponent::ValidateInventoryIntegrity()
     {
         if (CurrentEquippedSlotIndex < 0 || CurrentEquippedSlotIndex >= QuickbarSlotIndices.Num())
         {
-            UE_LOG(LogTemp, Error, TEXT("❌ Invalid CurrentEquippedSlotIndex: %d"), CurrentEquippedSlotIndex);
+            UE_LOG(LogTemp, Error, TEXT("Invalid CurrentEquippedSlotIndex: %d"), CurrentEquippedSlotIndex);
             ErrorCount++;
         }
         else
@@ -1826,13 +1862,13 @@ void UInventoryComponent::ValidateInventoryIntegrity()
             int32 InvIndex = QuickbarSlotIndices[CurrentEquippedSlotIndex];
             if (InvIndex < 0 || !InventorySlots.IsValidIndex(InvIndex))
             {
-                UE_LOG(LogTemp, Error, TEXT("❌ Equipped slot %d references invalid inventory index"), 
+                UE_LOG(LogTemp, Error, TEXT("Equipped slot %d references invalid inventory index"), 
                     CurrentEquippedSlotIndex);
                 ErrorCount++;
             }
             else if (InventorySlots[InvIndex].ItemID != CurrentEquippedItemID)
             {
-                UE_LOG(LogTemp, Error, TEXT("❌ Equipped ItemID mismatch: %s vs %s"), 
+                UE_LOG(LogTemp, Error, TEXT("Equipped ItemID mismatch: %s vs %s"), 
                     *CurrentEquippedItemID.ToString(), 
                     *InventorySlots[InvIndex].ItemID.ToString());
                 ErrorCount++;
@@ -1842,11 +1878,11 @@ void UInventoryComponent::ValidateInventoryIntegrity()
     
     if (ErrorCount == 0)
     {
-        UE_LOG(LogTemp, Log, TEXT("✅ Inventory integrity check PASSED"));
+        UE_LOG(LogTemp, Log, TEXT("Inventory integrity check PASSED"));
     }
     else
     {
-        UE_LOG(LogTemp, Error, TEXT("❌ Inventory integrity check FAILED - %d errors found"), ErrorCount);
+        UE_LOG(LogTemp, Error, TEXT("Inventory integrity check FAILED - %d errors found"), ErrorCount);
     }
     
     UE_LOG(LogTemp, Log, TEXT("=========================================="));

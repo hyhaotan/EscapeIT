@@ -104,7 +104,6 @@ void UInventorySlotWidget::UpdateVisuals()
 
     FLinearColor BorderColor;
 
-    // ✅ Priority order for visual states
     if (bIsValidDropTarget)
     {
         BorderColor = ValidDropColor;
@@ -202,7 +201,7 @@ void UInventorySlotWidget::NativeOnDragDetected(const FGeometry& InGeometry, con
         return;
     }
 
-    UE_LOG(LogTemp, Log, TEXT("✅ Drag detected: Slot %d (%s)"), 
+    UE_LOG(LogTemp, Log, TEXT("Drag detected: Slot %d (%s)"), 
         SlotIndex, bIsQuickbarSlot ? TEXT("Quickbar") : TEXT("Inventory"));
 
     // Create drag operation
@@ -269,8 +268,24 @@ bool UInventorySlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDrag
     // ========================================================================
     else if (!DragOp->bIsFromQuickbar && bIsQuickbarSlot)
     {
-        // Assign inventory item to quickbar
-        bSuccess = InventoryComponentRef->MoveInventoryToQuickbar(DragOp->SourceSlotIndex, SlotIndex);
+        int32 ExistingQBSlot = InventoryComponentRef->FindQuickbarSlotByInventoryIndex(DragOp->SourceSlotIndex);
+
+        if (ExistingQBSlot >= 0)
+        {
+            if (ExistingQBSlot != SlotIndex)
+            {
+                bSuccess = InventoryComponentRef->SwapQuickbarSlots(ExistingQBSlot, SlotIndex);
+            }
+            else
+            {
+                bSuccess = true;
+            }
+        }
+        else
+        {
+            bSuccess = InventoryComponentRef->MoveInventoryToQuickbar(DragOp->SourceSlotIndex,SlotIndex);
+        }
+   
     }
     // ========================================================================
     // CASE 4: QUICKBAR → INVENTORY

@@ -928,29 +928,48 @@ void UInventoryWidget::ShowQuickbarFullMessage()
     }
 }
 
-bool UInventoryWidget::TryAssignItemToQuickbar(int32 InventorySlotIndex, FName ItemID)
+bool UInventoryWidget::TryAssignItemToQuickbar(int32 InventorySlotIndex, FName ItemID, int32 TargetQuickbarSlot)
 {
     if (!InventoryComponent)
     {
+        UE_LOG(LogTemp, Error, TEXT("TryAssignItemToQuickbar: No InventoryComponent!"));
         return false;
     }
     
-    // Check if already in quickbar
-    if (InventoryComponent->FindQuickbarSlotByInventoryIndex(InventorySlotIndex) >= 0)
+    if (TargetQuickbarSlot < 0 || TargetQuickbarSlot >= 3)
     {
-        return true; // Already Assign
+        UE_LOG(LogTemp, Error, TEXT("TryAssignItemToQuickbar: Invalid target slot %d"), TargetQuickbarSlot);
+        return false;
     }
-    
-    // Find empty slot
-    int32 EmptySlot = InventoryComponent->GetFirstEmptyQuickbarSlot();
 
-    if (EmptySlot < 0)
+    int32 CurrentQuickbarSlot = InventoryComponent->FindQuickbarSlotByInventoryIndex(InventorySlotIndex);
+    
+    if (CurrentQuickbarSlot == TargetQuickbarSlot)
     {
-        return false; // Quickbar full
+        UE_LOG(LogTemp, Log, TEXT("Item already in target quickbar slot %d"), TargetQuickbarSlot);
+        return true;
+    }
+
+    FInventorySlot TargetSlotData = InventoryComponent->GetQuickbarSlot(TargetQuickbarSlot);
+    
+    if (TargetSlotData.IsValid())
+    {
+        if (CurrentQuickbarSlot >= 0)
+        {
+            UE_LOG(LogTemp, Log, TEXT("Swapping quickbar slots %d ↔ %d"), 
+                CurrentQuickbarSlot, TargetQuickbarSlot);
+            return InventoryComponent->SwapQuickbarSlots(CurrentQuickbarSlot, TargetQuickbarSlot);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Log, TEXT("Replacing item in quickbar slot %d"), TargetQuickbarSlot);
+            return InventoryComponent->AssignToQuickbar(InventorySlotIndex, TargetQuickbarSlot);
+        }
     }
     
-    // Assign
-    return InventoryComponent->AssignToQuickbar(InventorySlotIndex,EmptySlot);
+    UE_LOG(LogTemp, Log, TEXT("Assigning inventory[%d] to quickbar[%d]"), 
+        InventorySlotIndex, TargetQuickbarSlot);
+    return InventoryComponent->AssignToQuickbar(InventorySlotIndex, TargetQuickbarSlot);
 }
 
 void UInventoryWidget::ValidateSelectedSlot()
