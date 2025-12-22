@@ -44,7 +44,7 @@ public:
     UPROPERTY(meta = (BindWidget))
     TObjectPtr<UProgressBar> BatteryBar;
     
-    UPROPERTY(meta = (BindWidgetOptional))
+    UPROPERTY(meta = (BindWidget))
     TObjectPtr<UImage> BatteryIcon;
 
     // ========================================================================
