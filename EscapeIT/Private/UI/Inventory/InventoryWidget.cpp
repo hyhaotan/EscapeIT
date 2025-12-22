@@ -716,7 +716,7 @@ FString UInventoryWidget::BuildStatsText(const FItemData& ItemData, const FInven
     if (ItemData.ItemType == EItemType::Tool && ItemData.ToolType == EToolType::Flashlight && FlashlightComponent)
     {
         float BatteryPercent = FlashlightComponent->GetBatteryPercentage();
-        float BatteryDuration = FlashlightComponent->GetBatteryDuration();
+        float BatteryDuration = FlashlightComponent->GetMaxBatteryDuration();
     
         int32 Minutes = FMath::FloorToInt(BatteryDuration / 60.0f);
         int32 Seconds = FMath::FloorToInt(BatteryDuration) % 60;

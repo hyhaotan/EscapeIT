@@ -12,6 +12,7 @@ class UHorizontalBox;
 class UProgressBar;
 class UTextBlock;
 class UImage;
+class UWidgetAnimation;
 
 UCLASS()
 class ESCAPEIT_API UQuickbarWidget : public UUserWidget
@@ -46,6 +47,15 @@ public:
     
     UPROPERTY(meta = (BindWidget))
     TObjectPtr<UImage> BatteryIcon;
+    
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UTextBlock> BatteryTextPercent;  
+    
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UTextBlock> BatteryWarningText;  
+    
+    UPROPERTY(meta = (BindWidgetOptional))
+    TObjectPtr<UWidgetAnimation> BatteryWarningAnimation;
 
     // ========================================================================
     // CONFIGURATION
@@ -109,7 +119,13 @@ protected:
     void OnFlashlightToggled(bool bIsOn);
     
     UFUNCTION()
-    void OnFlashlightEquippedChanged(bool bIsEquipped);
+    void OnFlashlightStateChanged(EFlashlightState NewState);
+    
+    UFUNCTION()
+    void OnBatteryLow();
+    
+    UFUNCTION()
+    void OnBatteryDepleted();
 
     // ========================================================================
     // INTERNAL FUNCTIONS
@@ -164,6 +180,7 @@ private:
     
     void ShowBatteryBar();
     void HideBatteryBar();
+    void SetBatterPercentText();
     
     UPROPERTY()
     TObjectPtr<UInventorySlotWidget> InventorySlotWidget;  

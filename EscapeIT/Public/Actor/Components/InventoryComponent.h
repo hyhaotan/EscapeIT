@@ -136,6 +136,12 @@ public:
     
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     bool EquipQuickbarSlot(int32 QuickbarIndex);
+    
+    UFUNCTION(BlueprintCallable,Category="Inventory")
+    bool EquipFlashlight(const FItemData& ItemData, int32 QuickbarIndex); 
+    
+    UFUNCTION(BlueprintCallable,Category="Inventory")
+    void UnequipFlashlight();
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     void UnequipCurrentItem();
@@ -266,7 +272,6 @@ protected:
     bool ApplyItemEffect(const FItemData& ItemData);
     
     bool AttachItemToHand(const FItemData& ItemData);
-    bool SpawnFlashlightActor(const FItemData& ItemData);
     void CleanupSpawnedActors();
     
     void PlayItemSound(USoundBase* Sound);

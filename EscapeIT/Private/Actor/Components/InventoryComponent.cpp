@@ -309,7 +309,7 @@ bool UInventoryComponent::UseItem(FName ItemID)
             return false;
         }
 
-        float CurrentBattery = FlashlightComp->CurrentBattery;
+        float CurrentBattery = FlashlightComp->GetCurrentBattery();
         if (CurrentBattery >= 100.0f)
         {
             UE_LOG(LogTemp, Warning, TEXT("UseItem: Battery is already full!"));
@@ -475,55 +475,22 @@ bool UInventoryComponent::EquipQuickbarSlot(int32 QuickbarIndex)
     // ========================================================================
     if (ItemData.ItemType == EItemType::Tool && ItemData.ToolType == EToolType::Flashlight)
     {
-        const auto Pawn = UGameplayStatics::GetPlayerPawn(this, 0);
-        if (!Pawn)
+        if (!EquipFlashlight(ItemData, QuickbarIndex))
         {
-            UE_LOG(LogTemp, Error, TEXT("Player pawn not found!"));
-            return false;
-        }
-
-        UFlashlightComponent* FlashlightComp = Pawn->FindComponentByClass<UFlashlightComponent>();
-        
-        if (!FlashlightComp)
-        {
-            UE_LOG(LogTemp, Error, TEXT("FlashlightComponent not found on character!"));
+            UE_LOG(LogTemp, Error, TEXT("Failed to equip flashlight"));
             return false;
         }
         
-        if (!SpawnFlashlightActor(ItemData))
-        {
-            UE_LOG(LogTemp, Error, TEXT("Failed to spawn flashlight visual actor!"));
-            return false;
-        }
-        
-        if (SpawnedFlashlightActor && SpawnedFlashlightActor->GetSpotLight())
-        {
-            FlashlightComp->InitializeFlashlight(SpawnedFlashlightActor, SpawnedFlashlightActor->SpotLightComponent);
-            FlashlightComp->SetEquipped(true);
-            
-            UE_LOG(LogTemp, Log, TEXT("FlashlightComponent connected to spawned flashlight"));
-        }
-        else
-        {
-            UE_LOG(LogTemp, Error, TEXT("SpawnedFlashlightActor or SpotLight is NULL!"));
-            if (SpawnedFlashlightActor)
-            {
-                SpawnedFlashlightActor->Destroy();
-                SpawnedFlashlightActor = nullptr;
-            }
-            return false;
-        }
+        return true;
     }
+
     // ========================================================================
-    // NORMAL ITEMS: Attach visual mesh to hand
+    // NORMAL ITEMS: Attach to hand
     // ========================================================================
-    else
+    if (!AttachItemToHand(ItemData))
     {
-        if (!AttachItemToHand(ItemData))
-        {
-            UE_LOG(LogTemp, Error, TEXT("Failed to attach item to hand"));
-            return false;
-        }
+        UE_LOG(LogTemp, Error, TEXT("Failed to attach item"));
+        return false;
     }
 
     // ========================================================================
@@ -533,8 +500,6 @@ bool UInventoryComponent::EquipQuickbarSlot(int32 QuickbarIndex)
     CurrentEquippedSlotIndex = QuickbarIndex;
 
     PlayItemSound(ItemData.PickupSound);
-
-    // Broadcast events
     OnItemEquipped.Broadcast(Slot.ItemID);
     OnInventoryUpdated.Broadcast();
 
@@ -542,6 +507,173 @@ bool UInventoryComponent::EquipQuickbarSlot(int32 QuickbarIndex)
         *ItemData.ItemName.ToString(), QuickbarIndex);
 
     return true;
+}
+
+bool UInventoryComponent::EquipFlashlight(const FItemData& ItemData, int32 QuickbarIndex)
+{
+    // Validate flashlight class
+    if (!FlashlightClass)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FlashlightClass not set in InventoryComponent!"));
+        return false;
+    }
+
+    // Get FlashlightComponent from owner
+    const auto Pawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+    if (!Pawn)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Player pawn not found!"));
+        return false;
+    }
+
+    UFlashlightComponent* FlashlightComp = Pawn->FindComponentByClass<UFlashlightComponent>();
+    if (!FlashlightComp)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FlashlightComponent not found on player!"));
+        return false;
+    }
+
+    // Clean up existing flashlight if any
+    if (SpawnedFlashlightActor)
+    {
+        SpawnedFlashlightActor->Destroy();
+        SpawnedFlashlightActor = nullptr;
+    }
+
+    // Spawn flashlight actor
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.Owner = GetOwner();
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+    SpawnedFlashlightActor = GetWorld()->SpawnActor<AFlashlight>(
+        FlashlightClass,
+        FVector::ZeroVector,
+        FRotator::ZeroRotator,
+        SpawnParams
+    );
+
+    if (!SpawnedFlashlightActor)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to spawn flashlight actor!"));
+        return false;
+    }
+
+    // Configure visibility
+    SpawnedFlashlightActor->SetActorHiddenInGame(false);
+    SpawnedFlashlightActor->SetActorEnableCollision(false);
+
+    // Make all components visible
+    TArray<UActorComponent*> Components;
+    SpawnedFlashlightActor->GetComponents(Components);
+    for (UActorComponent* Comp : Components)
+    {
+        if (USceneComponent* SceneComp = Cast<USceneComponent>(Comp))
+        {
+            SceneComp->SetVisibility(true, true);
+        }
+    }
+
+    // Attach to character mesh socket
+    if (!CharacterMesh)
+    {
+        UE_LOG(LogTemp, Error, TEXT("CharacterMesh is NULL!"));
+        SpawnedFlashlightActor->Destroy();
+        SpawnedFlashlightActor = nullptr;
+        return false;
+    }
+
+    FName SocketName = TEXT("Item");
+    
+    if (!CharacterMesh->DoesSocketExist(SocketName))
+    {
+        UE_LOG(LogTemp, Error, TEXT("Socket '%s' not found on character mesh!"), *SocketName.ToString());
+        SpawnedFlashlightActor->Destroy();
+        SpawnedFlashlightActor = nullptr;
+        return false;
+    }
+
+    bool bAttached = SpawnedFlashlightActor->AttachToComponent(
+        CharacterMesh,
+        FAttachmentTransformRules(EAttachmentRule::SnapToTarget, 
+                                 EAttachmentRule::SnapToTarget, 
+                                 EAttachmentRule::KeepWorld, 
+                                 false),
+        SocketName
+    );
+
+    if (!bAttached)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to attach flashlight to socket!"));
+        SpawnedFlashlightActor->Destroy();
+        SpawnedFlashlightActor = nullptr;
+        return false;
+    }
+
+    // Tell FlashlightComponent to equip (this starts the equip animation and state machine)
+    bool bEquipSuccess = FlashlightComp->EquipFlashlight(SpawnedFlashlightActor);
+    
+    if (!bEquipSuccess)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FlashlightComponent failed to equip!"));
+        SpawnedFlashlightActor->Destroy();
+        SpawnedFlashlightActor = nullptr;
+        return false;
+    }
+
+    // Update inventory state
+    CurrentEquippedItemID = ItemData.ItemID;
+    CurrentEquippedSlotIndex = QuickbarIndex;
+
+    // Broadcast events
+    PlayItemSound(ItemData.PickupSound);
+    OnItemEquipped.Broadcast(ItemData.ItemID);
+    OnInventoryUpdated.Broadcast();
+
+    UE_LOG(LogTemp, Log, TEXT("Flashlight equipped successfully from slot %d"), QuickbarIndex);
+    return true;
+}
+
+void UInventoryComponent::UnequipFlashlight()
+{
+    const auto Pawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+    if (!Pawn)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Player pawn not found!"));
+        return;
+    }
+
+    UFlashlightComponent* FlashlightComp = Pawn->FindComponentByClass<UFlashlightComponent>();
+    if (!FlashlightComp)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FlashlightComponent not found!"));
+        return;
+    }
+
+    // Tell FlashlightComponent to unequip (this starts the unequip animation and state machine)
+    FlashlightComp->UnequipFlashlight();
+
+    // Note: The flashlight actor will be destroyed by FlashlightComponent's cleanup
+    // after the unequip animation completes, but we need to clear our reference
+    // We use a timer to ensure cleanup happens after the animation
+    if (GetWorld())
+    {
+        FTimerHandle CleanupTimer;
+        GetWorld()->GetTimerManager().SetTimer(
+            CleanupTimer,
+            [this]()
+            {
+                if (SpawnedFlashlightActor)
+                {
+                    SpawnedFlashlightActor->Destroy();
+                    SpawnedFlashlightActor = nullptr;
+                }
+            },
+            1.0f, // Wait 1 second to ensure animation completes
+            false
+        );
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("Flashlight unequip initiated"));
 }
 
 void UInventoryComponent::UnequipCurrentItem()
@@ -556,7 +688,6 @@ void UInventoryComponent::UnequipCurrentItem()
     if (!GetItemData(CurrentEquippedItemID, ItemData))
     {
         UE_LOG(LogTemp, Error, TEXT("UnequipCurrentItem: Failed to get item data"));
-        // Still proceed with cleanup
     }
 
     FName PreviousItemID = CurrentEquippedItemID;
@@ -566,25 +697,7 @@ void UInventoryComponent::UnequipCurrentItem()
     // ========================================================================
     if (ItemData.ItemType == EItemType::Tool && ItemData.ToolType == EToolType::Flashlight)
     {
-        const auto Pawn = UGameplayStatics::GetPlayerPawn(this, 0);
-        
-        if (Pawn)
-        {
-            if (UFlashlightComponent* FlashlightComp = Pawn->FindComponentByClass<UFlashlightComponent>())
-            {
-                FlashlightComp->SetLightEnabled(false);
-                FlashlightComp->SetEquipped(false);
-                
-                UE_LOG(LogTemp, Log, TEXT("  → FlashlightComponent unequipped"));
-            }
-        }
-        
-        if (SpawnedFlashlightActor)
-        {
-            SpawnedFlashlightActor->Destroy();
-            SpawnedFlashlightActor = nullptr;
-            UE_LOG(LogTemp, Log, TEXT("  → Flashlight visual actor destroyed"));
-        }
+        UnequipFlashlight();
     }
     // ========================================================================
     // HANDLE OTHER ITEMS
@@ -615,6 +728,7 @@ void UInventoryComponent::UnequipCurrentItem()
 
     UE_LOG(LogTemp, Log, TEXT("Unequipped '%s'"), *PreviousItemID.ToString());
 }
+
 
 // ============================================================================
 // DROP ITEMS
@@ -1128,15 +1242,35 @@ float UInventoryComponent::GetPassiveSanityDrainReduction() const
 
 bool UInventoryComponent::AttachItemToHand(const FItemData& ItemData)
 {
-    if (!CharacterMesh)
+   if (!CharacterMesh)
     {
         UE_LOG(LogTemp, Error, TEXT("AttachItemToHand: No character mesh!"));
         return false;
     }
 
+    FName SocketName = TEXT("Item");
+    
+    if (!CharacterMesh->DoesSocketExist(SocketName))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Socket '%s' not found!"), *SocketName.ToString());
+        return false;
+    }
+
+    // ========================================================================
+    // FLASHLIGHT: Should not reach here - handled by EquipFlashlight()
+    // ========================================================================
+    if (ItemData.ItemType == EItemType::Tool && ItemData.ToolType == EToolType::Flashlight)
+    {
+        UE_LOG(LogTemp, Error, TEXT("AttachItemToHand: Flashlight should use EquipFlashlight() instead!"));
+        return false;
+    }
+
+    // ========================================================================
+    // NORMAL ITEMS: Static mesh component
+    // ========================================================================
     if (!ItemData.ItemMesh)
     {
-        UE_LOG(LogTemp, Warning, TEXT("⚠ AttachItemToHand: Item has no mesh"));
+        UE_LOG(LogTemp, Warning, TEXT("AttachItemToHand: Item has no mesh"));
         return true;
     }
 
@@ -1159,119 +1293,15 @@ bool UInventoryComponent::AttachItemToHand(const FItemData& ItemData)
     EquippedItemMesh->SetStaticMesh(ItemData.ItemMesh);
     EquippedItemMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
-    // Attach to hand socket
-    FName SocketName = TEXT("Item");
-
-    if (!CharacterMesh->DoesSocketExist(SocketName))
-    {
-        UE_LOG(LogTemp, Warning, TEXT("⚠ Socket '%s' not found, attaching to root"), *SocketName.ToString());
-        SocketName = NAME_None;
-    }
-
     EquippedItemMesh->AttachToComponent(
         CharacterMesh,
         FAttachmentTransformRules::SnapToTargetNotIncludingScale,
         SocketName
     );
 
-    UE_LOG(LogTemp, Log, TEXT("  → Attached '%s' to hand"), *ItemData.ItemName.ToString());
-    return true;
-}
-
-bool UInventoryComponent::SpawnFlashlightActor(const FItemData& ItemData)
-{
-    ACharacter* Character = Cast<ACharacter>(GetOwner());
-    if (!Character)
-    {
-        UE_LOG(LogTemp, Error, TEXT("Owner is not a character!"));
-        return false;
-    }
-
-    if (!FlashlightClass)
-    {
-        UE_LOG(LogTemp, Error, TEXT("FlashlightClass not set in Blueprint!"));
-        return false;
-    }
+    UE_LOG(LogTemp, Log, TEXT("Attached '%s' to socket '%s'"), 
+        *ItemData.ItemName.ToString(), *SocketName.ToString());
     
-    // Destroy existing flashlight
-    if (SpawnedFlashlightActor)
-    {
-        SpawnedFlashlightActor->Destroy();
-        SpawnedFlashlightActor = nullptr;
-    }
-
-    // Spawn new flashlight
-    FActorSpawnParameters SpawnParams;
-    SpawnParams.Owner = Character;
-    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
-    SpawnedFlashlightActor = GetWorld()->SpawnActor<AFlashlight>(
-        FlashlightClass,
-        FVector::ZeroVector,
-        FRotator::ZeroRotator,
-        SpawnParams
-    );
-
-    if (!SpawnedFlashlightActor)
-    {
-        UE_LOG(LogTemp, Error, TEXT("Failed to spawn flashlight actor!"));
-        return false;
-    }
-    
-    // Configure flashlight
-    SpawnedFlashlightActor->SetActorHiddenInGame(false);
-    SpawnedFlashlightActor->SetActorEnableCollision(false);
-    
-    // Make all components visible
-    TArray<UActorComponent*> Components;
-    SpawnedFlashlightActor->GetComponents(Components);
-    for (UActorComponent* Comp : Components)
-    {
-        if (USceneComponent* SceneComp = Cast<USceneComponent>(Comp))
-        {
-            SceneComp->SetVisibility(true, true);
-        }
-    }
-    
-    // Attach to socket
-    FName SocketName = FName("Item");
-
-    if (CharacterMesh && CharacterMesh->DoesSocketExist(SocketName))
-    {
-        bool bAttached = SpawnedFlashlightActor->AttachToComponent(
-            CharacterMesh,
-            FAttachmentTransformRules::SnapToTargetIncludingScale,
-            SocketName
-        );
-        
-        if (bAttached)
-        {
-            UE_LOG(LogTemp, Log, TEXT("✅ Flashlight attached to socket '%s'"), *SocketName.ToString());
-        }
-        else
-        {
-            UE_LOG(LogTemp, Error, TEXT("Failed to attach to socket!"));
-            // Clean up on failure
-            SpawnedFlashlightActor->Destroy();
-            SpawnedFlashlightActor = nullptr;
-            return false;
-        }
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("Socket '%s' not found!"), *SocketName.ToString());
-        
-        // Fallback: attach to character
-        SpawnedFlashlightActor->AttachToActor(
-            Character,
-            FAttachmentTransformRules::KeepRelativeTransform
-        );
-        
-        SpawnedFlashlightActor->SetActorRelativeLocation(FVector(50, 10, 0));
-        SpawnedFlashlightActor->SetActorRelativeRotation(FRotator(0, 90, 0));
-    }
-
-    UE_LOG(LogTemp, Log, TEXT("✅ Flashlight spawned successfully"));
     return true;
 }
 
@@ -1310,7 +1340,7 @@ void UInventoryComponent::TryAutoAssignToQuickbar(FName ItemID, int32 PreferredI
     // Only auto-assign tools and consumables
     if (ItemData.ItemType != EItemType::Tool && ItemData.ItemType != EItemType::Consumable)
     {
-        UE_LOG(LogTemp, Log, TEXT("  → Skipping auto-assign (not tool/consumable)"));
+        UE_LOG(LogTemp, Log, TEXT("Skipping auto-assign (not tool/consumable)"));
         return;
     }
 

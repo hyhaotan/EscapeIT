@@ -47,30 +47,29 @@ void FControlSettingsHandler::SetMouseSensitivity(float Sensitivity, UWorld* Wor
     Sensitivity = FMath::Clamp(Sensitivity, 0.01f, 10.0f);
 
     ApplyToAllPlayerControllers(World, [Sensitivity](APlayerController* BasePC)
+    {
+        if (AEscapeITPlayerController* PC = Cast<AEscapeITPlayerController>(BasePC))
         {
-            if (!BasePC) return;
-            if (AEscapeITPlayerController* PC = Cast<AEscapeITPlayerController>(BasePC))
-            {
-                PC->SetMouseSensitivity(Sensitivity);
-            }
-        });
+            PC->SetMouseSensitivity(Sensitivity);
+        }
+    });
 
-    UE_LOG(LogTemp, Log, TEXT("ControlSettingsHandler: Mouse sensitivity set to %.3f"), Sensitivity);
+    GConfig->SetFloat(ControlConfigSection, TEXT("MouseSensitivity"), Sensitivity, GGameIni);
+    GConfig->Flush(false, GGameIni);
 }
 
 void FControlSettingsHandler::SetInvertMouseY(bool bInvert, UWorld* World)
 {
     ApplyToAllPlayerControllers(World, [bInvert](APlayerController* BasePC)
+    {
+        if (AEscapeITPlayerController* PC = Cast<AEscapeITPlayerController>(BasePC))
         {
-            if (!BasePC) return;
-            if (AEscapeITPlayerController* PC = Cast<AEscapeITPlayerController>(BasePC))
-            {
-                PC->SetInvertPitch(bInvert);
-            }
-        });
+            PC->SetInvertPitch(bInvert); 
+        }
+    });
 
-
-    UE_LOG(LogTemp, Log, TEXT("ControlSettingsHandler: Invert mouse Y %s"), bInvert ? TEXT("enabled") : TEXT("disabled"));
+    GConfig->SetBool(ControlConfigSection, TEXT("InvertMouseY"), bInvert, GGameIni);
+    GConfig->Flush(false, GGameIni);
 }
 
 void FControlSettingsHandler::SetCameraZoomSensitivity(float Sensitivity, UWorld* World)
@@ -93,36 +92,17 @@ void FControlSettingsHandler::SetGamepadSensitivity(float Sensitivity, UWorld* W
 {
     Sensitivity = FMath::Clamp(Sensitivity, 0.01f, 10.0f);
 
-    // Nếu bạn đã tạo AMyPlayerController với SetGamepadSensitivity, gọi nó.
     ApplyToAllPlayerControllers(World, [Sensitivity](APlayerController* BasePC)
+    {
+        if (AEscapeITPlayerController* PC = Cast<AEscapeITPlayerController>(BasePC))
         {
-            if (!BasePC) return;
+            PC->SetGamepadSensitivity(Sensitivity);
+        }
+    });
 
-            // Nếu dùng PlayerController tuỳ chỉnh:
-            if (AEscapeITPlayerController* PC = Cast<AEscapeITPlayerController>(BasePC))
-            {
-                PC->SetGamepadSensitivity(Sensitivity);
-            }
-            else
-            {
-                // Fallback: lưu vào một console command / cvar để hệ thống input tự lấy (tuỳ project)
-                // Ví dụ expose qua console var:
-                FString Cmd = FString::Printf(TEXT("set Gamepad.Sensitivity %.3f"), Sensitivity);
-                if (GEngine && BasePC->GetWorld())
-                {
-                    GEngine->Exec(BasePC->GetWorld(), *Cmd);
-                }
-                // Hoặc đẩy vào một singleton / Pawn property mà input handler đọc.
-            }
-        });
-
-    // Persist
     GConfig->SetFloat(ControlConfigSection, TEXT("GamepadSensitivity"), Sensitivity, GGameIni);
     GConfig->Flush(false, GGameIni);
-
-    UE_LOG(LogTemp, Log, TEXT("ControlSettingsHandler: Gamepad sensitivity set to %.3f"), Sensitivity);
 }
-
 
 void FControlSettingsHandler::SetGamepadDeadzone(float Deadzone, UWorld* World)
 {
