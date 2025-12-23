@@ -108,17 +108,17 @@ private:
 
 	// Exhaustion
 	UPROPERTY(EditAnywhere, Category = "Stamina|Exhaustion")
-	float ExhaustionThreshold = 5.0f; // Can't sprint below this
+	float ExhaustionThreshold = 0.1f; // Can't sprint below this
 
 	UPROPERTY(EditAnywhere, Category = "Stamina|Exhaustion")
-	float ExhaustedRecoveryThreshold = 30.0f; // Must reach this to sprint again after exhaustion
+	float ExhaustedRecoveryThreshold = 1.0f; // Must reach this to sprint again after exhaustion
 
 	UPROPERTY(EditAnywhere, Category = "Stamina|Exhaustion")
 	float ExhaustedRegenMultiplier = 0.5f; // Slower regen when exhausted
 
 	// Sprint requirements
 	UPROPERTY(EditAnywhere, Category = "Stamina|Sprint")
-	float MinStaminaToStartSprint = 20.0f; // Minimum stamina to start sprinting
+	float MinStaminaToStartSprint = 10.0f; // Minimum stamina to start sprinting
 
 	UPROPERTY(EditAnywhere, Category = "Stamina|Sprint")
 	float MinStaminaToContinueSprint = 5.0f; // Can continue sprinting until this threshold

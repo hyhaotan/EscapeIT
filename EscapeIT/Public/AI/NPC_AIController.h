@@ -28,9 +28,4 @@ private:
 
 	UFUNCTION()
 	void OnTargetDetected(AActor* Actor, FAIStimulus const Stimulus);
-
-	// New function to move AI towards the sound
-	void MoveToSoundSource(FVector const& Location);
-
-	void OnTargetPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus);
 };

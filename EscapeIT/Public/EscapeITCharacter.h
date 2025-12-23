@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "Logging/LogMacros.h"
+#include "GenericTeamAgentInterface.h"
 #include "EscapeITCharacter.generated.h"
 
 class UInputComponent;
@@ -45,7 +46,7 @@ enum class EMovementState : uint8
 // ==================== CHARACTER CLASS ====================
 
 UCLASS(config=Game)
-class AEscapeITCharacter : public ACharacter
+class AEscapeITCharacter : public ACharacter , public IGenericTeamAgentInterface
 {
 	GENERATED_BODY()
 public:
@@ -116,6 +117,9 @@ protected:
 	virtual void Tick( float DeltaTime ) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	virtual void Landed(const FHitResult& Hit) override;
+	
+	virtual FGenericTeamId GetGenericTeamId() const override { return TeamId; }
+	virtual void SetGenericTeamId(const FGenericTeamId& NewTeamId) override { TeamId = NewTeamId; }
 
 	// ==================== INITIALIZATION ====================
 
@@ -150,6 +154,8 @@ protected:
 
 	/** Handle jump end */
 	void DoJumpEnd();
+	
+	void MakeNoise(float Loudness, FVector NoiseLocation);
 
 	// ==================== MOVEMENT ACTIONS ====================
 
@@ -255,7 +261,19 @@ public:
 	/** Heavy landing threshold (fall speed) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Landing")
 	float HeavyLandingThreshold = 600.0f;
+	
+	// ==================== FOOTSTEP PROPERTIES ====================
+	// Loudness settings - có thể adjust trong Blueprint
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Sound")
+	float JumpNoiseLoudness = 1.0f;
+    
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Sound")
+	float FootstepNoiseLoudness = 0.5f;
+    
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Sound")
+	float FootstepNoiseInterval = 0.5f; // Footstep mỗi 0.5 giây
 
+	void MakeFootstepNoise();
 	// ==================== STATE FLAGS ====================
 
 	/** Is character currently sprinting */
@@ -324,4 +342,7 @@ private:
 
 	UFUNCTION()
 	void OnBatteryDepleted();
+	
+	float TimeSinceLastFootstep = 0.0f;
+	FGenericTeamId TeamId = FGenericTeamId(0);
 };

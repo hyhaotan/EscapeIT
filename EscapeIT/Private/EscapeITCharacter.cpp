@@ -20,7 +20,7 @@
 #include "PhysicalMaterials/PhysicalMaterial.h"
 #include "Sound/SoundBase.h"
 #include "Actor/Components/FlashlightComponent.h"
-#include "Actor/Item/Flashlight.h"
+#include "Perception/AISense_Hearing.h"
 
 // ==================== CONSTRUCTOR ====================
 
@@ -93,11 +93,37 @@ void AEscapeITCharacter::BeginPlay()
 
 	// Bind component events
 	BindComponentEvents();
+	
+	SetGenericTeamId(FGenericTeamId(1));
 }
 
 void AEscapeITCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	if (GetVelocity().Size() > 0.0f)
+	{
+		TimeSinceLastFootstep += DeltaTime;
+
+		if (TimeSinceLastFootstep >= FootstepNoiseInterval)
+		{
+			MakeFootstepNoise();
+			TimeSinceLastFootstep = 0.0f;
+		}
+	}
+	else
+	{
+		TimeSinceLastFootstep = 0.0f;
+	}
+	
+	if (bIsSprinting && StaminaComponent)
+	{
+		if (StaminaComponent->GetCurrentStamina() <= 0.0f || 
+			StaminaComponent->IsExhausted())
+		{
+			StopSprint();
+		}
+	}
 	
 	CheckCharacterDeath();
 }
@@ -280,12 +306,28 @@ void AEscapeITCharacter::DoJumpStart()
 		StaminaComponent->DrainStamina(JumpStaminaCost);
 	}
 
+	if (GetCharacterMovement()->IsFalling())
+	{
+		MakeNoise(JumpNoiseLoudness,GetActorLocation());
+	}
+
 	Jump();
 }
 
 void AEscapeITCharacter::DoJumpEnd()
 {
 	StopJumping();
+}
+
+void AEscapeITCharacter::MakeNoise(float Loudness, FVector NoiseLocation)
+{
+	UAISense_Hearing::ReportNoiseEvent(
+		GetWorld(),
+		NoiseLocation,
+		Loudness,
+		this,
+		0.0f,
+		FName("PlayerNoise"));
 }
 
 // ==================== SPRINT ====================
@@ -472,6 +514,23 @@ void AEscapeITCharacter::PlayLandingSound(float FallSpeed, float ImpactStrength)
 			GetActorLocation(),
 			FMath::Clamp(ImpactStrength, 0.3f, 0.7f) * LandingSoundVolume
 		);
+	}
+}
+
+void AEscapeITCharacter::MakeFootstepNoise()
+{
+	float Speed = GetVelocity().Size();
+
+	if (Speed > 200.0f)
+	{
+		float Loudness = FootstepNoiseLoudness;
+
+		if (Speed > 400.0f)
+		{
+			Loudness *= 1.5f;
+		}
+		
+		MakeNoise(Loudness,GetActorLocation());
 	}
 }
 

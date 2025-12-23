@@ -1,57 +1,66 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
-
+﻿// BTTask_ChasePlayer.cpp
 #include "AI/BlackBoardTask/BTTask_ChasePlayer.h"
-#include "AI//NPC_AIController.h"
+#include "AI/NPC_AIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
-#include "EscapeITCharacter.h"
-#include "Blueprint/AIBlueprintHelperLibrary.h"
-#include "AI//NPC.h" 
+#include "AI/NPC.h" 
+#include "Kismet/GameplayStatics.h"
+#include "AIController.h"
+#include "Navigation/PathFollowingComponent.h"
 
-UBTTask_ChasePlayer::UBTTask_ChasePlayer(FObjectInitializer const& ObjectInitializer) : UBTTask_BlackboardBase{ ObjectInitializer }
+UBTTask_ChasePlayer::UBTTask_ChasePlayer(FObjectInitializer const& ObjectInitializer) 
+    : UBTTask_BlackboardBase{ ObjectInitializer }
 {
-	NodeName = TEXT("Chase Player");
+    NodeName = TEXT("Chase Player");
+    bNotifyTick = true; // Quan trọng: Cho phép TickTask được gọi
 }
 
 EBTNodeResult::Type UBTTask_ChasePlayer::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
-    // Lấy controller và pawn
     auto* AICon = Cast<ANPC_AIController>(OwnerComp.GetAIOwner());
     if (!AICon)
         return EBTNodeResult::Failed;
 
     UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent();
-    AActor* TargetActor = Cast<AActor>(BB->GetValueAsObject(GetSelectedBlackboardKey()));
-    ANPC* NPC = Cast<ANPC>(AICon->GetPawn());
-    if (!TargetActor || !NPC)
+    if (!BB)
         return EBTNodeResult::Failed;
 
-    // Cập nhật widget điều tra
+    ANPC* NPC = Cast<ANPC>(AICon->GetPawn());
+    if (!NPC)
+        return EBTNodeResult::Failed;
+
+    // Lấy vị trí target từ blackboard (nên là Vector)
+    FVector TargetLocation = BB->GetValueAsVector(GetSelectedBlackboardKey());
+
+    if (TargetLocation.IsZero())
+    {
+        return EBTNodeResult::Failed;
+    }
+    
     bool bCanSeePlayer = BB->GetValueAsBool(TEXT("CanSeePlayer"));
 
-    // **Thêm phần fear:**
     if (bCanSeePlayer)
     {
-        // 1) Notify thẳng tới component Fear của Character
-        if (auto* HorrorChar = Cast<AEscapeITCharacter>(TargetActor))
+        if (auto* Player = Cast<ACharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0)))
         {
-            //HorrorChar->NotifyChasedByMonster(1.5f);
+            // Cập nhật vị trí người chơi liên tục
+            TargetLocation = Player->GetActorLocation();
+            BB->SetValueAsVector(GetSelectedBlackboardKey(), TargetLocation);
         }
-
-        // 2) (Tùy chọn) ghi luôn vào Blackboard một flag để Decorator khác hoặc Service biết
         BB->SetValueAsBool(TEXT("IsPlayerBeingChased"), true);
     }
     else
     {
         BB->SetValueAsBool(TEXT("IsPlayerBeingChased"), false);
     }
-
-    // Chạy MoveToActor bình thường
-    FAIRequestID RequestID = AICon->MoveToActor(
-        TargetActor,
-        100.f,    // AcceptanceRadius
+    
+    // Di chuyển đến vị trí
+    FAIRequestID RequestID = AICon->MoveToLocation(
+        TargetLocation,
+        AcceptanceRadius,
         true,     // bStopOnOverlap
         true,     // bUsePathfinding
-        false,    // bCanStrafe
+        false,    // bProjectDestinationToNavigation
+        true,     // bCanStrafe
         nullptr,  // FilterClass
         true      // bAllowPartialPath
     );
@@ -61,11 +70,56 @@ EBTNodeResult::Type UBTTask_ChasePlayer::ExecuteTask(UBehaviorTreeComponent& Own
         : EBTNodeResult::Failed;
 }
 
+void UBTTask_ChasePlayer::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, float DeltaSeconds)
+{
+    Super::TickTask(OwnerComp, NodeMemory, DeltaSeconds);
+
+    auto* AICon = Cast<ANPC_AIController>(OwnerComp.GetAIOwner());
+    if (!AICon)
+    {
+        FinishLatentTask(OwnerComp, EBTNodeResult::Failed);
+        return;
+    }
+
+    EPathFollowingStatus::Type Status = AICon->GetMoveStatus();
+    
+    if (Status == EPathFollowingStatus::Type::Idle)
+    {
+        FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
+    }
+    else if (Status == EPathFollowingStatus::Type::Paused)
+    {
+        FinishLatentTask(OwnerComp, EBTNodeResult::Failed);
+    }
+    
+    UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent();
+    if (BB && BB->GetValueAsBool(TEXT("CanSeePlayer")))
+    {
+        if (auto* Player = Cast<ACharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0)))
+        {
+            FVector NewLocation = Player->GetActorLocation();
+            BB->SetValueAsVector(GetSelectedBlackboardKey(), NewLocation);
+            
+            AICon->MoveToLocation(
+                NewLocation,
+                AcceptanceRadius,
+                true, true, false, true, nullptr, true
+            );
+        }
+    }
+}
+
 EBTNodeResult::Type UBTTask_ChasePlayer::AbortTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
     if (ANPC_AIController* AICon = Cast<ANPC_AIController>(OwnerComp.GetAIOwner()))
     {
         AICon->StopMovement();
     }
+    
+    if (UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent())
+    {
+        BB->SetValueAsBool(TEXT("IsPlayerBeingChased"), false);
+    }
+    
     return EBTNodeResult::Aborted;
 }

@@ -11,7 +11,6 @@
 ANPC_AIController::ANPC_AIController(FObjectInitializer const& ObjectInitializer)
 {
 	SetupPerceptionSystem();
-	PerceptionComponent->OnTargetPerceptionUpdated.AddDynamic(this, &ANPC_AIController::OnTargetPerceptionUpdated);
 }
 
 void ANPC_AIController::OnPossess(APawn* InPawn)
@@ -55,7 +54,6 @@ void ANPC_AIController::SetupPerceptionSystem()
 	if (HearConfig)
 	{
 		HearConfig->HearingRange = 3000.f;
-		//HearConfig->bUseLoSHearing = false;
 		HearConfig->DetectionByAffiliation.bDetectEnemies = true;
 		HearConfig->DetectionByAffiliation.bDetectFriendlies = true;
 		HearConfig->DetectionByAffiliation.bDetectNeutrals = true;
@@ -66,38 +64,51 @@ void ANPC_AIController::SetupPerceptionSystem()
 	// Đặt giác quan chính (dominant sense)
 	GetPerceptionComponent()->SetDominantSense(*SightConfig->GetSenseImplementation());
 
-	// Đăng ký sự kiện khi nhận diện mục tiêu
+	// ===== QUAN TRỌNG: CHỈ BIND 1 LẦN! =====
 	GetPerceptionComponent()->OnTargetPerceptionUpdated.AddDynamic(this, &ANPC_AIController::OnTargetDetected);
 }
 
 void ANPC_AIController::OnTargetDetected(AActor* Actor, FAIStimulus const Stimulus)
 {
+	UE_LOG(LogTemp, Warning, TEXT("OnTargetDetected called for: %s"), *Actor->GetName());
+    
 	if (auto* const ch = Cast<AEscapeITCharacter>(Actor))
 	{
-		// Cập nhật trạng thái "CanSeePlayer" nếu kích thích là hình ảnh (thị giác)
+		if (!GetBlackboardComponent())
+		{
+			UE_LOG(LogTemp, Error, TEXT("Blackboard Component is NULL!"));
+			return;
+		}
+       
 		if (Stimulus.Type.Name == "Default__AISense_Sight")
 		{
-			GetBlackboardComponent()->SetValueAsBool("CanSeePlayer", Stimulus.WasSuccessfullySensed());
+			bool bWasSensed = Stimulus.WasSuccessfullySensed();
+			GetBlackboardComponent()->SetValueAsBool("CanSeePlayer", bWasSensed);
+            
+			UE_LOG(LogTemp, Warning, TEXT("👁 SIGHT: CanSeePlayer = %s"), 
+				bWasSensed ? TEXT("TRUE") : TEXT("FALSE"));
 		}
 
-		// Cập nhật vị trí âm thanh nếu kích thích là âm thanh (thính giác)
 		if (Stimulus.Type.Name == "Default__AISense_Hearing")
 		{
 			GetBlackboardComponent()->SetValueAsVector("LastHeardLocation", Stimulus.StimulusLocation);
-			MoveToSoundSource(Stimulus.StimulusLocation);
+
+			GetBlackboardComponent()->SetValueAsBool("HasHeardSound", true);
+            
+			UE_LOG(LogTemp, Warning, TEXT("👂 HEARING: Sound at location %s"), 
+				*Stimulus.StimulusLocation.ToString());
+
+			#if WITH_EDITOR
+			DrawDebugSphere(
+				GetWorld(),
+				Stimulus.StimulusLocation,
+				100.f,
+				12,
+				FColor::Yellow,
+				false,
+				3.0f
+			);
+			#endif
 		}
-	}
-}
-
-void ANPC_AIController::MoveToSoundSource(FVector const& Location)
-{
-	MoveToLocation(Location);
-}
-
-void ANPC_AIController::OnTargetPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus)
-{
-	if (auto* NPC = Cast<ANPC>(GetPawn()))
-	{
-		const bool bCanSee = Stimulus.WasSuccessfullySensed();
 	}
 }
