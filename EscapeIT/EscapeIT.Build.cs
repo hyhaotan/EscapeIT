@@ -34,7 +34,11 @@ public class EscapeIT : ModuleRules
             "RHI",
             "RenderCore",
             "ApplicationCore",
-            "PhysicsCore"});
+            "PhysicsCore",
+            "LevelSequence",       
+            "MovieScene",        
+            "MovieSceneTracks"
+        });
 
         PublicIncludePaths.AddRange(new string[] {
             "EscapeIT/Public",

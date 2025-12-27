@@ -7,14 +7,16 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "Data/ItemData.h"
+#include "LevelSequenceActor.h"
+#include "LevelSequencePlayer.h"
 #include "EscapeITPlayerController.generated.h"
 
-// Forward declarations
 class UInventoryComponent;
 class UFlashlightComponent;
 class AWidgetManager;
 class UInputMappingContext;
 class UInputAction;
+class ULevelSequence;
 struct FItemData;
 
 USTRUCT(BlueprintType)
@@ -44,7 +46,40 @@ protected:
     virtual void BeginPlay() override;
     virtual void SetupInputComponent() override;
     virtual void PlayerTick(float DeltaTime) override;
+    
+    // ============================================
+    // LEVEL SEQUENCE FOR INTRO
+    // ============================================
 
+    UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="Intro")
+    TObjectPtr<ULevelSequence> IntroSequence;
+    
+    UPROPERTY()
+    ULevelSequencePlayer* SequencePlayer;
+    
+    UPROPERTY()
+    ALevelSequenceActor* SequenceActor;
+    
+    UPROPERTY(EditAnywhere,Category="Intro")
+    float FadeInDuration = 2.0f;
+    
+    UPROPERTY(EditAnywhere,Category="Intro")
+    bool bSkippale = true;
+    
+    UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="Intro")
+    TSubclassOf<UCameraShakeBase> IntroCameraShake;
+    
+    UFUNCTION()
+    void PlayIntroSequence();
+    
+    UFUNCTION()
+    void OnIntroFinished();
+    
+    UFUNCTION()
+    void SkipIntro();
+    
+    UFUNCTION()
+    void ApplyWakeupEffects();
 public:
     // ============================================
     // INPUT SETTINGS
@@ -105,7 +140,10 @@ public:
     UInputAction* Interact;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input|Actions|UI")
-    UInputAction* PauseMenu;
+    UInputAction* PauseMenu; 
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input|Actions|UI")
+    UInputAction* SkipIntroLS;
 
     // ============================================
     // INTERACTION SYSTEM
@@ -233,7 +271,7 @@ private:
     double LastInputNotifyTime;
     
     int32 CurrentEquippedSlotIndex;
-
+    bool bIntroPlaying = false;
     // ============================================
     // INTERNAL FUNCTIONS - INPUT
     // ============================================

@@ -19,6 +19,13 @@ UCLASS()
 class ESCAPEIT_API UMainMenuWidget : public UUserWidget
 {
 	GENERATED_BODY()
+	
+public:
+	UFUNCTION()
+	void ShowMainMenu(){PlayAnimation(DisplayAnimWidget);}
+	
+	UFUNCTION()
+	void HiddenMainMenu(){PlayAnimation(HiddenAnimWidget);}
 
 protected:
 	virtual void NativeConstruct() override;
@@ -39,6 +46,12 @@ protected:
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UButton> ExitButton;
+	
+	UPROPERTY(meta=(BindWidgetAnim),Transient)
+	UWidgetAnimation* DisplayAnimWidget;
+	
+	UPROPERTY(meta=(BindWidgetAnim),Transient)
+	UWidgetAnimation* HiddenAnimWidget;
 
 	// ============= Widget Classes =============
 	UPROPERTY(EditDefaultsOnly, Category = "Widgets")

@@ -14,4 +14,10 @@ class AEscapeITCameraManager : public APlayerCameraManager
 public:
 	/** Constructor */
 	AEscapeITCameraManager();
+	
+	UFUNCTION()
+	void ClearPostProcessEffects()
+	{
+		this->ClearCachedPPBlends();
+	}
 };

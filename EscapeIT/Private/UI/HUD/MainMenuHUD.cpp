@@ -39,6 +39,8 @@ void AMainMenuHUD::InitializeWidget()
             InputMode.SetWidgetToFocus(MainMenuWidget->TakeWidget());
             InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
             PC->SetInputMode(InputMode);
+            
+            MainMenuWidget->ShowMainMenu();
         }
         else
         {

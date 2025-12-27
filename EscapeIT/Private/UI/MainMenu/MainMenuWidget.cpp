@@ -107,6 +107,8 @@ void UMainMenuWidget::OnNewGameButton()
 
 			// StoryGameWidget sẽ được hiện trong Room1's BeginPlay
 		}, 1.5f, false);
+	
+	this->HiddenMainMenu();
 }
 
 void UMainMenuWidget::OnContinueButton()

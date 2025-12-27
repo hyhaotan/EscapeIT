@@ -41,16 +41,13 @@ void AEscapeITGameMode::FadeInAndShowStory()
 	{
 		if (TObjectPtr<APlayerCameraManager> CameraManager = PC->PlayerCameraManager)
 		{
-			// Set camera bắt đầu từ black
 			CameraManager->SetManualCameraFade(1.0f, FLinearColor::Black, false);
-
-			// Delay nhỏ rồi bắt đầu fade in
+			
 			FTimerHandle FadeTimer;
 			GetWorldTimerManager().SetTimer(FadeTimer, [this, CameraManager]()
 			{
 				if (CameraManager)
 				{
-					// Fade in từ black về bình thường
 					CameraManager->StartCameraFade(1.0f, 0.0f, 1.5f, FLinearColor::Black, false, true);
 				}
 

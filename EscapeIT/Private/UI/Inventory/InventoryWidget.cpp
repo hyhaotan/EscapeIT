@@ -10,6 +10,7 @@
 #include "Components/Image.h"
 #include "Components/ProgressBar.h"
 #include "Components/Border.h"
+#include "Components/CanvasPanelSlot.h"
 
 void UInventoryWidget::NativeConstruct()
 {
@@ -25,6 +26,15 @@ void UInventoryWidget::NativeConstruct()
     if (Btn_Tools) Btn_Tools->OnClicked.AddDynamic(this, &UInventoryWidget::OnFilterToolsClicked);
     if (Btn_Documents) Btn_Documents->OnClicked.AddDynamic(this, &UInventoryWidget::OnFilterDocumentsClicked);
 
+    if (DetailsTutorialWidgetClass)
+    {
+        DetailsTutorialWidget = CreateWidget<UUserWidget>(this, DetailsTutorialWidgetClass);
+        if (DetailsTutorialWidget)
+        {
+            DetailsTutorialWidget->SetVisibility(ESlateVisibility::Collapsed);
+        }
+    }
+    
     if (BatteryBar && Text_BatteryPercent)
     {
         BatteryBar->SetVisibility(ESlateVisibility::Collapsed);
@@ -32,6 +42,7 @@ void UInventoryWidget::NativeConstruct()
     }
 
     bShowAllItems = true;
+    bIsTutorialVisible = false;
     HideItemDetails();
 }
 
@@ -42,6 +53,11 @@ void UInventoryWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime
     if (FlashlightComponent && BatteryBar)
     {
         RefreshBatteryIndicator();
+    }
+
+    if (bIsTutorialVisible && DetailsTutorialWidget)
+    {
+        UpdateTutorialPosition();
     }
 }
 
@@ -991,5 +1007,78 @@ void UInventoryWidget::ValidateSelectedSlot()
     {
         HideItemDetails();
         return;
+    }
+}
+
+void UInventoryWidget::ShowDetailsTutorial()
+{
+    if (!DetailsTutorialWidget) return;
+
+    if (!DetailsTutorialWidget->IsInViewport())
+    {
+        DetailsTutorialWidget->AddToViewport(999);
+    }
+    
+    bIsTutorialVisible = true;
+    DetailsTutorialWidget->SetVisibility(ESlateVisibility::HitTestInvisible);
+    
+    UpdateTutorialPosition();
+}
+
+void UInventoryWidget::HideDetailsTutorial()
+{
+    if (!DetailsTutorialWidget) return;
+    
+    bIsTutorialVisible = false;
+    DetailsTutorialWidget->SetVisibility(ESlateVisibility::Collapsed);
+}
+
+void UInventoryWidget::UpdateTutorialPosition()
+{
+    if (!DetailsTutorialWidget || !DetailsTutorialWidget->IsInViewport()) return;
+    
+    APlayerController* PC = GetOwningPlayer();
+    if (!PC) return;
+    
+    float MouseX,MouseY;
+    if (PC->GetMousePosition(MouseX,MouseY))
+    {
+        LastMousePosition = FVector2D(MouseX,MouseY);
+    }
+    
+    FVector2D NewPosition = LastMousePosition + TutorialOffset;
+
+    if (UGameViewportClient* Viewport = GetWorld()->GetGameViewport())
+    {
+        FVector2D ViewportSize;
+        Viewport->GetViewportSize(ViewportSize);
+        
+        FVector2D WidgetSize = DetailsTutorialWidget->GetDesiredSize();
+
+        if (NewPosition.X + WidgetSize.X > ViewportSize.X)
+        {
+            NewPosition.X = LastMousePosition.X - WidgetSize.X - 20.0f;
+        }
+
+        if (NewPosition.Y + WidgetSize.Y > ViewportSize.Y)
+        {
+            NewPosition.Y = LastMousePosition.Y - WidgetSize.Y - 10.0f;
+        }
+        
+        NewPosition.X = FMath::Max(0.0f,NewPosition.X);
+        NewPosition.Y = FMath::Max(0.0f,NewPosition.Y);
+        
+        TargetTutorialPosition = NewPosition;
+        CurrentTutorialPosition = FMath::Vector2DInterpTo(
+            CurrentTutorialPosition,
+            TargetTutorialPosition,
+            GetWorld()->GetDeltaSeconds(),
+            10.0f
+        );
+
+        if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(DetailsTutorialWidget->Slot))
+        {
+            CanvasSlot->SetPosition(CurrentTutorialPosition);
+        }
     }
 }

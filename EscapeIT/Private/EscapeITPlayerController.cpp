@@ -14,8 +14,13 @@
 #include "Engine/LocalPlayer.h"
 #include "UI/HUD/WidgetManager.h"
 #include <EnhancedInputSubsystems.h>
+
+#include "EscapeITCameraManager.h"
 #include "EscapeITCharacter.h"
 #include "UI/NotificationWidget.h"
+#include "Camera/CameraComponent.h"
+#include "MovieSceneSequencePlayer.h"
+#include "EscapeITCameraManager.h"
 
 AEscapeITPlayerController::AEscapeITPlayerController()
     : MouseSensitivity(1.0f)
@@ -26,6 +31,8 @@ AEscapeITPlayerController::AEscapeITPlayerController()
     , CurrentEquippedSlotIndex(-1)
 {
     bShowMouseCursor = false;
+    
+    PlayerCameraManagerClass = AEscapeITCameraManager::StaticClass();
 }
 
 void AEscapeITPlayerController::BeginPlay()
@@ -33,6 +40,16 @@ void AEscapeITPlayerController::BeginPlay()
     Super::BeginPlay();
 
     LastInputNotifyTime = FPlatformTime::Seconds();
+    DisableInput(this);
+    SetShowMouseCursor(false);
+    
+    PlayerCameraManager->StartCameraFade(1.0f,0.0f,FadeInDuration,
+                                        FLinearColor::Black,false,true);
+    
+    FTimerHandle TimerHandle;
+    GetWorld()->GetTimerManager().SetTimer(TimerHandle,this,
+                                            &AEscapeITPlayerController::PlayIntroSequence,
+                                        FadeInDuration,false);
     
     InitWidget();
     FindComponentClass();
@@ -55,6 +72,90 @@ void AEscapeITPlayerController::PlayerTick(float DeltaTime)
 
     // Update interaction detection
     CheckForInteractables();
+}
+
+void AEscapeITPlayerController::PlayIntroSequence()
+{
+    if (!IntroSequence)
+    {
+        UE_LOG(LogTemp,Warning,TEXT("The Intro Level Sequence is null!"));
+        OnIntroFinished();
+        return;
+    }
+    
+    bIntroPlaying = true;
+    
+    FMovieSceneSequencePlaybackSettings PlaybackSettings;
+    PlaybackSettings.bAutoPlay = true;
+    PlaybackSettings.bPauseAtEnd = true;
+    
+    SequencePlayer = ULevelSequencePlayer::CreateLevelSequencePlayer(
+        GetWorld(),
+        IntroSequence,
+        PlaybackSettings,
+        SequenceActor);
+
+    if (SequencePlayer)
+    {
+        SequencePlayer->OnFinished.AddDynamic(this,&AEscapeITPlayerController::OnIntroFinished);
+    
+        SequencePlayer->Play();
+    }
+}
+
+void AEscapeITPlayerController::OnIntroFinished()
+{
+    bIntroPlaying = false;
+    
+    EnableInput(this);
+    
+    FInputModeGameOnly InputMode;
+    SetInputMode(InputMode);
+
+    if (SequencePlayer)
+    {
+        SequencePlayer = nullptr;
+    }
+}
+
+void AEscapeITPlayerController::SkipIntro()
+{
+    if (bIntroPlaying && bSkippale && SequencePlayer)
+    {
+        SequencePlayer->Stop();
+        OnIntroFinished();
+    }
+}
+
+void AEscapeITPlayerController::ApplyWakeupEffects()
+{
+    AEscapeITCameraManager* CameraManager = Cast<AEscapeITCameraManager>(PlayerCameraManager);
+
+    if (CameraManager)
+    {
+        CameraManager->StartCameraShake(IntroCameraShake,1.0f);
+    
+        FPostProcessSettings PostProcessSettings;
+        PostProcessSettings.bOverride_MotionBlurAmount = true;
+        PostProcessSettings.MotionBlurAmount = 0.8f;
+    
+        PostProcessSettings.bOverride_VignetteIntensity = true;
+        PostProcessSettings.VignetteIntensity = 0.6f;
+    
+        PostProcessSettings.bOverride_SceneFringeIntensity = true;
+        PostProcessSettings.SceneFringeIntensity = 2.0f;
+    
+        CameraManager->AddCachedPPBlend(PostProcessSettings,1.0f);
+    
+        FTimerHandle EffectTimer;
+        GetWorldTimerManager().SetTimer(EffectTimer, [CameraManager]()
+        {
+            if (CameraManager)
+            {
+                CameraManager->ClearPostProcessEffects();
+            }
+        }, 3.0f, false);
+    }
 }
 
 // ============================================
@@ -102,6 +203,9 @@ void AEscapeITPlayerController::BindInputActions()
     if (ToggleInventory) EnhancedInput->BindAction(ToggleInventory, ETriggerEvent::Completed, this, &AEscapeITPlayerController::Inventory);
     if (Interact) EnhancedInput->BindAction(Interact, ETriggerEvent::Completed, this, &AEscapeITPlayerController::OnInteract);
     if (PauseMenu) EnhancedInput->BindAction(PauseMenu, ETriggerEvent::Completed, this, &AEscapeITPlayerController::OnPauseMenu);
+    
+    // Skip Intro
+    if (SkipIntroLS) EnhancedInput->BindAction(SkipIntroLS, ETriggerEvent::Completed, this, &AEscapeITPlayerController::SkipIntro);
 }
 
 void AEscapeITPlayerController::AddYawInput(float Val)

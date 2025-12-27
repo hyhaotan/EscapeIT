@@ -17,6 +17,7 @@ class UImage;
 class UProgressBar;
 class UBorder;
 class UWidgetAnimation;
+class UUserWidget;
 
 UCLASS()
 class ESCAPEIT_API UInventoryWidget : public UUserWidget
@@ -70,7 +71,10 @@ public:
     TObjectPtr<UProgressBar> BatteryBar;
 
     UPROPERTY(meta = (BindWidget))
-    TObjectPtr<UTextBlock> Text_BatteryPercent;
+    TObjectPtr<UTextBlock> Text_BatteryPercent;  
+    
+    UPROPERTY(meta = (BindWidget))
+    TObjectPtr<UBorder> DetailsBorder;
 
     // Action Buttons
     UPROPERTY(meta = (BindWidget))
@@ -104,6 +108,9 @@ public:
     
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory|Config")
     TSubclassOf<UInventorySlotWidget> SlotWidgetClass;
+    
+    UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="Inventory|Config")
+    TSubclassOf<UUserWidget> DetailsTutorialWidgetClass;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory|Config")
     int32 GridRows = 4;
@@ -155,6 +162,12 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     void ShowAllItems();
+    
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    void ShowDetailsTutorial();
+
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    void HideDetailsTutorial();
 
 protected:
     // ========================================================================
@@ -228,6 +241,9 @@ protected:
     void ShowQuickbarFullMessage();
     bool TryAssignItemToQuickbar(int32 InventorySlotIndex, FName ItemID, int32 TargetQuickbarSlot);
     void ValidateSelectedSlot();
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory|Tutorial")
+    FVector2D TutorialOffset = FVector2D(20.0f, 0.0f);
 
 private:
     // ========================================================================
@@ -249,6 +265,9 @@ private:
 
     UPROPERTY()
     TArray<TObjectPtr<UInventorySlotWidget>> QuickbarSlotWidgets;
+    
+    UPROPERTY()
+    TObjectPtr<UUserWidget> DetailsTutorialWidget;
 
     // ========================================================================
     // STATE
@@ -256,5 +275,11 @@ private:
     
     int32 SelectedSlotIndex = -1;
     bool bShowAllItems = true;
+    void UpdateTutorialPosition();
+    FVector2D LastMousePosition;
+    FVector2D CurrentTutorialPosition;
+    FVector2D TargetTutorialPosition;
+    bool bIsTutorialVisible = false;
     EItemType CurrentFilter = EItemType::Consumable;
+    
 };
