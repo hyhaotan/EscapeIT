@@ -1,5 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 #include "EscapeITGameMode.h"
+
+#include "GameInstance/PowerSystemManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "UI/HUD/WidgetManager.h"
 #include "UI/StoryGameWidget.h"

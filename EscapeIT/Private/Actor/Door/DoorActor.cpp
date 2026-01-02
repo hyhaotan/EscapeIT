@@ -20,28 +20,6 @@ void ADoorActor::Interact_Implementation(AActor* Interactor)
     }
 }
 
-void ADoorActor::OnInteractionBeginOverlap_Implementation(
-    UPrimitiveComponent* OverlappedComponent,
-    AActor* OtherActor,
-    UPrimitiveComponent* OtherComp,
-    int32 OtherBodyIndex,
-    bool bFromSweep,
-    const FHitResult& SweepResult)
-{
-    Super::OnInteractionBeginOverlap_Implementation(
-        OverlappedComponent, OtherActor, OtherComp, OtherBodyIndex, bFromSweep, SweepResult);
-}
-
-void ADoorActor::OnInteractionEndOverlap_Implementation(
-    UPrimitiveComponent* OverlappedComponent,
-    AActor* OtherActor,
-    UPrimitiveComponent* OtherComp,
-    int32 OtherBodyIndex)
-{
-    Super::OnInteractionEndOverlap_Implementation(
-        OverlappedComponent, OtherActor, OtherComp, OtherBodyIndex);
-}
-
 void ADoorActor::CalculateDoorOpenDirection_Implementation(AActor* Interactor)
 {
     if (!Interactor) return;

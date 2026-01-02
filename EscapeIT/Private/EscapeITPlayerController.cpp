@@ -20,6 +20,7 @@
 #include "Camera/CameraComponent.h"
 #include "MovieSceneSequencePlayer.h"
 #include "EscapeITCameraManager.h"
+#include "Actor/ElectricCabinetActor.h"
 #include "Actor/Door/Door.h"
 #include "Actor/Door/DoorActor.h"
 
@@ -448,6 +449,11 @@ void AEscapeITPlayerController::OnInteract()
     if (ADoorActor* DoorActor = Cast<ADoorActor>(HoldingInteractable))
     {
         DoorActor->StartHoldInteraction();
+    }
+
+    if (AElectricCabinetActor* ElectricCabinetActor = Cast<AElectricCabinetActor>(HoldingInteractable))
+    {
+        ElectricCabinetActor->StartHoldInteraction();
     }
 
     UE_LOG(LogTemp, Log, TEXT("Started holding interact on: %s (Duration: %.2f seconds)"), 
