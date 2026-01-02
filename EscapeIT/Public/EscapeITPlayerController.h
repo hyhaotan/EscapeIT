@@ -1,8 +1,4 @@
-﻿// ============================================
-// PLAYER CONTROLLER HEADER - IMPROVED VERSION
-// ============================================
-
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
@@ -11,26 +7,28 @@
 #include "LevelSequencePlayer.h"
 #include "EscapeITPlayerController.generated.h"
 
+// Forward declarations
+class UInputMappingContext;
+class UInputAction;
 class UInventoryComponent;
 class UFlashlightComponent;
 class AWidgetManager;
-class UInputMappingContext;
-class UInputAction;
+class UInteractionPromptWidget;
 class ULevelSequence;
-struct FItemData;
+class UCameraShakeBase;
 
 USTRUCT(BlueprintType)
 struct FBatterySearchResult
 {
     GENERATED_BODY()
 
-    UPROPERTY()
+    UPROPERTY(BlueprintReadOnly)
     bool bFound = false;
 
-    UPROPERTY()
-    FName ItemID = NAME_None;
+    UPROPERTY(BlueprintReadOnly)
+    FName ItemID;
 
-    UPROPERTY()
+    UPROPERTY(BlueprintReadOnly)
     FItemData ItemData;
 };
 
@@ -45,169 +43,200 @@ public:
 protected:
     virtual void BeginPlay() override;
     virtual void SetupInputComponent() override;
+
+public:
     virtual void PlayerTick(float DeltaTime) override;
-    
+
     // ============================================
-    // LEVEL SEQUENCE FOR INTRO
+    // INPUT SENSITIVITY
     // ============================================
 
-    UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="Intro")
-    TObjectPtr<ULevelSequence> IntroSequence;
-    
-    UPROPERTY()
-    ULevelSequencePlayer* SequencePlayer;
-    
-    UPROPERTY()
-    ALevelSequenceActor* SequenceActor;
-    
-    UPROPERTY(EditAnywhere,Category="Intro")
-    float FadeInDuration = 2.0f;
-    
-    UPROPERTY(EditAnywhere,Category="Intro")
-    bool bSkippale = true;
-    
-    UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="Intro")
-    TSubclassOf<UCameraShakeBase> IntroCameraShake;
-    
-    UFUNCTION()
-    void PlayIntroSequence();
-    
-    UFUNCTION()
-    void OnIntroFinished();
-    
-    UFUNCTION()
-    void SkipIntro();
-    
-    UFUNCTION()
-    void ApplyWakeupEffects();
-public:
-    // ============================================
-    // INPUT SETTINGS
-    // ============================================
-    
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input|Sensitivity")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
     float MouseSensitivity;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input|Sensitivity")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
     float GamepadSensitivity;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input|Settings")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
     bool bInvertPitch;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input|Context")
-    TArray<UInputMappingContext*> DefaultMappingContexts;
-    
+    UPROPERTY(BlueprintReadOnly, Category = "Input")
+    bool bLastInputWasGamepad;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Input")
+    double LastInputNotifyTime;
+
+    virtual void AddYawInput(float Val) override;
+    virtual void AddPitchInput(float Val) override;
+
+    UFUNCTION(BlueprintCallable, Category = "Input")
+    void NotifyMouseInput();
+
+    UFUNCTION(BlueprintCallable, Category = "Input")
+    void NotifyGamepadInput();
+
+    UFUNCTION(BlueprintCallable, Category = "Input")
     void SetMouseSensitivity(float InSensitivity);
+
+    UFUNCTION(BlueprintCallable, Category = "Input")
     void SetGamepadSensitivity(float InSensitivity);
+
+    UFUNCTION(BlueprintCallable, Category = "Input")
     void SetInvertPitch(bool bInvert);
 
     // ============================================
-    // INPUT ACTIONS
+    // INTRO SEQUENCE
     // ============================================
 
-    // Quickbar
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input|Actions|Quickbar")
-    UInputAction* Quickbar1;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Intro")
+    TObjectPtr<ULevelSequence> IntroSequence;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input|Actions|Quickbar")
-    UInputAction* Quickbar2;
+    UPROPERTY(BlueprintReadOnly, Category = "Intro")
+    TObjectPtr<ULevelSequencePlayer> SequencePlayer;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input|Actions|Quickbar")
-    UInputAction* Quickbar3;
+    UPROPERTY(BlueprintReadOnly, Category = "Intro")
+    ALevelSequenceActor* SequenceActor;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input|Actions|Quickbar")
-    UInputAction* Quickbar4;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Intro")
+    float FadeInDuration = 2.0f;
 
-    // Flashlight
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input|Actions|Flashlight")
-    UInputAction* ToggleFlashlight;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Intro")
+    bool bSkippale = true;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input|Actions|Flashlight")
-    UInputAction* ChargeBatteryFlashlight;
+    UPROPERTY(BlueprintReadOnly, Category = "Intro")
+    bool bIntroPlaying = false;
 
-    // Items
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input|Actions|Items")
-    UInputAction* UseEquippedItem;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Intro")
+    TSubclassOf<UCameraShakeBase> IntroCameraShake;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input|Actions|Items")
-    UInputAction* DropItem;
+    UFUNCTION(BlueprintCallable, Category = "Intro")
+    void PlayIntroSequence();
 
-    // UI & Interaction
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input|Actions|UI")
-    UInputAction* ToggleInventory;
+    UFUNCTION(BlueprintCallable, Category = "Intro")
+    void OnIntroFinished();
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input|Actions|UI")
-    UInputAction* Interact;
+    UFUNCTION(BlueprintCallable, Category = "Intro")
+    void SkipIntro();
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input|Actions|UI")
-    UInputAction* PauseMenu; 
-    
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input|Actions|UI")
-    UInputAction* SkipIntroLS;
+    UFUNCTION(BlueprintCallable, Category = "Intro")
+    void ApplyWakeupEffects();
 
     // ============================================
     // INTERACTION SYSTEM
     // ============================================
 
+    UFUNCTION(BlueprintCallable, Category = "Interaction")
+    void OnEnterInteractableRange(AActor* Interactable);
+
+    UFUNCTION(BlueprintCallable, Category = "Interaction")
+    void OnLeaveInteractableRange(AActor* Interactable);
+
+    UFUNCTION(BlueprintCallable, Category = "Interaction")
+    void OnInteractableDestroyed(AActor* Interactable);
+
+    // ============================================
+    // INTERACTION PROPERTIES
+    // ============================================
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
-    float InteractionDistance = 300.0f;
+    float InteractionDistance = 200.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+    float HoldInteractDuration = 1.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Interaction")
+    TObjectPtr<AActor> CurrentInteractable;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Interaction")
+    bool bIsHoldingInteract = false;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Interaction")
+    float HoldInteractProgress = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Interaction")
+    TObjectPtr<AActor> HoldingInteractable;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction|Debug")
     bool bShowDebugTrace = false;
 
     // ============================================
-    // COMPONENT REFERENCES
+    // INTERACTION EXECUTION (STILL USED)
     // ============================================
 
-    UPROPERTY(BlueprintReadOnly, Category = "Components")
-    UInventoryComponent* InventoryComponent;
+    void ResetHoldInteraction();
+    void ExecuteHoldInteraction();
+    void OnInteractCanceled();
+    void OnInteractOngoing(float DeltaTime);
 
-    UPROPERTY(BlueprintReadOnly, Category = "Components")
-    UFlashlightComponent* FlashlightComponent;
-
-    UPROPERTY(BlueprintReadOnly, Category = "Components")
-    AWidgetManager* WidgetManagerHUD;
-
-    // ============================================
-    // INPUT OVERRIDES
-    // ============================================
-
-    virtual void AddYawInput(float Val) override;
-    virtual void AddPitchInput(float Val) override;
-
-    void NotifyMouseInput();
-    void NotifyGamepadInput();
-
-    // ============================================
-    // PUBLIC API - INTERACTION
-    // ============================================
-
-    UFUNCTION(BlueprintCallable, Category = "Interaction")
     void OnInteract();
+    void OnInteractReleased();
 
     // ============================================
-    // PUBLIC API - INVENTORY
+    // INPUT ACTIONS
     // ============================================
 
-    UFUNCTION(BlueprintCallable, Category = "Inventory")
-    void Inventory();
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Mapping")
+    TArray<TObjectPtr<UInputMappingContext>> DefaultMappingContexts;
 
-    UFUNCTION(BlueprintCallable, Category = "Inventory")
-    void DropCurrentItem();
+    // Quickbar
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Actions|Quickbar")
+    TObjectPtr<UInputAction> Quickbar1;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Actions|Quickbar")
+    TObjectPtr<UInputAction> Quickbar2;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Actions|Quickbar")
+    TObjectPtr<UInputAction> Quickbar3;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Actions|Quickbar")
+    TObjectPtr<UInputAction> Quickbar4;
+
+    // Flashlight
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Actions|Flashlight")
+    TObjectPtr<UInputAction> ToggleFlashlight;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Actions|Flashlight")
+    TObjectPtr<UInputAction> ChargeBatteryFlashlight;
+
+    // Item Actions
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Actions|Items")
+    TObjectPtr<UInputAction> UseEquippedItem;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Actions|Items")
+    TObjectPtr<UInputAction> DropItem;
+
+    // UI & Interaction
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Actions|UI")
+    TObjectPtr<UInputAction> ToggleInventory;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Actions|UI")
+    TObjectPtr<UInputAction> Interact;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Actions|UI")
+    TObjectPtr<UInputAction> PauseMenu;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Actions|Intro")
+    TObjectPtr<UInputAction> SkipIntroLS;
 
     // ============================================
-    // PUBLIC API - FLASHLIGHT
+    // COMPONENTS
     // ============================================
 
-    UFUNCTION(BlueprintCallable, Category = "Flashlight")
-    void OnToggleFlashlight();
+    UPROPERTY(BlueprintReadOnly, Category = "Components")
+    TObjectPtr<UInventoryComponent> InventoryComponent;
 
-    UFUNCTION(BlueprintCallable, Category = "Flashlight")
-    void ChargeBattery();
+    UPROPERTY(BlueprintReadOnly, Category = "Components")
+    TObjectPtr<UFlashlightComponent> FlashlightComponent;
+
+    UPROPERTY(BlueprintReadOnly, Category = "UI")
+    TObjectPtr<AWidgetManager> WidgetManagerHUD;
 
     // ============================================
-    // PUBLIC API - QUICKBAR
+    // QUICKBAR SYSTEM
     // ============================================
+
+    UPROPERTY(BlueprintReadOnly, Category = "Quickbar")
+    int32 CurrentEquippedSlotIndex;
 
     UFUNCTION(BlueprintCallable, Category = "Quickbar")
     void EquipQuickbarSlot1();
@@ -227,22 +256,92 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Quickbar")
     void UnequipCurrentItem();
 
+    UFUNCTION(BlueprintCallable, Category = "Quickbar")
+    void UpdateCharacterFlashlightState(const FItemData& ItemData);
+
     // ============================================
-    // PUBLIC API - ITEM USAGE
+    // ITEM USAGE
     // ============================================
 
     UFUNCTION(BlueprintCallable, Category = "Items")
     void UseCurrentEquippedItem();
 
+    UFUNCTION(BlueprintCallable, Category = "Items")
+    void DropCurrentItem();
+
     // ============================================
-    // PUBLIC API - UI
+    // FLASHLIGHT SYSTEM
+    // ============================================
+
+    UFUNCTION(BlueprintCallable, Category = "Flashlight")
+    void OnToggleFlashlight();
+
+    UFUNCTION(BlueprintCallable, Category = "Flashlight")
+    bool ValidateFlashlightComponents();
+
+    UFUNCTION(BlueprintCallable, Category = "Flashlight")
+    bool IsFlashlightEquipped();
+
+    // ============================================
+    // BATTERY CHARGING
+    // ============================================
+
+    UFUNCTION(BlueprintCallable, Category = "Battery")
+    void ChargeBattery();
+
+    UFUNCTION(BlueprintCallable, Category = "Battery")
+    FBatterySearchResult FindBatteryInInventory();
+
+    UFUNCTION(BlueprintCallable, Category = "Battery")
+    void ApplyBatteryCharge(const FBatterySearchResult& BatteryResult);
+
+    // ============================================
+    // INVENTORY UI
+    // ============================================
+
+    UFUNCTION(BlueprintCallable, Category = "UI")
+    void Inventory();
+
+    UFUNCTION(BlueprintCallable, Category = "UI")
+    void OpenInventory();
+
+    UFUNCTION(BlueprintCallable, Category = "UI")
+    void CloseInventory();
+
+    // ============================================
+    // PAUSE MENU
     // ============================================
 
     UFUNCTION(BlueprintCallable, Category = "UI")
     void OnPauseMenu();
 
     // ============================================
-    // DEPRECATED - Backward compatibility
+    // UI & FEEDBACK
+    // ============================================
+
+    UFUNCTION(BlueprintCallable, Category = "UI")
+    void ShowNotification(const FString& Message);
+
+    UFUNCTION(BlueprintCallable, Category = "UI")
+    void InitWidget();
+
+    // ============================================
+    // UTILITY FUNCTIONS
+    // ============================================
+
+    UFUNCTION(BlueprintCallable, Category = "Components")
+    void FindComponentClass();
+
+    UFUNCTION(BlueprintCallable, Category = "Feedback")
+    void PlayBatteryDepletedFeedback();
+
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Equipment")
+    bool IsPerformingEquipAction();
+
+    void PerformEquipAction(int32 SlotIndex);
+
+    // ============================================
+    // DEPRECATED FUNCTIONS
     // ============================================
 
     UFUNCTION(BlueprintCallable, Category = "Quickbar", meta = (DeprecatedFunction, DeprecationMessage = "Use EquipQuickbarSlot1 instead"))
@@ -261,67 +360,6 @@ public:
     void UseQuickbarSlot(int32 SlotIndex);
 
 private:
-    // ============================================
-    // INTERNAL STATE
-    // ============================================
-
-    AActor* CurrentInteractable = nullptr;
-    
-    bool bLastInputWasGamepad;
-    double LastInputNotifyTime;
-    
-    int32 CurrentEquippedSlotIndex;
-    bool bIntroPlaying = false;
-    // ============================================
-    // INTERNAL FUNCTIONS - INPUT
-    // ============================================
-
     void SetupInputMappingContext();
     void BindInputActions();
-
-    // ============================================
-    // INTERNAL FUNCTIONS - INTERACTION
-    // ============================================
-
-    void CheckForInteractables();
-    void HandleInteractableChange(AActor* OldInteractable, AActor* NewInteractable);
-    void OnInteractableFound(AActor* Interactable);
-    void OnInteractableLost(AActor* OldInteractable);
-    void HandleItemPickupFound(class AItemPickupActor* PickupActor);
-
-    // ============================================
-    // INTERNAL FUNCTIONS - INVENTORY
-    // ============================================
-
-    void OpenInventory();
-    void CloseInventory();
-
-    // ============================================
-    // INTERNAL FUNCTIONS - FLASHLIGHT
-    // ============================================
-
-    bool ValidateFlashlightComponents();
-    bool IsFlashlightEquipped();
-    
-    // Battery management
-    FBatterySearchResult FindBatteryInInventory();
-    void ApplyBatteryCharge(const FBatterySearchResult& BatteryResult);
-
-    // ============================================
-    // INTERNAL FUNCTIONS - QUICKBAR
-    // ============================================
-    
-    void UpdateCharacterFlashlightState(const FItemData& ItemData);
-
-    // ============================================
-    // INTERNAL FUNCTIONS - UI
-    // ============================================
-
-    void ShowNotification(const FString& Message);
-    void InitWidget();
-    void FindComponentClass();
-    
-    void PlayBatteryDepletedFeedback();
-    bool IsPerformingEquipAction();
-    void PerformEquipAction(int32 SlotIndex);
 };

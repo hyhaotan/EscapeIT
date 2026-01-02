@@ -10,116 +10,205 @@ void UInteractionPromptWidget::NativeConstruct()
 {
     Super::NativeConstruct();
 
-    // Start hidden
-    HidePrompt();
+    if (InteractKeyText)
+    {
+        InteractKeyText->SetText(FText::FromString(TEXT("E")));
+    }
+
+    if (ProgressOverlay)
+    {
+        UObject* ResourceObject = ProgressOverlay->GetBrush().GetResourceObject();
+        
+        if (UMaterialInterface* BaseMaterial = Cast<UMaterialInterface>(ResourceObject))
+        {
+            ProgressMaterial = UMaterialInstanceDynamic::Create(BaseMaterial, this);
+            
+            if (ProgressMaterial)
+            {
+                ProgressOverlay->SetBrushFromMaterial(ProgressMaterial);
+                
+                // Initialize material parameters
+                ProgressMaterial->SetScalarParameterValue(TEXT("Progress"), 0.0f);
+                ProgressMaterial->SetScalarParameterValue(TEXT("Thickness"), RingThickness);
+                ProgressMaterial->SetScalarParameterValue(TEXT("StartAngle"), 0.75f); 
+                ProgressMaterial->SetVectorParameterValue(TEXT("ProgressColor"), ProgressColor);
+                
+                UE_LOG(LogTemp, Log, TEXT("Circular Progress Material initialized successfully"));
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("Failed to create Dynamic Material Instance"));
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("No material assigned to ProgressOverlay in UMG Widget"));
+        }
+        
+        ProgressOverlay->SetVisibility(ESlateVisibility::Collapsed);
+    }
+
+    if (InteractBorder)
+    {
+        InteractBorder->SetBrushColor(IdleColor);
+    }
+    
+    SetVisibility(ESlateVisibility::Collapsed);
 }
 
 void UInteractionPromptWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
     Super::NativeTick(MyGeometry, InDeltaTime);
+
+    if (bIsHolding)
+    {
+        float PulseValue = FMath::Sin(GetWorld()->GetTimeSeconds() * PulseSpeed) * PulseIntensity + 1.0f;
+        SetRenderScale(FVector2D(PulseValue, PulseValue));
+    }
 }
 
-void UInteractionPromptWidget::ShowPrompt(const FText& Action, const FText& Target, UTexture2D* KeyTexture)
+void UInteractionPromptWidget::ShowPrompt()
 {
-    if (!PromptBackground)
+    SetVisibility(ESlateVisibility::Visible);
+    
+    if (InteractBorder)
     {
-        return;
+        InteractBorder->SetBrushColor(IdleColor);
+    }
+    
+    if (ProgressOverlay)
+    {
+        ProgressOverlay->SetVisibility(ESlateVisibility::Collapsed);
     }
 
-    bIsVisible = true;
-    PromptBackground->SetVisibility(ESlateVisibility::Visible);
-
-    // Set action text (e.g., "Press")
-    if (ActionText)
-    {
-        ActionText->SetText(Action);
-    }
-
-    // Set target text (e.g., "Pick Up Medkit")
-    if (TargetText)
-    {
-        TargetText->SetText(Target);
-    }
-
-    // Set key icon
-    if (KeyIcon)
-    {
-        TObjectPtr<UTexture2D> IconToUse;
-        if (IconToUse)
-        {
-            IconToUse = KeyTexture;
-            KeyIcon->SetBrushFromTexture(IconToUse);
-        }
-        else
-        {
-            IconToUse = KeyTexture_E;
-        }
-    }
+    SetRenderScale(FVector2D(1.0f, 1.0f));
+    
+    PlayAnimation(DisplayInteractAnim);
 }
 
 void UInteractionPromptWidget::HidePrompt()
 {
-    bIsVisible = false;
-
-    if (PromptBackground)
+    PlayAnimation(HiddenInteractAnim);
+    CancelHold();
+    
+    FTimerHandle TimerHandle;
+    GetWorld()->GetTimerManager().SetTimer(TimerHandle,[this]()
     {
-        PromptBackground->SetVisibility(ESlateVisibility::Collapsed);
-    }
+        SetVisibility(ESlateVisibility::Collapsed);
+    },0.5f,false);
 }
 
-void UInteractionPromptWidget::UpdatePromptForActor(AActor* TargetActor)
+void UInteractionPromptWidget::StartHold()
 {
-    if (!TargetActor)
-    {
-        HidePrompt();
-        return;
-    }
+    if (bIsHolding) return;
+    
+    bIsHolding = true;
+    CurrentProgress = 0.0f;
 
-    // Check if it's an item pickup
-    AItemPickupActor* PickupActor = Cast<AItemPickupActor>(TargetActor);
-    if (PickupActor)
+    if (ProgressOverlay)
     {
-        FItemData ItemData;
-        if (PickupActor->GetItemData(ItemData))
+        ProgressOverlay->SetVisibility(ESlateVisibility::HitTestInvisible);
+
+        if (ProgressMaterial)
         {
-            ActionTexts = FText::FromString(TEXT("Press"));
-            TargetTexts = FText::Format(
-                FText::FromString(TEXT("to Pick Up {0}")),
-                ItemData.ItemName
-            );
+            ProgressMaterial->SetScalarParameterValue(TEXT("Progress"), 0.0f);
+            ProgressMaterial->SetVectorParameterValue(TEXT("ProgressColor"), ProgressColor);
+        }
+    }
+    
+    UpdateVisuals(); 
+}
 
-            ShowPrompt(ActionTexts, TargetTexts, KeyTexture_E);
-            return;
+void UInteractionPromptWidget::UpdateHoldProgress(float Progress)
+{
+    if (!bIsHolding) return;
+    
+    CurrentProgress = FMath::Clamp(Progress,0.0f,1.0f);
+
+    if (ProgressMaterial)
+    {
+        ProgressMaterial->SetScalarParameterValue(TEXT("Progress"), CurrentProgress);
+
+        if (CurrentProgress >= 0.9f)
+        {
+            FLinearColor TransitionColor = FMath::Lerp(
+                ProgressColor,
+                CompleteColor,
+                (CurrentProgress - 0.9f) / 0.1f);
+            
+            ProgressMaterial->SetVectorParameterValue(TEXT("ProgressColor"), TransitionColor);
+        }
+    }
+    
+    UpdateVisuals();
+}
+
+void UInteractionPromptWidget::CancelHold()
+{
+    if (!bIsHolding) return;
+    
+    bIsHolding = false;
+    CurrentProgress = 0.0f;
+
+    if (ProgressOverlay)
+    {
+        ProgressOverlay->SetVisibility(ESlateVisibility::Collapsed);
+        
+        if (ProgressMaterial)
+        {
+            ProgressMaterial->SetScalarParameterValue(TEXT("Progress"), 0.0f);
         }
     }
 
-    // Check for other interactable types
-    if (TargetActor->ActorHasTag("Door"))
+    if (InteractBorder)
     {
-        ActionTexts = FText::FromString(TEXT("Press"));
-        TargetTexts = FText::FromString(TEXT("to Open Door"));
-        ShowPrompt(ActionTexts, TargetTexts, KeyTexture_E);
-        return;
+        InteractBorder->SetBrushColor(IdleColor);
     }
-
-    if (TargetActor->ActorHasTag("Puzzle"))
-    {
-        ActionTexts = FText::FromString(TEXT("Press"));
-        TargetTexts = FText::FromString(TEXT("to Examine"));
-        ShowPrompt(ActionTexts, TargetTexts, KeyTexture_E);
-        return;
-    }
-
-    if (TargetActor->ActorHasTag("Document"))
-    {
-        ActionTexts = FText::FromString(TEXT("Press"));
-        TargetTexts = FText::FromString(TEXT("to Read"));
-        ShowPrompt(ActionTexts, TargetTexts, KeyTexture_E);
-        return;
-    }
+    
+    SetRenderScale(FVector2D(1.0f, 1.0f));
 }
 
-bool UInteractionPromptWidget::IsPromptVisible() const
+void UInteractionPromptWidget::CompleteHold()
 {
-    return bIsVisible;
+    bIsHolding = false;
+
+    if (ProgressMaterial)
+    {
+        ProgressMaterial->SetScalarParameterValue(TEXT("Progress"), 1.0f);
+        ProgressMaterial->SetVectorParameterValue(TEXT("ProgressColor"), CompleteColor);
+    }
+
+    if (InteractBorder)
+    {
+        InteractBorder->SetBrushColor(CompleteColor);
+    }
+    
+    SetRenderScale(FVector2D(1.1f,1.1f));
+    
+    FTimerHandle HideTimer;
+    GetWorld()->GetTimerManager().SetTimer(
+        HideTimer,
+        [this]()
+        {
+            HidePrompt();
+        },0.15f,false);
+}
+
+void UInteractionPromptWidget::UpdateVisuals()
+{
+    if (!InteractBorder && !bIsHolding) return;
+    
+    FLinearColor CurrentColor;
+    
+    if (CurrentProgress < 0.9f)
+    {
+        float NormalizedProgress = CurrentProgress / 0.9f;
+        CurrentColor = FMath::Lerp(IdleColor, ProgressColor, NormalizedProgress);
+    }
+    else
+    {
+        float FinalProgress = (CurrentProgress - 0.9f) / 0.1f;
+        CurrentColor = FMath::Lerp(ProgressColor, CompleteColor, FinalProgress);
+    }
+    InteractBorder->SetBrushColor(CurrentColor);
 }

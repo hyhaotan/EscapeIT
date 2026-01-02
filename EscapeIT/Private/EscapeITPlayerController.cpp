@@ -1,5 +1,4 @@
-﻿
-#include "EscapeITPlayerController.h"
+﻿#include "EscapeITPlayerController.h"
 #include "Actor/ItemPickupActor.h"
 #include "Actor/Components/InventoryComponent.h"
 #include "Actor/Components/FlashlightComponent.h"
@@ -21,6 +20,8 @@
 #include "Camera/CameraComponent.h"
 #include "MovieSceneSequencePlayer.h"
 #include "EscapeITCameraManager.h"
+#include "Actor/Door/Door.h"
+#include "Actor/Door/DoorActor.h"
 
 AEscapeITPlayerController::AEscapeITPlayerController()
     : MouseSensitivity(1.0f)
@@ -69,9 +70,11 @@ void AEscapeITPlayerController::SetupInputComponent()
 void AEscapeITPlayerController::PlayerTick(float DeltaTime)
 {
     Super::PlayerTick(DeltaTime);
-
-    // Update interaction detection
-    CheckForInteractables();
+    
+    if (bIsHoldingInteract)
+    {
+        OnInteractOngoing(DeltaTime);
+    }
 }
 
 void AEscapeITPlayerController::PlayIntroSequence()
@@ -201,7 +204,12 @@ void AEscapeITPlayerController::BindInputActions()
 
     // UI & Interaction
     if (ToggleInventory) EnhancedInput->BindAction(ToggleInventory, ETriggerEvent::Completed, this, &AEscapeITPlayerController::Inventory);
-    if (Interact) EnhancedInput->BindAction(Interact, ETriggerEvent::Completed, this, &AEscapeITPlayerController::OnInteract);
+    if (Interact) 
+    {
+        EnhancedInput->BindAction(Interact, ETriggerEvent::Started, this, &AEscapeITPlayerController::OnInteract);
+        EnhancedInput->BindAction(Interact, ETriggerEvent::Completed, this, &AEscapeITPlayerController::OnInteractReleased);
+    }
+    
     if (PauseMenu) EnhancedInput->BindAction(PauseMenu, ETriggerEvent::Completed, this, &AEscapeITPlayerController::OnPauseMenu);
     
     // Skip Intro
@@ -264,142 +272,200 @@ void AEscapeITPlayerController::SetInvertPitch(bool bInvert)
 // INTERACTION SYSTEM
 // ============================================
 
-void AEscapeITPlayerController::CheckForInteractables()
+
+void AEscapeITPlayerController::OnEnterInteractableRange(AActor* Interactable)
 {
-    if (!GetPawn()) return;
+    if (!Interactable) return;
 
-    // Line trace from camera
-    FVector CameraLocation;
-    FRotator CameraRotation;
-    GetPlayerViewPoint(CameraLocation, CameraRotation);
-
-    FVector TraceEnd = CameraLocation + (CameraRotation.Vector() * InteractionDistance);
-
-    FHitResult HitResult;
-    FCollisionQueryParams QueryParams;
-    QueryParams.AddIgnoredActor(GetPawn());
-    QueryParams.AddIgnoredActor(this);
-
-    bool bHit = GetWorld()->LineTraceSingleByChannel(
-        HitResult,
-        CameraLocation,
-        TraceEnd,
-        ECC_Visibility,
-        QueryParams
-    );
-
-    // Debug visualization
-    if (bShowDebugTrace)
+    if (bIsHoldingInteract && HoldingInteractable && HoldingInteractable != Interactable)
     {
-        DrawDebugLine(
-            GetWorld(),
-            CameraLocation,
-            TraceEnd,
-            bHit ? FColor::Green : FColor::Red,
-            false,
-            0.1f,
-            0,
-            2.0f
-        );
+        OnInteractCanceled();
+    }
+    
+    CurrentInteractable = Interactable;
+}
+
+void AEscapeITPlayerController::OnLeaveInteractableRange(AActor* Interactable)
+{
+    if (!Interactable) return;
+
+    if (bIsHoldingInteract && HoldingInteractable == Interactable)
+    {
+        OnInteractCanceled();
     }
 
-    AActor* HitActor = bHit ? HitResult.GetActor() : nullptr;
-    
-    // Update interactable if changed
-    if (HitActor != CurrentInteractable)
+    if (CurrentInteractable == Interactable)
     {
-        HandleInteractableChange(CurrentInteractable, HitActor);
-        CurrentInteractable = HitActor;
+        CurrentInteractable = nullptr;
     }
 }
 
-void AEscapeITPlayerController::HandleInteractableChange(AActor* OldInteractable, AActor* NewInteractable)
+void AEscapeITPlayerController::OnInteractableDestroyed(AActor* Interactable)
 {
-    if (OldInteractable)
+    if (!Interactable) return;
+
+    if (bIsHoldingInteract && HoldingInteractable == Interactable)
     {
-        OnInteractableLost(OldInteractable);
+        ResetHoldInteraction();
     }
-    
-    if (NewInteractable)
+
+    if (CurrentInteractable == Interactable)
     {
-        OnInteractableFound(NewInteractable);
+        CurrentInteractable = nullptr;
     }
 }
 
-void AEscapeITPlayerController::OnInteractableFound(AActor* Interactable)
+void AEscapeITPlayerController::ResetHoldInteraction()
 {
-    if (!Interactable || !WidgetManagerHUD->InteractionPromptWidget) return;
-
-    // Handle item pickup
-    if (AItemPickupActor* PickupActor = Cast<AItemPickupActor>(Interactable))
+    if (AItemPickupActor* PickupActor = Cast<AItemPickupActor>(HoldingInteractable))
     {
-        HandleItemPickupFound(PickupActor);
+        PickupActor->CancelHoldInteraction();
+    }
+    
+    bIsHoldingInteract = false;
+    HoldInteractProgress = 0.0f;
+    HoldingInteractable = nullptr;
+}
+
+void AEscapeITPlayerController::ExecuteHoldInteraction()
+{
+    if (!HoldingInteractable)
+    {
+        UE_LOG(LogTemp, Error, TEXT("ExecuteHoldInteraction: HoldingInteractable is null!"));
+        ResetHoldInteraction();
         return;
     }
 
-    // Handle other interactable types
-    WidgetManagerHUD->InteractionPromptWidget->UpdatePromptForActor(Interactable);
+    if (!IsValid(HoldingInteractable))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ExecuteHoldInteraction: HoldingInteractable is no longer valid"));
+        ResetHoldInteraction();
+        return;
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("Hold interaction completed! Executing interaction on: %s"), 
+        *HoldingInteractable->GetName());
+
+    if (AItemPickupActor* PickupActor = Cast<AItemPickupActor>(HoldingInteractable))
+    {
+        PickupActor->CompleteHoldInteraction();
+    }
+
+    if (HoldingInteractable->Implements<UInteract>())
+    {
+        IInteract::Execute_Interact(HoldingInteractable, GetPawn());
+    }
+
+    ResetHoldInteraction();
 }
 
-void AEscapeITPlayerController::HandleItemPickupFound(AItemPickupActor* PickupActor)
+void AEscapeITPlayerController::OnInteractCanceled()
 {
-    if (!PickupActor || !WidgetManagerHUD->InteractionPromptWidget) return;
-
-    FItemData ItemData;
-    if (!PickupActor->GetItemData(ItemData)) return;
-
-    // Show pickup prompt
-    FText ActionText = FText::FromString(TEXT("Press"));
-    FText TargetText = FText::Format(
-        FText::FromString(TEXT("to Pick Up {0}")),
-        ItemData.ItemName
-    );
-
-    WidgetManagerHUD->InteractionPromptWidget->ShowPrompt(ActionText, TargetText, nullptr);
-    
-    // Enable outline effect
-    if (PickupActor->MeshComponent)
+    if (!bIsHoldingInteract)
     {
-        PickupActor->MeshComponent->SetRenderCustomDepth(true);
-        PickupActor->MeshComponent->SetCustomDepthStencilValue(1);
+        return;
     }
+
+    if (AItemPickupActor* PickupActor = Cast<AItemPickupActor>(HoldingInteractable))
+    {
+        PickupActor->CancelHoldInteraction();
+    }
+
+    ResetHoldInteraction();
 }
 
-void AEscapeITPlayerController::OnInteractableLost(AActor* OldInteractable)
+void AEscapeITPlayerController::OnInteractOngoing(float DeltaTime)
 {
-    if (!OldInteractable) return;
-
-    // Hide prompt
-    if (WidgetManagerHUD->InteractionPromptWidget)
+    if (!bIsHoldingInteract)
     {
-        WidgetManagerHUD->InteractionPromptWidget->HidePrompt();
+        return;
     }
-    
-    // Disable outline effect for item pickups
-    if (AItemPickupActor* PickupActor = Cast<AItemPickupActor>(OldInteractable))
+
+    if (!HoldingInteractable)
     {
-        if (PickupActor->MeshComponent)
-        {
-            PickupActor->MeshComponent->SetRenderCustomDepth(false);
-            PickupActor->MeshComponent->SetCustomDepthStencilValue(0);
-        }
+        UE_LOG(LogTemp, Warning, TEXT("OnInteractOngoing: HoldingInteractable is null!"));
+        ResetHoldInteraction();
+        return;
+    }
+
+    if (CurrentInteractable != HoldingInteractable)
+    {
+        UE_LOG(LogTemp, Log, TEXT("OnInteractOngoing: Looking away from interactable"));
+        OnInteractCanceled();
+        return;
+    }
+
+    if (HoldInteractDuration <= 0.0f)
+    {
+        UE_LOG(LogTemp, Error, TEXT("OnInteractOngoing: HoldInteractDuration is invalid (%.2f)"), 
+            HoldInteractDuration);
+        HoldInteractDuration = 1.0f; // Fallback value
+    }
+
+    HoldInteractProgress += DeltaTime / HoldInteractDuration;
+    HoldInteractProgress = FMath::Clamp(HoldInteractProgress, 0.0f, 1.0f);
+
+    if (AItemPickupActor* PickupActor = Cast<AItemPickupActor>(HoldingInteractable))
+    {
+        PickupActor->UpdateHoldProgress(HoldInteractProgress);
+    }
+
+    if (HoldInteractProgress >= 1.0f)
+    {
+        ExecuteHoldInteraction();
     }
 }
 
 void AEscapeITPlayerController::OnInteract()
 {
-    if (!CurrentInteractable) return;
-
-    if (CurrentInteractable->Implements<UInteract>())
+    if (!CurrentInteractable)
     {
-        IInteract::Execute_Interact(CurrentInteractable, GetPawn());
+        UE_LOG(LogTemp, Warning, TEXT("OnInteract: No interactable found"));
+        return;
+    }
 
-        if (WidgetManagerHUD->InteractionPromptWidget)
-        {
-            WidgetManagerHUD->InteractionPromptWidget->HidePrompt();
-        }
+    if (!CurrentInteractable->Implements<UInteract>())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("OnInteract: Actor doesn't implement IInteract interface"));
+        return;
+    }
 
-        CurrentInteractable = nullptr;
+    if (bIsHoldingInteract)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("OnInteract: Already holding interact"));
+        return;
+    }
+
+    bIsHoldingInteract = true;
+    HoldInteractProgress = 0.0f;
+    HoldingInteractable = CurrentInteractable;
+
+    if (AItemPickupActor* PickupActor = Cast<AItemPickupActor>(HoldingInteractable))
+    {
+        PickupActor->StartHoldInteraction();
+    }
+    
+    if (ADoorActor* DoorActor = Cast<ADoorActor>(HoldingInteractable))
+    {
+        DoorActor->StartHoldInteraction();
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("Started holding interact on: %s (Duration: %.2f seconds)"), 
+        *CurrentInteractable->GetName(), HoldInteractDuration);
+}
+
+void AEscapeITPlayerController::OnInteractReleased()
+{
+    if (!bIsHoldingInteract)
+    {
+        return;
+    }
+
+    if (HoldInteractProgress < 1.0f)
+    {
+        UE_LOG(LogTemp, Log, TEXT("OnInteractReleased: Interaction cancelled at %.1f%%"), 
+            HoldInteractProgress * 100.0f);
+        OnInteractCanceled();
     }
 }
 
@@ -430,7 +496,6 @@ void AEscapeITPlayerController::OpenInventory()
 
     WidgetManagerHUD->InventoryWidget->AddToViewport(20);
 
-    // Initialize inventory widget with component
     if (UInventoryWidget* InvWidget = Cast<UInventoryWidget>(WidgetManagerHUD->InventoryWidget))
     {
         if (InventoryComponent)

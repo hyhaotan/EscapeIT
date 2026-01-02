@@ -1,10 +1,9 @@
-﻿
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Data/ItemData.h"
-#include "Interface/Interact.h"
+#include "Actor/InteractableActor.h"
 #include "ItemPickupActor.generated.h"
 
 class UStaticMeshComponent;
@@ -13,9 +12,10 @@ class UWidgetComponent;
 class UDataTable;
 class UParticleSystem;
 class USoundBase;
+class UInteractionPromptWidget;
 
 UCLASS()
-class ESCAPEIT_API AItemPickupActor : public AActor,public IInteract
+class ESCAPEIT_API AItemPickupActor : public AInteractableActor
 {
     GENERATED_BODY()
 
@@ -37,9 +37,6 @@ public:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<USphereComponent> InteractionSphere;
-
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-    TObjectPtr<UWidgetComponent> PromptWidget;
 
     // ============================================
     // ITEM DATA
@@ -63,9 +60,6 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
     bool bAutoPickup = false;
-
-    UPROPERTY(BlueprintReadOnly, Category = "Interaction")
-    bool bPlayerNearby = false;
 
     // ============================================
     // EFFECTS
@@ -95,9 +89,6 @@ public:
 
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Item")
     FText GetItemName() const;
-
-    UFUNCTION(BlueprintCallable, Category = "Visual")
-    void ShowPrompt(bool bShow);
     
     UFUNCTION(BlueprintNativeEvent,Category="Use")
     void UseItem();
@@ -110,20 +101,20 @@ protected:
     // ============================================
 
     UFUNCTION()
-    void OnInteractionBeginOverlap(
+    virtual void OnInteractionBeginOverlap_Implementation(
         UPrimitiveComponent* OverlappedComponent,
         AActor* OtherActor,
         UPrimitiveComponent* OtherComp,
         int32 OtherBodyIndex,
         bool bFromSweep,
-        const FHitResult& SweepResult);
+        const FHitResult& SweepResult) override;
 
     UFUNCTION()
-    void OnInteractionEndOverlap(
+    virtual void OnInteractionEndOverlap_Implementation(
         UPrimitiveComponent* OverlappedComponent,
         AActor* OtherActor,
         UPrimitiveComponent* OtherComp,
-        int32 OtherBodyIndex);
+        int32 OtherBodyIndex) override;
 
     // ============================================
     // INTERNAL FUNCTIONS
@@ -134,11 +125,9 @@ protected:
     UFUNCTION(BlueprintCallable, Category = "Use")
     APawn* GetPlayerPawn() const;
 
+    void NotifyPlayerControllerItemRemoved();
+
 private:
     FVector InitialLocation;
     FText CachedItemName;
-
-    // ============================================ 
-    // PRIVATE FUNCTION
-    // ============================================
 };

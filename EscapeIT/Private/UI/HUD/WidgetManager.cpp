@@ -182,6 +182,10 @@ void AWidgetManager::InitializeWidgets()
 	if (InteractionPromptWidgetClass && !InteractionPromptWidget)
 	{
 		InteractionPromptWidget = CreateWidget<UInteractionPromptWidget>(GetWorld(), InteractionPromptWidgetClass);
+		if (InteractionPromptWidget)
+		{
+			InteractionPromptWidget->AddToViewport(5);
+		}
 	}
 }
 

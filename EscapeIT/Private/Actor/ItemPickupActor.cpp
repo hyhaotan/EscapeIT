@@ -1,6 +1,6 @@
-﻿
-#include "Actor/ItemPickupActor.h"
+﻿#include "Actor/ItemPickupActor.h"
 #include "Actor/Components/InventoryComponent.h"
+#include "EscapeITPlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Particles/ParticleSystemComponent.h"
 #include "Components/SphereComponent.h"
@@ -10,6 +10,8 @@
 #include "Sound/SoundBase.h"
 #include "GameFramework/Actor.h"
 #include "Engine/World.h"
+#include "UI/Inventory/InteractionPromptWidget.h"
+#include "Camera/PlayerCameraManager.h"
 
 AItemPickupActor::AItemPickupActor()
 {
@@ -26,12 +28,12 @@ AItemPickupActor::AItemPickupActor()
     InteractionSphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
     InteractionSphere->SetCollisionResponseToAllChannels(ECR_Ignore);
     InteractionSphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
-
-    PromptWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("PromptWidget"));
-    PromptWidget->SetupAttachment(RootComponent);
-    PromptWidget->SetRelativeLocation(FVector(0.0f, 0.0f, 50.0f));
-    PromptWidget->SetWidgetSpace(EWidgetSpace::Screen);
-    PromptWidget->SetVisibility(false);
+    
+    if (PromptWidget)
+    {
+        PromptWidget->SetupAttachment(MeshComponent);
+        PromptWidget->SetRelativeLocation(FVector(0.0f, 0.0f, 50.0f));
+    }
 
     InteractionRadius = 100.0f;
     Quantity = 1;
@@ -51,10 +53,7 @@ void AItemPickupActor::BeginPlay()
         InteractionSphere->SetSphereRadius(InteractionRadius);
     }
 
-    // Load mesh và data từ DataTable
     InitializeFromDataTable();
-
-    ShowPrompt(false);
 }
 
 void AItemPickupActor::InitializeFromDataTable()
@@ -68,7 +67,6 @@ void AItemPickupActor::InitializeFromDataTable()
             MeshComponent->SetStaticMesh(RowData.ItemMesh);
         }
 
-        // Cache item name cho prompt
         CachedItemName = RowData.ItemName;
 
         UE_LOG(LogTemp, Log, TEXT("ItemPickupActor: Initialized '%s' from DataTable"), *RowData.ItemName.ToString());
@@ -81,12 +79,19 @@ void AItemPickupActor::InitializeFromDataTable()
 
 void AItemPickupActor::Interact_Implementation(AActor* Interactor)
 {
+    Super::Interact_Implementation(Interactor);
+    
     PickupItem(Interactor);
 }
 
 void AItemPickupActor::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
+
+    if (bPlayerNearby && PromptWidget && PromptWidget->IsVisible())
+    {
+        UpdateWidgetRotation();
+    }
 }
 
 void AItemPickupActor::PickupItem(AActor* Collector)
@@ -113,7 +118,6 @@ void AItemPickupActor::PickupItem(AActor* Collector)
 
     if (Inventory->AddItem(ItemID, Quantity))
     {
-        // Spawn particle effect
         if (PickupParticle)
         {
             UGameplayStatics::SpawnEmitterAtLocation(
@@ -138,6 +142,8 @@ void AItemPickupActor::PickupItem(AActor* Collector)
 
         UE_LOG(LogTemp, Log, TEXT("PickupItem: Successfully picked up %d x %s"),
             Quantity, *ItemData.ItemName.ToString());
+
+        NotifyPlayerControllerItemRemoved();
 
         // Destroy actor
         Destroy();
@@ -202,7 +208,7 @@ void AItemPickupActor::SetItemID(FName NewItemID)
     InitializeFromDataTable();
 }
 
-void AItemPickupActor::OnInteractionBeginOverlap(
+void AItemPickupActor::OnInteractionBeginOverlap_Implementation(
     UPrimitiveComponent* OverlappedComponent,
     AActor* OtherActor,
     UPrimitiveComponent* OtherComp,
@@ -210,50 +216,47 @@ void AItemPickupActor::OnInteractionBeginOverlap(
     bool bFromSweep,
     const FHitResult& SweepResult)
 {
-    if (!OtherActor || OtherActor == this)
+    Super::OnInteractionBeginOverlap_Implementation(
+       OverlappedComponent, OtherActor, OtherComp, OtherBodyIndex, bFromSweep, SweepResult);
+
+    if (MeshComponent)
     {
-        return;
+        MeshComponent->SetRenderCustomDepth(true);
+        MeshComponent->SetCustomDepthStencilValue(1);
     }
 
-    if (OtherActor->ActorHasTag(FName("Player")))
+    if (bAutoPickup && bPlayerNearby)
     {
-        bPlayerNearby = true;
-        ShowPrompt(true);
-
-        if (bAutoPickup)
-        {
-            PickupItem(OtherActor);
-        }
-
-        UE_LOG(LogTemp, Log, TEXT("Player entered pickup range for '%s'"), *CachedItemName.ToString());
+        PickupItem(OtherActor);
     }
 }
 
-void AItemPickupActor::OnInteractionEndOverlap(
+void AItemPickupActor::OnInteractionEndOverlap_Implementation(
     UPrimitiveComponent* OverlappedComponent,
     AActor* OtherActor,
     UPrimitiveComponent* OtherComp,
     int32 OtherBodyIndex)
 {
-    if (!OtherActor || OtherActor == this)
-    {
-        return;
-    }
+    Super::OnInteractionEndOverlap_Implementation(
+        OverlappedComponent, OtherActor, OtherComp, OtherBodyIndex);
 
-    if (OtherActor->ActorHasTag(FName("Player")))
+    if (MeshComponent)
     {
-        bPlayerNearby = false;
-        ShowPrompt(false);
-
-        UE_LOG(LogTemp, Log, TEXT("Player left pickup range"));
+        MeshComponent->SetRenderCustomDepth(false);
+        MeshComponent->SetCustomDepthStencilValue(0);
     }
 }
 
-void AItemPickupActor::ShowPrompt(bool bShow)
+void AItemPickupActor::NotifyPlayerControllerItemRemoved()
 {
-    if (PromptWidget)
+    APawn* PlayerPawn = GetPlayerPawn();
+    if (PlayerPawn)
     {
-        PromptWidget->SetVisibility(bShow);
+        AEscapeITPlayerController* PC = Cast<AEscapeITPlayerController>(PlayerPawn->GetController());
+        if (PC)
+        {
+            PC->OnInteractableDestroyed(this);
+        }
     }
 }
 

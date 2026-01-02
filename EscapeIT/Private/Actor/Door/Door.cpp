@@ -1,86 +1,128 @@
-﻿
-#include "Actor/Door/Door.h"
+﻿#include "Actor/Door/Door.h"
 #include "Components/TimelineComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/BoxComponent.h"
 #include "Curves/CurveFloat.h"
 #include "GameSystem/AudioManager.h"
+#include "Components/WidgetComponent.h"
 
-// Sets default values
 ADoor::ADoor()
 {
- 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-	PrimaryActorTick.bCanEverTick = false;
+    PrimaryActorTick.bCanEverTick = true;
 
-	// Root component là DoorPivot - điểm quay của cửa
-	DoorPivot = CreateDefaultSubobject<USceneComponent>(TEXT("DoorPivot"));
-	RootComponent = DoorPivot;
+    DoorPivot = CreateDefaultSubobject<USceneComponent>(TEXT("DoorPivot"));
+    RootComponent = DoorPivot;
 
-	// Door Frame gắn vào DoorPivot
-	DoorFrame = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("DoorFrame"));
-	DoorFrame->SetupAttachment(DoorPivot);
+    DoorFrame = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("DoorFrame"));
+    DoorFrame->SetupAttachment(DoorPivot);
 
-	// Door gắn vào DoorFrame
-	Door = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Door"));
-	Door->SetupAttachment(DoorFrame);
+    Door = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Door"));
+    Door->SetupAttachment(DoorFrame);
 
-	// Timeline cho animation
-	DoorTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("DoorTimeline"));
-	DoorTimeline->RegisterComponent();
-	
-	AudioManager = CreateDefaultSubobject<UAudioManager>(TEXT("AudioManager"));
-
-	bIsOpen = false;
-	AnimationDuration = 1.0f;
-	OpenAngle = 90.0f;
-
+    DoorTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("DoorTimeline"));
+    
+    InteractBox = CreateDefaultSubobject<UBoxComponent>(TEXT("InteractBox"));
+    InteractBox->SetupAttachment(RootComponent);
+    InteractBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    InteractBox->SetCollisionResponseToAllChannels(ECR_Ignore);
+    InteractBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+    
+    AudioManager = CreateDefaultSubobject<UAudioManager>(TEXT("AudioManager"));
+    
+    if (PromptWidget)
+    {
+        PromptWidget->SetupAttachment(DoorPivot);
+    }
+    
+    bIsOpen = false;
+    AnimationDuration = 1.0f;
+    OpenAngle = 90.0f;
 }
 
-// Called when the game starts or when spawned
 void ADoor::BeginPlay()
 {
-	Super::BeginPlay();
+    Super::BeginPlay();
 
-	if (DoorTimeline && DoorCurve)
-	{
-		FOnTimelineFloat TimelineCallback;
-		TimelineCallback.BindDynamic(this, &ADoor::UpdateDoorRotation);
-		DoorTimeline->AddInterpFloat(DoorCurve, TimelineCallback);
-	}
-	
-	
+    if (DoorTimeline && DoorCurve)
+    {
+        FOnTimelineFloat TimelineCallback;
+        TimelineCallback.BindDynamic(this, &ADoor::UpdateDoorRotation);
+        DoorTimeline->AddInterpFloat(DoorCurve, TimelineCallback);
+    }
+
+    if (InteractBox)
+    {
+        InteractBox->OnComponentBeginOverlap.AddDynamic(this, &ADoor::OnInteractionBeginOverlap);
+        InteractBox->OnComponentEndOverlap.AddDynamic(this, &ADoor::OnInteractionEndOverlap);
+    }
 }
 
-// Called every frame
 void ADoor::Tick(float DeltaTime)
 {
-	Super::Tick(DeltaTime);
+    Super::Tick(DeltaTime);
+
+    if (bPlayerNearby && PromptWidget && PromptWidget->IsVisible())
+    {
+        UpdateWidgetRotation();
+    }
+}
+
+void ADoor::Interact_Implementation(AActor* Interactor)
+{
+    Super::Interact_Implementation(Interactor);
+
+    UE_LOG(LogTemp, Log, TEXT("ADoor::Interact - Override in child class"));
+}
+
+void ADoor::OnInteractionBeginOverlap_Implementation(
+    UPrimitiveComponent* OverlappedComponent,
+    AActor* OtherActor,
+    UPrimitiveComponent* OtherComp,
+    int32 OtherBodyIndex,
+    bool bFromSweep,
+    const FHitResult& SweepResult)
+{
+    Super::OnInteractionBeginOverlap_Implementation(
+        OverlappedComponent, OtherActor, OtherComp, OtherBodyIndex, bFromSweep, SweepResult);
+    
+}
+
+void ADoor::OnInteractionEndOverlap_Implementation(
+    UPrimitiveComponent* OverlappedComponent,
+    AActor* OtherActor,
+    UPrimitiveComponent* OtherComp,
+    int32 OtherBodyIndex)
+{
+    Super::OnInteractionEndOverlap_Implementation(
+        OverlappedComponent, OtherActor, OtherComp, OtherBodyIndex);
 
 }
 
 void ADoor::UpdateDoorRotation_Implementation(float Value)
 {
-	
-	if (!Door)
-	{
-		return;
-	}
+    if (!Door) return;
 
-	// Interpolate từ 0 đến DoorRotationTarget dựa vào curve value
-	FRotator CurrentRotation = FRotator(
-		DoorRotationTarget.Pitch * Value,
-		DoorRotationTarget.Yaw * Value,
-		DoorRotationTarget.Roll * Value
-	);
+    FRotator CurrentRotation = FRotator(
+        DoorRotationTarget.Pitch * Value,
+        DoorRotationTarget.Yaw * Value,
+        DoorRotationTarget.Roll * Value
+    );
 
-	Door->SetRelativeRotation(CurrentRotation);
+    Door->SetRelativeRotation(CurrentRotation);
 }
 
 void ADoor::OpenDoor_Implementation()
 {
-	AudioManager->PlayOpenDoorSound();
+    if (AudioManager)
+    {
+        AudioManager->PlayOpenDoorSound();
+    }
 }
 
 void ADoor::CloseDoor_Implementation()
 {
-	AudioManager->PlayCloseDoorSound();
+    if (AudioManager)
+    {
+        AudioManager->PlayCloseDoorSound();
+    }
 }
