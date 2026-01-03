@@ -63,14 +63,29 @@ public:
     FLinearColor ProgressColor = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f); 
     
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction | Colors")
-    FLinearColor CompleteColor = FLinearColor(1.0f, 0.84f, 0.0f, 1.0f); 
+    FLinearColor CompleteColor = FLinearColor(1.0f, 0.84f, 0.0f, 1.0f);
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction|Progress Ring")
+    float InnerRadius = 0.35f;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction|Progress Ring")
+    float OuterRadius = 0.45f;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction|Progress Ring")
+    float Feather = 0.01f;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction|Progress Ring")
+    FLinearColor GlowColor = FLinearColor(0.0f, 1.0f, 1.0f, 1.0f);
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction|Progress Ring")
+    float GlowIntensity = 2.0f;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction|Progress Ring")
+    float StartAngle = 0.75f;
 
     // ============================================
     // VISUAL PROPERTIES
     // ============================================
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction | Visual", meta = (ClampMin = "0.05", ClampMax = "0.4"))
-    float RingThickness = 0.15f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction | Visual")
     float PulseSpeed = 8.0f;

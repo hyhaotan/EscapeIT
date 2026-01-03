@@ -4,6 +4,8 @@
 #include "GameInstance/PowerSystemManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerController.h"
+#include "UI/NotificationWidget.h"
+#include "UI/HUD/WidgetManager.h"
 
 AElectricCabinetActor::AElectricCabinetActor()
 {
@@ -150,6 +152,7 @@ void AElectricCabinetActor::ShowPuzzleWidget(APlayerController* PlayerController
         return;
     }
     
+    ElectricCabinetWidget->ShowAnimWidget();
     ElectricCabinetWidget->AddToViewport(100);
     
     PlayerController->SetInputMode(FInputModeUIOnly());
@@ -162,7 +165,7 @@ void AElectricCabinetActor::HidePuzzleWidget()
 {
     if (ElectricCabinetWidget && ElectricCabinetWidget->IsInViewport())
     {
-        ElectricCabinetWidget->RemoveFromParent();
+      
         
         APlayerController* PC = GetWorld()->GetFirstPlayerController();
         if (PC)
@@ -173,6 +176,9 @@ void AElectricCabinetActor::HidePuzzleWidget()
         
         UE_LOG(LogTemp, Log, TEXT("Puzzle widget hidden"));
     }
+    ElectricCabinetWidget->SetVisibility(ESlateVisibility::Collapsed);
+    ElectricCabinetWidget->HideAnimWidget();
+
 }
 
 void AElectricCabinetActor::OnPuzzleCompleted()
@@ -185,7 +191,11 @@ void AElectricCabinetActor::OnPuzzleCompleted()
         PowerSystem->SetPowerState(true);
         bIsRepaired = true;
         
-        HidePuzzleWidget();
+        AWidgetManager* WidgetManager = Cast<AWidgetManager>(GetWorld()->GetFirstPlayerController()->GetHUD());
+        WidgetManager->NotificationWidget->ShowNotification(FText::FromString(TEXT("Completed!")));
+        
+        FTimerHandle HidePuzzle;
+        GetWorld()->GetTimerManager().SetTimer(HidePuzzle,this,&AElectricCabinetActor::HidePuzzleWidget,3.0f,false);
         
         FTimerHandle CloseTimerHandle;
         GetWorld()->GetTimerManager().SetTimer(
@@ -199,7 +209,7 @@ void AElectricCabinetActor::OnPuzzleCompleted()
                     UE_LOG(LogTemp, Log, TEXT("Cabinet door closed automatically"));
                 }
             },
-            2.0f,
+            4.0f,
             false
         );
         

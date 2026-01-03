@@ -32,7 +32,6 @@ void ALightActor::BeginPlay()
 	UPowerSystemManager* PowerSystem = GetGameInstance()->GetSubsystem<UPowerSystemManager>();
 	if (PowerSystem)
 	{
-		PowerSystem->CausePowerFailure();
 		PowerSystem->OnPowerStateChanged.AddDynamic(this, &ALightActor::OnPowerStateChanged);
 		
 		TargetIntensity = PowerSystem->IsPowerOn() ? OnIntensity : OffIntensity;

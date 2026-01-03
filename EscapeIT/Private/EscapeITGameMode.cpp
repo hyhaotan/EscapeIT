@@ -1,6 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 #include "EscapeITGameMode.h"
 
+#include "Actor/ElectricCabinetActor.h"
 #include "GameInstance/PowerSystemManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "UI/HUD/WidgetManager.h"
@@ -8,6 +9,7 @@
 
 AEscapeITGameMode::AEscapeITGameMode()
 {
+	PowerOffDuration = 5.0f;
 }
 
 void AEscapeITGameMode::BeginPlay()
@@ -19,6 +21,9 @@ void AEscapeITGameMode::BeginPlay()
 
 	// Camera bắt đầu từ black, sau đó fade in và show story
 	FadeInAndShowStory();
+	
+	// Trigger power event 5s later
+	GetWorld()->GetTimerManager().SetTimer(DelayPowerEvent,this,&AEscapeITGameMode::TriggerPowerEvent,PowerOffDuration,false);
 }
 
 void AEscapeITGameMode::HideAllGameWidgets()
@@ -99,4 +104,13 @@ void AEscapeITGameMode::ShowStoryGameWidget()
 	{
 		UE_LOG(LogTemp, Warning, TEXT("ShowStoryGameWidget: Failed to create StoryGameWidget instance."));
 	}
+}
+
+void AEscapeITGameMode::TriggerPowerEvent()
+{
+	AActor* Actor = UGameplayStatics::GetActorOfClass(GetWorld(),AElectricCabinetActor::StaticClass());
+	UPowerSystemManager* PowerSystem = GetGameInstance()->GetSubsystem<UPowerSystemManager>();
+	
+	UGameplayStatics::PlaySoundAtLocation(GetWorld(),PowerOffSound,Actor->GetActorLocation());
+	PowerSystem->CausePowerFailure();
 }

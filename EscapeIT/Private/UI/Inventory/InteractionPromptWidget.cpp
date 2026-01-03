@@ -27,13 +27,18 @@ void UInteractionPromptWidget::NativeConstruct()
             {
                 ProgressOverlay->SetBrushFromMaterial(ProgressMaterial);
                 
-                // Initialize material parameters
                 ProgressMaterial->SetScalarParameterValue(TEXT("Progress"), 0.0f);
-                ProgressMaterial->SetScalarParameterValue(TEXT("Thickness"), RingThickness);
-                ProgressMaterial->SetScalarParameterValue(TEXT("StartAngle"), 0.75f); 
-                ProgressMaterial->SetVectorParameterValue(TEXT("ProgressColor"), ProgressColor);
+                ProgressMaterial->SetScalarParameterValue(TEXT("InnerRadius"), InnerRadius);
+                ProgressMaterial->SetScalarParameterValue(TEXT("OuterRadius"), OuterRadius);
+                ProgressMaterial->SetScalarParameterValue(TEXT("Feather"), Feather);
+                ProgressMaterial->SetScalarParameterValue(TEXT("GlowIntensity"), GlowIntensity);
+                ProgressMaterial->SetScalarParameterValue(TEXT("StartAngle"), StartAngle);
+                ProgressMaterial->SetVectorParameterValue(TEXT("GlowColor"), GlowColor);
                 
-                UE_LOG(LogTemp, Log, TEXT("Circular Progress Material initialized successfully"));
+                UE_LOG(LogTemp, Log, TEXT("Circular Progress Material initialized with parameters:"));
+                UE_LOG(LogTemp, Log, TEXT("  InnerRadius: %f, OuterRadius: %f"), InnerRadius, OuterRadius);
+                UE_LOG(LogTemp, Log, TEXT("  Feather: %f, GlowIntensity: %f"), Feather, GlowIntensity);
+                UE_LOG(LogTemp, Log, TEXT("  StartAngle: %f"), StartAngle);
             }
             else
             {
@@ -112,7 +117,8 @@ void UInteractionPromptWidget::StartHold()
         if (ProgressMaterial)
         {
             ProgressMaterial->SetScalarParameterValue(TEXT("Progress"), 0.0f);
-            ProgressMaterial->SetVectorParameterValue(TEXT("ProgressColor"), ProgressColor);
+            ProgressMaterial->SetScalarParameterValue(TEXT("GlowIntensity"), GlowIntensity);
+            ProgressMaterial->SetVectorParameterValue(TEXT("GlowColor"), ProgressColor);
         }
     }
     
@@ -129,14 +135,23 @@ void UInteractionPromptWidget::UpdateHoldProgress(float Progress)
     {
         ProgressMaterial->SetScalarParameterValue(TEXT("Progress"), CurrentProgress);
 
+        FLinearColor CurrentGlowColor;
         if (CurrentProgress >= 0.9f)
         {
-            FLinearColor TransitionColor = FMath::Lerp(
-                ProgressColor,
-                CompleteColor,
-                (CurrentProgress - 0.9f) / 0.1f);
-            
-            ProgressMaterial->SetVectorParameterValue(TEXT("ProgressColor"), TransitionColor);
+            float TransitionFactor = (CurrentProgress - 0.9f) / 0.1f;
+            CurrentGlowColor = FMath::Lerp(ProgressColor,CompleteColor,TransitionFactor);
+        }
+        else
+        {
+            CurrentGlowColor = ProgressColor;
+        }
+        
+        ProgressMaterial->SetVectorParameterValue(TEXT("GlowColor"), CurrentGlowColor);
+
+        if (CurrentProgress >= 0.8f)
+        {
+            float IntensityBoost = FMath::Lerp(GlowIntensity, GlowIntensity * 1.5f, (CurrentProgress - 0.8f) / 0.2f);
+            ProgressMaterial->SetScalarParameterValue(TEXT("GlowIntensity"), IntensityBoost);
         }
     }
     
@@ -175,7 +190,8 @@ void UInteractionPromptWidget::CompleteHold()
     if (ProgressMaterial)
     {
         ProgressMaterial->SetScalarParameterValue(TEXT("Progress"), 1.0f);
-        ProgressMaterial->SetVectorParameterValue(TEXT("ProgressColor"), CompleteColor);
+        ProgressMaterial->SetVectorParameterValue(TEXT("GlowColor"), CompleteColor);
+        ProgressMaterial->SetScalarParameterValue(TEXT("GlowIntensity"), GlowIntensity * 2.0f);
     }
 
     if (InteractBorder)
@@ -183,7 +199,7 @@ void UInteractionPromptWidget::CompleteHold()
         InteractBorder->SetBrushColor(CompleteColor);
     }
     
-    SetRenderScale(FVector2D(1.1f,1.1f));
+    SetRenderScale(FVector2D(1.1f, 1.1f));
     
     FTimerHandle HideTimer;
     GetWorld()->GetTimerManager().SetTimer(
@@ -191,7 +207,7 @@ void UInteractionPromptWidget::CompleteHold()
         [this]()
         {
             HidePrompt();
-        },0.15f,false);
+        }, 0.15f, false);
 }
 
 void UInteractionPromptWidget::UpdateVisuals()
