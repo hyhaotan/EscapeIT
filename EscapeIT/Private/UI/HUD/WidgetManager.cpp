@@ -13,6 +13,7 @@
 #include "Actor/Components/FlashlightComponent.h"
 #include "Settings/Core/SettingsSubsystem.h"
 #include "UI/NotificationWidget.h"
+#include "UI/SubtitleWidget.h"
 #include "UI/Inventory/InteractionPromptWidget.h"
 
 AWidgetManager::AWidgetManager()
@@ -186,6 +187,11 @@ void AWidgetManager::InitializeWidgets()
 		{
 			InteractionPromptWidget->AddToViewport(5);
 		}
+	}
+	
+	if (SubtitleWidgetClass && !SubtitleWidget)
+	{
+		SubtitleWidget = CreateWidget<USubtitleWidget>(GetWorld(), SubtitleWidgetClass);
 	}
 }
 

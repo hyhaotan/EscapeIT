@@ -29,12 +29,12 @@ void ALightActor::BeginPlay()
 {
 	Super::BeginPlay();
 	
-	UPowerSystemManager* PowerSystem = GetGameInstance()->GetSubsystem<UPowerSystemManager>();
-	if (PowerSystem)
+	PowerSystemManager = GetGameInstance()->GetSubsystem<UPowerSystemManager>();
+	if (PowerSystemManager)
 	{
-		PowerSystem->OnPowerStateChanged.AddDynamic(this, &ALightActor::OnPowerStateChanged);
+		PowerSystemManager->OnPowerStateChanged.AddDynamic(this, &ALightActor::OnPowerStateChanged);
 		
-		TargetIntensity = PowerSystem->IsPowerOn() ? OnIntensity : OffIntensity;
+		TargetIntensity = PowerSystemManager->IsPowerOn() ? OnIntensity : OffIntensity;
 		CurrentIntensity = TargetIntensity;
 		LightComponent->SetIntensity(CurrentIntensity);
 	}
@@ -42,10 +42,9 @@ void ALightActor::BeginPlay()
 
 void ALightActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	UPowerSystemManager* PowerSystem = GetGameInstance()->GetSubsystem<UPowerSystemManager>();
-	if (PowerSystem)
+	if (PowerSystemManager)
 	{
-		PowerSystem->OnPowerStateChanged.RemoveDynamic(this, &ALightActor::OnPowerStateChanged);
+		PowerSystemManager->OnPowerStateChanged.RemoveDynamic(this, &ALightActor::OnPowerStateChanged);
 	}
 	Super::EndPlay(EndPlayReason);
 }

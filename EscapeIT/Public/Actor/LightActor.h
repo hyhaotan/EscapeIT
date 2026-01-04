@@ -7,6 +7,8 @@
 #include "Components/PointLightComponent.h"
 #include "LightActor.generated.h"
 
+class UPowerSystemManager;
+
 UCLASS()
 class ESCAPEIT_API ALightActor : public AActor
 {
@@ -25,6 +27,9 @@ public:
 	
 	UPROPERTY(VisibleAnywhere,BlueprintReadOnly,Category="Components")
 	UStaticMeshComponent* MeshComponent;
+	
+	UPROPERTY()
+	TObjectPtr<UPowerSystemManager> PowerSystemManager;
 	
 	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="Light Settings")
 	float OnIntensity = 5000.0f;

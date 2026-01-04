@@ -6,31 +6,34 @@
 #include "Kismet/GameplayStatics.h"
 #include "UI/HUD/WidgetManager.h"
 #include "UI/StoryGameWidget.h"
+#include "UI/SubtitleWidget.h"
 
 AEscapeITGameMode::AEscapeITGameMode()
 {
-	PowerOffDuration = 5.0f;
 }
 
 void AEscapeITGameMode::BeginPlay()
 {
 	Super::BeginPlay();
+	
+	PowerSystemManager = GetGameInstance()->GetSubsystem<UPowerSystemManager>();
 
-	// Ẩn tất cả widgets từ WidgetManager trước
 	HideAllGameWidgets();
 
-	// Camera bắt đầu từ black, sau đó fade in và show story
 	FadeInAndShowStory();
 	
-	// Trigger power event 5s later
-	GetWorld()->GetTimerManager().SetTimer(DelayPowerEvent,this,&AEscapeITGameMode::TriggerPowerEvent,PowerOffDuration,false);
+	GetWorld()->GetTimerManager().SetTimer(PowerSystemManager->DelayPowerEvent,
+											this,
+											&AEscapeITGameMode::TriggerPowerEvent,
+											PowerSystemManager->PowerOffDuration,
+											false);
 }
 
 void AEscapeITGameMode::HideAllGameWidgets()
 {
 	if (TObjectPtr<UWorld> World = GetWorld())
 	{
-		TObjectPtr<AWidgetManager> WidgetManager = Cast<AWidgetManager>(
+		WidgetManager = Cast<AWidgetManager>(
 			UGameplayStatics::GetActorOfClass(World, AWidgetManager::StaticClass()));
 
 		if (WidgetManager)
@@ -109,8 +112,12 @@ void AEscapeITGameMode::ShowStoryGameWidget()
 void AEscapeITGameMode::TriggerPowerEvent()
 {
 	AActor* Actor = UGameplayStatics::GetActorOfClass(GetWorld(),AElectricCabinetActor::StaticClass());
-	UPowerSystemManager* PowerSystem = GetGameInstance()->GetSubsystem<UPowerSystemManager>();
 	
-	UGameplayStatics::PlaySoundAtLocation(GetWorld(),PowerOffSound,Actor->GetActorLocation());
-	PowerSystem->CausePowerFailure();
+	UGameplayStatics::PlaySoundAtLocation(GetWorld(),PowerSystemManager->PowerOffSound,Actor->GetActorLocation());
+	PowerSystemManager->CausePowerFailure();
+	
+	FText ObjectName = FText::FromString(TEXT("You"));
+	FText ObjectSubtitle = FText::FromString(TEXT("What the hell is going on?"));
+	
+	WidgetManager->SubtitleWidget->DisplaySubtitle(ObjectName,ObjectSubtitle,3.0f);
 }

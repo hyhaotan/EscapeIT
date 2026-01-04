@@ -1244,7 +1244,7 @@ void UElectricCabinetWidget::OnTimerExpiredAnimationFinished()
     ResetTimer();
     OnUpdateRepairedPuzzleTime.Broadcast(RemainingTime);
     
-    ACharacter* PlayerChar = UGameplayStatics::GetPlayerCharacter(GetWorld(),0);
+    ACharacter* PlayerChar = UGameplayStatics::GetPlayerCharacter(GetWorld()->GetFirstPlayerController()->GetPawn(),0);
     if (PlayerChar && ElectricShockAnim)
     {
         PlayerChar->PlayAnimMontage(ElectricShockAnim,1.0f);

@@ -8,6 +8,8 @@
 
 class UStoryGameWidget;
 class USoundBase;
+class UPowerSystemManager;
+class AWidgetManager;
 
 UCLASS(minimalapi)
 class AEscapeITGameMode : public AGameModeBase
@@ -33,20 +35,12 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
 	TSubclassOf<UStoryGameWidget> StoryGameWidgetClass;
 	
-	// ========================== PROPERTIES =========================
-	// ================ AVAIABLE ==============
-	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="Power")
-	float PowerOffDuration;
-	
-	// ========================== SOUND ==============================
-	UPROPERTY(EditAnywhere,BlueprintReadWrite, Category="Sound")
-	TObjectPtr<USoundBase> PowerOffSound;
-	
-	UPROPERTY(EditAnywhere,BlueprintReadWrite, Category="Sound")
-	TObjectPtr<USoundBase> PowerOnSound;
+	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="Class")
+	UPowerSystemManager* PowerSystemManager;
 	
 private:
 	void TriggerPowerEvent();
 	
-	FTimerHandle DelayPowerEvent;
+	UPROPERTY()
+	TObjectPtr<AWidgetManager> WidgetManager;
 };

@@ -16,6 +16,7 @@ class UFPSWidget;
 class UInteractionPromptWidget;
 class UNotificationWidget;
 class UMainMenuSettingWidget;
+class USubtitleWidget;
 
 UCLASS()
 class ESCAPEIT_API AWidgetManager : public AHUD
@@ -63,6 +64,9 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Widgets")
 	TSubclassOf<UNotificationWidget> NotificationWidgetClass;
 	
+	UPROPERTY(EditDefaultsOnly,Category="Widgets")
+	TSubclassOf<USubtitleWidget> SubtitleWidgetClass;
+	
 	// Widget Instances
 	UPROPERTY()
 	TObjectPtr<USanityWidget> SanityWidget;
@@ -75,6 +79,9 @@ public:
 
 	UPROPERTY()
 	TObjectPtr<UUserWidget> CrossHair;
+	
+	UPROPERTY()
+	USubtitleWidget* SubtitleWidget;
 
 	UPROPERTY()
 	TObjectPtr<UQuickbarWidget> QuickbarWidget;
