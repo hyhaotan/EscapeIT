@@ -616,9 +616,9 @@ void AEscapeITCharacter::CheckCharacterDeath()
 			if (const auto PC = UGameplayStatics::GetPlayerController(this,0))
 			{
 				const auto WidgetMgr = Cast<AWidgetManager>(PC->GetHUD());
-				if (WidgetMgr && WidgetMgr->DeathWidget)
+				if (WidgetMgr && WidgetMgr->GetDeathWidget())
 				{
-					WidgetMgr->ShowWidget(WidgetMgr->DeathWidget);
+					WidgetMgr->ShowWidget(WidgetMgr->GetDeathWidget());
 				
 					PC->bShowMouseCursor = true;
 					PC->SetInputMode(FInputModeUIOnly());

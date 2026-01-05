@@ -6,6 +6,7 @@
 #include "GameFramework/GameModeBase.h"
 #include "EscapeITGameMode.generated.h"
 
+class AHorrorDialogueSystem;
 class UStoryGameWidget;
 class USoundBase;
 class UPowerSystemManager;
@@ -18,6 +19,12 @@ class AEscapeITGameMode : public AGameModeBase
 
 public:
 	AEscapeITGameMode();
+	
+	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="Actor")
+	TObjectPtr<AHorrorDialogueSystem> DialogueSystem;
+	
+	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="Sound")
+	TObjectPtr<USoundBase> SubtitleSound;
 
 protected:
 	virtual void BeginPlay() override;
@@ -41,6 +48,10 @@ protected:
 private:
 	void TriggerPowerEvent();
 	
+	void InitializeDialogueSystem();
+	
 	UPROPERTY()
 	TObjectPtr<AWidgetManager> WidgetManager;
+	
+
 };

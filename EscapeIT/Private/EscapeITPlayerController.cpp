@@ -483,7 +483,7 @@ void AEscapeITPlayerController::Inventory()
 {
     if (!WidgetManagerHUD->InventoryWidgetClass) return;
 
-    bool bIsInventoryOpen = WidgetManagerHUD->InventoryWidget && WidgetManagerHUD->InventoryWidget->IsInViewport();
+    bool bIsInventoryOpen = WidgetManagerHUD->GetInventoryWidget() && WidgetManagerHUD->GetInventoryWidget()->IsInViewport();
 
     if (bIsInventoryOpen)
     {
@@ -497,22 +497,21 @@ void AEscapeITPlayerController::Inventory()
 
 void AEscapeITPlayerController::OpenInventory()
 {
-    WidgetManagerHUD->InventoryWidget = CreateWidget<UInventoryWidget>(this, WidgetManagerHUD->InventoryWidgetClass);
-    if (!WidgetManagerHUD->InventoryWidget) return;
+    UInventoryWidget* InventoryWidget = CreateWidget<UInventoryWidget>(this, WidgetManagerHUD->InventoryWidgetClass);
+    WidgetManagerHUD->SetInventoryWidget(InventoryWidget);
+    
+    if (!InventoryWidget) return;
 
-    WidgetManagerHUD->InventoryWidget->AddToViewport(20);
-
-    if (UInventoryWidget* InvWidget = Cast<UInventoryWidget>(WidgetManagerHUD->InventoryWidget))
+    InventoryWidget->AddToViewport(20);
+    
+    if (InventoryComponent)
     {
-        if (InventoryComponent)
-        {
-            InvWidget->InitInventory(InventoryComponent);
-        }
+        InventoryWidget->InitInventory(InventoryComponent);
     }
 
     // Set input mode
     FInputModeGameAndUI InputMode;
-    InputMode.SetWidgetToFocus(WidgetManagerHUD->InventoryWidget->TakeWidget());
+    InputMode.SetWidgetToFocus(WidgetManagerHUD->GetInventoryWidget()->TakeWidget());
     InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
     SetInputMode(InputMode);
 
@@ -523,10 +522,10 @@ void AEscapeITPlayerController::OpenInventory()
 
 void AEscapeITPlayerController::CloseInventory()
 {
-    if (!WidgetManagerHUD->InventoryWidget) return;
+    if (!WidgetManagerHUD->GetInventoryWidget()) return;
 
-    WidgetManagerHUD->InventoryWidget->RemoveFromParent();
-    WidgetManagerHUD->InventoryWidget = nullptr;
+    WidgetManagerHUD->GetInventoryWidget()->RemoveFromParent();
+    WidgetManagerHUD->SetInventoryWidget(nullptr);
 
     SetInputMode(FInputModeGameOnly());
     bShowMouseCursor = false;
@@ -970,10 +969,10 @@ void AEscapeITPlayerController::DropCurrentItem()
 
 void AEscapeITPlayerController::ShowNotification(const FString& Message)
 {
-    if (!WidgetManagerHUD || !WidgetManagerHUD->NotificationWidget) return;
+    if (!WidgetManagerHUD || !WidgetManagerHUD->GetNotificationWidget()) return;
 
     FText NotificationText = FText::FromString(Message);
-    WidgetManagerHUD->NotificationWidget->ShowNotification(NotificationText);
+    WidgetManagerHUD->GetNotificationWidget()->ShowNotification(NotificationText);
 }
 
 void AEscapeITPlayerController::InitWidget()

@@ -753,11 +753,11 @@ void UGraphicWidget::SetWidgetManager(AWidgetManager* InWidgetManager)
 
 void UGraphicWidget::UpdateFPSWidgetVisibility(bool bShouldShow)
 {
-    if (!WidgetManager || !WidgetManager->FPSWidget)
+    if (!WidgetManager || !WidgetManager->GetFPSWidget())
         return;
 
     if (bShouldShow)
-        WidgetManager->ShowWidget(WidgetManager->FPSWidget);
+        WidgetManager->ShowWidget(WidgetManager->GetFPSWidget());
     else
-        WidgetManager->HideWidget(WidgetManager->FPSWidget);
+        WidgetManager->HideWidget(WidgetManager->GetFPSWidget());
 }

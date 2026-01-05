@@ -6,7 +6,8 @@ FSubtitleLine UDialogueDataHelpers::MakeSubtitleLine(
     USoundBase* Voice,
     float Duration,
     bool bKeepName,
-    float Delay)
+    float Delay,
+    bool Skip)
 {
     FSubtitleLine Line;
     Line.Name = Name;
@@ -15,6 +16,7 @@ FSubtitleLine UDialogueDataHelpers::MakeSubtitleLine(
     Line.Duration = Duration;
     Line.bKeepPreviousName = bKeepName;
     Line.DelayBeforeShow = Delay;
+    Line.bCanSkip = Skip;
     return Line;
 }
 

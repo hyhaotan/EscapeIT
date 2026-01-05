@@ -192,7 +192,7 @@ void AElectricCabinetActor::OnPuzzleCompleted()
         bIsRepaired = true;
         
         AWidgetManager* WidgetManager = Cast<AWidgetManager>(GetWorld()->GetFirstPlayerController()->GetHUD());
-        WidgetManager->NotificationWidget->ShowNotification(FText::FromString(TEXT("Completed!")));
+        WidgetManager->GetNotificationWidget()->ShowNotification(FText::FromString(TEXT("Completed!")));
         
         FTimerHandle HidePuzzle;
         GetWorld()->GetTimerManager().SetTimer(HidePuzzle,this,&AElectricCabinetActor::HidePuzzleWidget,3.0f,false);

@@ -192,6 +192,8 @@ void AWidgetManager::InitializeWidgets()
 	if (SubtitleWidgetClass && !SubtitleWidget)
 	{
 		SubtitleWidget = CreateWidget<USubtitleWidget>(GetWorld(), SubtitleWidgetClass);
+		SubtitleWidget->AddToViewport(100);
+		SubtitleWidget->SetVisibility(ESlateVisibility::Collapsed);
 	}
 }
 

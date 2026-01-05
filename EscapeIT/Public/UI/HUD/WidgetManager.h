@@ -66,44 +66,8 @@ public:
 	
 	UPROPERTY(EditDefaultsOnly,Category="Widgets")
 	TSubclassOf<USubtitleWidget> SubtitleWidgetClass;
-	
-	// Widget Instances
-	UPROPERTY()
-	TObjectPtr<USanityWidget> SanityWidget;
 
-	UPROPERTY()
-	TObjectPtr<UPauseMenuWidget> PauseMenu;
-
-	UPROPERTY()
-	TObjectPtr<UUserWidget> MainMenu;
-
-	UPROPERTY()
-	TObjectPtr<UUserWidget> CrossHair;
-	
-	UPROPERTY()
-	USubtitleWidget* SubtitleWidget;
-
-	UPROPERTY()
-	TObjectPtr<UQuickbarWidget> QuickbarWidget;
-
-	UPROPERTY()
-	TObjectPtr<UInventoryWidget> InventoryWidget;
-	
-	UPROPERTY()
-	TObjectPtr<UUserWidget> StaminaWidget;	
-	
-	UPROPERTY()
-	TObjectPtr<UFPSWidget> FPSWidget;	
-	
-	UPROPERTY()
-	TObjectPtr<UUserWidget> DeathWidget;
-	
-	UPROPERTY()
-	TObjectPtr<UNotificationWidget> NotificationWidget;
-	
-	UPROPERTY()
-	TObjectPtr<UInteractionPromptWidget> InteractionPromptWidget;
-
+	// =============================== FUNCTION ==================================
 	// Initialization
 	UFUNCTION(BlueprintCallable, Category = "Widget Manager")
 	void InitializeWidgets();
@@ -157,10 +121,29 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Widget Manager")
 	void ShowAllWidgets();
-
-	// Getters
+	
+	// ===================== SETTERS ======================
+	UFUNCTION(BlueprintCallable, Category = "Widget Manager")
+	void SetInventoryWidget(UInventoryWidget* Widget) { InventoryWidget = Widget; }
+	
+	// ===================== GETTERS ======================
 	UFUNCTION(BlueprintCallable, Category = "Widget Manager")
 	USanityWidget* GetSanityWidget() const { return SanityWidget; }
+	
+	UFUNCTION(BlueprintCallable, Category = "Widget Manager")
+	USubtitleWidget* GetSubtitleWidget() const { return SubtitleWidget; }
+	
+	UFUNCTION(BlueprintCallable, Category = "Widget Manager")
+	UNotificationWidget* GetNotificationWidget() const { return NotificationWidget; }
+	
+	UFUNCTION(BlueprintCallable, Category = "Widget Manager")
+	UFPSWidget* GetFPSWidget() const { return FPSWidget; }
+	
+	UFUNCTION(BlueprintCallable, Category = "Widget Manager")
+	UUserWidget* GetDeathWidget() const { return DeathWidget; }
+	
+	UFUNCTION(BlueprintCallable, Category = "Widget Manager")
+	UInventoryWidget* GetInventoryWidget() const { return InventoryWidget; }
 
 	UFUNCTION(BlueprintCallable, Category = "Widget Manager")
 	bool IsPauseMenuVisible() const;
@@ -169,6 +152,43 @@ public:
 	void HideWidget(UUserWidget* Widget);
 
 private:
+	// Widget Instances
+	UPROPERTY()
+	TObjectPtr<USanityWidget> SanityWidget;
+
+	UPROPERTY()
+	TObjectPtr<UPauseMenuWidget> PauseMenu;
+
+	UPROPERTY()
+	TObjectPtr<UUserWidget> MainMenu;
+
+	UPROPERTY()
+	TObjectPtr<UUserWidget> CrossHair;
+	
+	UPROPERTY()
+	USubtitleWidget* SubtitleWidget;
+
+	UPROPERTY()
+	TObjectPtr<UQuickbarWidget> QuickbarWidget;
+
+	UPROPERTY()
+	TObjectPtr<UInventoryWidget> InventoryWidget;
+	
+	UPROPERTY()
+	TObjectPtr<UUserWidget> StaminaWidget;	
+	
+	UPROPERTY()
+	TObjectPtr<UFPSWidget> FPSWidget;	
+	
+	UPROPERTY()
+	TObjectPtr<UUserWidget> DeathWidget;
+	
+	UPROPERTY()
+	TObjectPtr<UNotificationWidget> NotificationWidget;
+	
+	UPROPERTY()
+	TObjectPtr<UInteractionPromptWidget> InteractionPromptWidget;
+	
 	// Helper function để tạo widget
 	template<typename T>
 	T* CreateWidgetInstance(TSubclassOf<UUserWidget> WidgetClass);

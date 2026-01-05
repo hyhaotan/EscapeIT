@@ -186,7 +186,8 @@ public:
         USoundBase* Voice = nullptr,
         float Duration = 3.0f,
         bool bKeepName = false,
-        float Delay = 0.0f
+        float Delay = 0.0f,
+        bool Skip = true
     );
 
     UFUNCTION(BlueprintCallable, Category = "Dialogue Helpers")

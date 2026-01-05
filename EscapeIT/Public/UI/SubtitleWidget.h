@@ -1,8 +1,10 @@
+// Fill out your copyright notice in the Description page of Project Settings.
+
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "Data//DialogueData.h" 
+#include "Data/DialogueData.h"
 #include "SubtitleWidget.generated.h"
 
 // Events
@@ -39,6 +41,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Subtitle")
     void HideSubtitle();
     
+    UFUNCTION(BlueprintCallable, Category = "Subtitle")
+    void HideSubtitleTextOnly();
+    
     // Display single subtitle
     UFUNCTION(BlueprintCallable, Category = "Subtitle")
     void DisplaySubtitle(const FText& Name, const FText& Subtitle, USoundBase* Voice, float Duration);
@@ -74,17 +79,42 @@ public:
     bool IsPlayingSubtitle() const { return bIsDisplayingSubtitle; }
 
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Subtitle")
-    int32 GetRemainingSubtitleCount() const;
+    int32 GetRemainingSubtitleCount();
+    
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Subtitle")
+    bool HasMoreSubtitlesInQueue() const;
     
     // ============================================
     // ANIMATION FUNCTIONS
     // ============================================
     
     UFUNCTION(BlueprintCallable, Category = "Subtitle|Animation")
-    void ShowSubtitleAnimWidget() { PlayAnimation(ShowSubtitleAnim); }
+    void ShowSubtitleAnimWidget() 
+    { 
+        if (ShowSubtitleAnim) 
+            PlayAnimation(ShowSubtitleAnim); 
+    }
     
     UFUNCTION(BlueprintCallable, Category = "Subtitle|Animation")
-    void HideSubtitleAnimWidget() { PlayAnimation(HideSubtitleAnim); }
+    void HideSubtitleAnimWidget() 
+    { 
+        if (HideSubtitleAnim) 
+            PlayAnimation(HideSubtitleAnim); 
+    }
+    
+    UFUNCTION(BlueprintCallable, Category = "Subtitle|Animation")
+    void DisplaySubtitleTextAnimWidget() 
+    { 
+        if (DisplaySubtitleTextAnim) 
+            PlayAnimation(DisplaySubtitleTextAnim); 
+    }
+    
+    UFUNCTION(BlueprintCallable, Category = "Subtitle|Animation")
+    void HideSubtitleTextAnimWidget() 
+    { 
+        if (HideSubtitleTextAnim) 
+            PlayAnimation(HideSubtitleTextAnim); 
+    }
     
     // ============================================
     // EVENTS
@@ -135,11 +165,18 @@ private:
     UPROPERTY(meta = (BindWidget))
     UTextBlock* NameText;
     
+    // Animations
     UPROPERTY(meta = (BindWidgetAnim), Transient)
     UWidgetAnimation* ShowSubtitleAnim;
     
     UPROPERTY(meta = (BindWidgetAnim), Transient)
     UWidgetAnimation* HideSubtitleAnim;
+    
+    UPROPERTY(meta = (BindWidgetAnim), Transient)
+    UWidgetAnimation* DisplaySubtitleTextAnim;
+    
+    UPROPERTY(meta = (BindWidgetAnim), Transient)
+    UWidgetAnimation* HideSubtitleTextAnim;
     
     // Internal functions
     void OnAutoHideTimer();
