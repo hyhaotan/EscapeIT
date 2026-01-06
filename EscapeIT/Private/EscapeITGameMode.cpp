@@ -219,13 +219,12 @@ void AEscapeITGameMode::TriggerPowerEvent()
         PowerSystemManager->CausePowerFailure();
     }
     
-    if (DialogueSystem)
+    FTimerHandle DelaySubtitleTimer;
+    GetWorld()->GetTimerManager().SetTimer(DelaySubtitleTimer,[this]()
     {
-        DialogueSystem->PlayDialogueSequence(FName(TEXT("PowerOutage")));
-        UE_LOG(LogTemp, Log, TEXT("PowerOutage dialogue triggered"));
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("DialogueSystem is null in TriggerPowerEvent!"));
-    }
+        if (DialogueSystem)
+        {
+            DialogueSystem->PlayDialogueSequence(FName(TEXT("PowerOutage")));
+        }
+    },1.0f,false);
 }

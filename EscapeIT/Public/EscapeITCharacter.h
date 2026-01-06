@@ -284,9 +284,6 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Death")
 	bool bIsDeath = false;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Death")
-	UAnimMontage* DeathMontage;
-	
 	// ===================== STATE FLASHLIGHT ==================
 	UPROPERTY(BlueprintReadWrite, Category = "Animation")
 	bool bIsHoldingFlashlight;	
@@ -311,7 +308,13 @@ public:
 	/** Check if character is sprinting */
 	UFUNCTION(BlueprintPure, Category = "Movement")
 	bool IsSprinting() const;
-
+	
+	// ======================= ANIMATION =====================
+	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="Animation")
+	UAnimMontage* ElectricShockAnim;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* DeathMontage;
 	// ==================== COMPONENT GETTERS ====================
 
 	FORCEINLINE UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }

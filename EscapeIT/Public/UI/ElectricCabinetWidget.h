@@ -25,6 +25,52 @@ class ESCAPEIT_API UElectricCabinetWidget : public UUserWidget
     GENERATED_BODY()
     
 public:
+    // Events
+    UPROPERTY(BlueprintAssignable, Category = "Puzzle Events")
+    FOnPuzzleCompleted OnPuzzleCompleted;
+    
+    UPROPERTY(BlueprintAssignable, Category = "Puzzle Events")
+    FOnPuzzleTimedOut OnPuzzleTimedOut; 
+    
+    UPROPERTY(BlueprintAssignable, Category = "Puzzle Events")
+    FOnUpdateRepairedPuzzleTime OnUpdateRepairedPuzzleTime;
+    
+    UFUNCTION()
+    void ShowAnimWidget(){PlayAnimation(ShowAnim);}   
+    
+    UFUNCTION()
+    void HideAnimWidget(){PlayAnimation(HideAnim);}
+    
+    void PauseTimer();
+    void ResumeTimer();
+    void ResetTimer();
+    
+protected:
+    virtual void NativeConstruct() override;
+    virtual void NativeDestruct() override;
+    virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+    
+    virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+    virtual FReply NativeOnMouseButtonUp(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+    virtual FReply NativeOnMouseMove(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+    
+    // Puzzle settings
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Puzzle Settings")
+    int32 GridWidth = 9;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Puzzle Settings")
+    int32 GridHeight = 9;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Puzzle Settings")
+    int32 NumberOfWirePairs = 4;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Puzzle Settings")
+    float MinimumPointDistance = 1.5f;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Puzzle Settings")
+    float RepairDuration = 30.0f;
+    
+private:
     // Widget components
     UPROPERTY(meta = (BindWidget))
     UUniformGridPanel* GridPanel;
@@ -47,51 +93,6 @@ public:
     UPROPERTY(meta=(BindWidgetAnim),Transient)
     UWidgetAnimation* HideAnim;
     
-    UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="Animation")
-    UAnimMontage* ElectricShockAnim;
-    
-    // Puzzle settings
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Puzzle Settings")
-    int32 GridWidth = 9;
-    
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Puzzle Settings")
-    int32 GridHeight = 9;
-    
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Puzzle Settings")
-    int32 NumberOfWirePairs = 3;
-    
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Puzzle Settings")
-    float MinimumPointDistance = 1.5f;
-    
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Puzzle Settings")
-    float RepairDuration = 30.0f;
-    
-    // Events
-    UPROPERTY(BlueprintAssignable, Category = "Puzzle Events")
-    FOnPuzzleCompleted OnPuzzleCompleted;
-    
-    UPROPERTY(BlueprintAssignable, Category = "Puzzle Events")
-    FOnPuzzleTimedOut OnPuzzleTimedOut; 
-    
-    UPROPERTY(BlueprintAssignable, Category = "Puzzle Events")
-    FOnUpdateRepairedPuzzleTime OnUpdateRepairedPuzzleTime;
-    
-    UFUNCTION()
-    void ShowAnimWidget(){PlayAnimation(ShowAnim);}   
-    
-    UFUNCTION()
-    void HideAnimWidget(){PlayAnimation(HideAnim);}
-    
-protected:
-    virtual void NativeConstruct() override;
-    virtual void NativeDestruct() override;
-    virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
-    
-    virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
-    virtual FReply NativeOnMouseButtonUp(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
-    virtual FReply NativeOnMouseMove(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
-    
-private:
     UPROPERTY()
     TArray<FGridCell> GridCells;
     
@@ -157,10 +158,6 @@ private:
     
     UFUNCTION()
     void OnTimerExpiredAnimationFinished();
-    
-    void PauseTimer();
-    void ResumeTimer();
-    void ResetTimer();
     
     UFUNCTION()
     void OnCloseButtonClicked();

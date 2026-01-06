@@ -165,8 +165,6 @@ void AElectricCabinetActor::HidePuzzleWidget()
 {
     if (ElectricCabinetWidget && ElectricCabinetWidget->IsInViewport())
     {
-      
-        
         APlayerController* PC = GetWorld()->GetFirstPlayerController();
         if (PC)
         {
@@ -190,6 +188,8 @@ void AElectricCabinetActor::OnPuzzleCompleted()
     {
         PowerSystem->SetPowerState(true);
         bIsRepaired = true;
+        
+        ElectricCabinetWidget->PauseTimer();
         
         AWidgetManager* WidgetManager = Cast<AWidgetManager>(GetWorld()->GetFirstPlayerController()->GetHUD());
         WidgetManager->GetNotificationWidget()->ShowNotification(FText::FromString(TEXT("Completed!")));

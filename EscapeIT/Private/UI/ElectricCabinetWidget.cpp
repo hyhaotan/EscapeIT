@@ -1,5 +1,6 @@
 #include "UI/ElectricCabinetWidget.h"
 
+#include "EscapeITCharacter.h"
 #include "Components/BorderSlot.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
@@ -1244,10 +1245,10 @@ void UElectricCabinetWidget::OnTimerExpiredAnimationFinished()
     ResetTimer();
     OnUpdateRepairedPuzzleTime.Broadcast(RemainingTime);
     
-    ACharacter* PlayerChar = UGameplayStatics::GetPlayerCharacter(GetWorld()->GetFirstPlayerController()->GetPawn(),0);
-    if (PlayerChar && ElectricShockAnim)
+    AEscapeITCharacter* PlayerChar = Cast<AEscapeITCharacter>(PC->GetPawn());
+    if (PlayerChar)
     {
-        PlayerChar->PlayAnimMontage(ElectricShockAnim,1.0f);
+        PlayerChar->PlayAnimMontage(PlayerChar->ElectricShockAnim,1.0f);
     }
 }
 

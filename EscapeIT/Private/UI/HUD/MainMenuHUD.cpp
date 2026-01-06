@@ -40,7 +40,7 @@ void AMainMenuHUD::InitializeWidget()
             InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
             PC->SetInputMode(InputMode);
             
-            MainMenuWidget->ShowMainMenu();
+            MainMenuWidget->ShowMainMenuWidget();
         }
         else
         {
