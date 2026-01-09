@@ -16,6 +16,9 @@
 AItemPickupActor::AItemPickupActor()
 {
     PrimaryActorTick.bCanEverTick = true;
+    
+    InteractionType = EInteractionType::Hold;
+    HoldDuration = 1.5f;
 
     MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComponent"));
     RootComponent = MeshComponent;
@@ -61,19 +64,12 @@ void AItemPickupActor::InitializeFromDataTable()
     FItemData RowData;
     if (GetItemData(RowData))
     {
-        // Set mesh
         if (RowData.ItemMesh && MeshComponent)
         {
             MeshComponent->SetStaticMesh(RowData.ItemMesh);
         }
 
         CachedItemName = RowData.ItemName;
-
-        UE_LOG(LogTemp, Log, TEXT("ItemPickupActor: Initialized '%s' from DataTable"), *RowData.ItemName.ToString());
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("ItemPickupActor: Failed to load data for ItemID '%s'"), *ItemID.ToString());
     }
 }
 
@@ -96,109 +92,69 @@ void AItemPickupActor::Tick(float DeltaTime)
 
 void AItemPickupActor::PickupItem(AActor* Collector)
 {
-    if (!Collector)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("PickupItem: Collector is null"));
-        return;
-    }
+    if (!Collector) return;
 
     UInventoryComponent* Inventory = Collector->FindComponentByClass<UInventoryComponent>();
-    if (!Inventory)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("PickupItem: Collector has no InventoryComponent!"));
-        return;
-    }
+    if (!Inventory) return;
 
     FItemData ItemData;
-    if (!GetItemData(ItemData))
+    if (!GetItemData(ItemData)) return;
+
+    if (!Inventory->CanAddItem(ItemID, Quantity))
     {
-        UE_LOG(LogTemp, Error, TEXT("PickupItem: Invalid ItemID '%s'"), *ItemID.ToString());
+        if (APawn* Pawn = Cast<APawn>(Collector))
+        {
+            if (AEscapeITPlayerController* PC = Cast<AEscapeITPlayerController>(Pawn->GetController()))
+            {
+                PC->ShowNotification(TEXT("Inventory full!"));
+            }
+        }
         return;
     }
 
     if (Inventory->AddItem(ItemID, Quantity))
     {
-        if (PickupParticle)
-        {
-            UGameplayStatics::SpawnEmitterAtLocation(
-                GetWorld(),
-                PickupParticle,
-                GetActorLocation(),
-                FRotator::ZeroRotator,
-                FVector(1.0f)
-            );
-        }
-
-        // Play sound
-        TObjectPtr<USoundBase> SoundToPlay = ItemData.PickupSound ? ItemData.PickupSound : PickupSound;
-        if (SoundToPlay)
-        {
-            UGameplayStatics::PlaySoundAtLocation(
-                this,
-                SoundToPlay,
-                GetActorLocation()
-            );
-        }
-
-        UE_LOG(LogTemp, Log, TEXT("PickupItem: Successfully picked up %d x %s"),
-            Quantity, *ItemData.ItemName.ToString());
-
+        PlayPickupEffects(ItemData);
+        
         NotifyPlayerControllerItemRemoved();
 
-        // Destroy actor
         Destroy();
     }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("PickupItem: Failed to add item (inventory full or overweight)"));
+}
 
-        // TODO: Show notification to player
-        // if (APlayerController* PC = Cast<APlayerController>(Collector->GetInstigatorController()))
-        // {
-        //     ShowInventoryFullNotification(PC);
-        // }
+void AItemPickupActor::PlayPickupEffects(const FItemData& ItemData)
+{
+    TObjectPtr<USoundBase> SoundToPlay = ItemData.PickupSound ? ItemData.PickupSound : PickupSound;
+    if (SoundToPlay)
+    {
+        UGameplayStatics::PlaySoundAtLocation(
+            this,
+            SoundToPlay,
+            GetActorLocation()
+        );
     }
 }
 
 bool AItemPickupActor::CanBePickedUp(AActor* Collector) const
 {
-    if (!Collector)
-    {
-        return false;
-    }
+    if (!Collector) return false;
 
     UInventoryComponent* Inventory = Collector->FindComponentByClass<UInventoryComponent>();
-    if (!Inventory)
-    {
-        return false;
-    }
+    if (!Inventory) return false;
 
-    return !Inventory->IsInventoryFull();
+    return Inventory->CanAddItem(ItemID, Quantity);
 }
 
 bool AItemPickupActor::GetItemData(FItemData& OutData) const
 {
-    if (!ItemDataTable)
-    {
-        UE_LOG(LogTemp, Error, TEXT("GetItemData: ItemDataTable not set!"));
-        return false;
-    }
+    if (!ItemDataTable) return false;
 
-    if (ItemID.IsNone())
-    {
-        UE_LOG(LogTemp, Error, TEXT("GetItemData: ItemID is None!"));
-        return false;
-    }
+    if (ItemID.IsNone()) return false;
 
     const FString ContextString = TEXT("GetItemData");
     FItemData* Data = ItemDataTable->FindRow<FItemData>(ItemID, ContextString);
-    if (Data)
-    {
-        OutData = *Data;
-        return true;
-    }
+    if (Data) return true;
 
-    UE_LOG(LogTemp, Error, TEXT("GetItemData: ItemID '%s' not found in DataTable"), *ItemID.ToString());
     return false;
 }
 

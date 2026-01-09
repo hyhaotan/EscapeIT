@@ -66,9 +66,6 @@ public:
     // ============================================
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
-    TObjectPtr<UParticleSystem> PickupParticle;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
     TObjectPtr<USoundBase> PickupSound;
 
     // ============================================
@@ -77,6 +74,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Item")
     void PickupItem(AActor* Collector);
+    
+    UFUNCTION(BlueprintCallable, Category = "Item")
+    void PlayPickupEffects(const FItemData& ItemData);
 
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Item")
     bool CanBePickedUp(AActor* Collector) const;

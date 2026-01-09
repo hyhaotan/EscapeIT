@@ -149,6 +149,9 @@ public:
 
     UPROPERTY(BlueprintReadOnly, Category = "Interaction")
     bool bIsHoldingInteract = false;
+    
+    UPROPERTY(BlueprintReadOnly,Category="Interaction")
+    bool bIsPressInteract = false;
 
     UPROPERTY(BlueprintReadOnly, Category = "Interaction")
     float HoldInteractProgress = 0.0f;
@@ -165,11 +168,13 @@ public:
 
     void ResetHoldInteraction();
     void ExecuteHoldInteraction();
+    void ExecutePressInteraction();
     void OnInteractCanceled();
     void OnInteractOngoing(float DeltaTime);
 
-    void OnInteract();
+    void OnHoldInteract();
     void OnInteractReleased();
+    void OnPressInteract();
 
     // ============================================
     // INPUT ACTIONS

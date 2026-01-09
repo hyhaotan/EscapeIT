@@ -207,8 +207,9 @@ void AEscapeITPlayerController::BindInputActions()
     if (ToggleInventory) EnhancedInput->BindAction(ToggleInventory, ETriggerEvent::Completed, this, &AEscapeITPlayerController::Inventory);
     if (Interact) 
     {
-        EnhancedInput->BindAction(Interact, ETriggerEvent::Started, this, &AEscapeITPlayerController::OnInteract);
+        EnhancedInput->BindAction(Interact, ETriggerEvent::Started, this, &AEscapeITPlayerController::OnHoldInteract);
         EnhancedInput->BindAction(Interact, ETriggerEvent::Completed, this, &AEscapeITPlayerController::OnInteractReleased);
+        EnhancedInput->BindAction(Interact, ETriggerEvent::Completed, this, &AEscapeITPlayerController::OnPressInteract);
     }
     
     if (PauseMenu) EnhancedInput->BindAction(PauseMenu, ETriggerEvent::Completed, this, &AEscapeITPlayerController::OnPauseMenu);
@@ -360,6 +361,23 @@ void AEscapeITPlayerController::ExecuteHoldInteraction()
     ResetHoldInteraction();
 }
 
+void AEscapeITPlayerController::ExecutePressInteraction()
+{
+    if (!CurrentInteractable) return;
+    if (!IsValid(CurrentInteractable)) return;
+
+    if (AInteractableActor  * InteractableActor = Cast<AInteractableActor>(CurrentInteractable))
+    {
+        InteractableActor->OnPressInteraction();
+        InteractableActor->ExecutePressInteraction();
+    }
+
+    if (CurrentInteractable->Implements<UInteract>())
+    {
+        IInteract::Execute_Interact(CurrentInteractable,GetPawn());
+    }
+}
+
 void AEscapeITPlayerController::OnInteractCanceled()
 {
     if (!bIsHoldingInteract)
@@ -417,23 +435,38 @@ void AEscapeITPlayerController::OnInteractOngoing(float DeltaTime)
     }
 }
 
-void AEscapeITPlayerController::OnInteract()
+void AEscapeITPlayerController::OnHoldInteract()
 {
     if (!CurrentInteractable)
     {
-        UE_LOG(LogTemp, Warning, TEXT("OnInteract: No interactable found"));
+        UE_LOG(LogTemp, Warning, TEXT("OnHoldInteract: No interactable found"));
         return;
     }
 
     if (!CurrentInteractable->Implements<UInteract>())
     {
-        UE_LOG(LogTemp, Warning, TEXT("OnInteract: Actor doesn't implement IInteract interface"));
+        UE_LOG(LogTemp, Warning, TEXT("OnHoldInteract: Actor doesn't implement IInteract interface"));
+        return;
+    }
+
+    AInteractableActor* InteractableActor = Cast<AInteractableActor>(CurrentInteractable);
+    if (!InteractableActor)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("OnHoldInteract: Not an InteractableActor"));
+        return;
+    }
+
+    EInteractionType InteractionType = InteractableActor->GetInteractionType();
+
+    if (InteractionType == EInteractionType::Press)
+    {
+        UE_LOG(LogTemp, Log, TEXT("OnHoldInteract: This is a Press interaction, ignoring hold"));
         return;
     }
 
     if (bIsHoldingInteract)
     {
-        UE_LOG(LogTemp, Warning, TEXT("OnInteract: Already holding interact"));
+        UE_LOG(LogTemp, Warning, TEXT("OnHoldInteract: Already holding interact"));
         return;
     }
 
@@ -441,23 +474,14 @@ void AEscapeITPlayerController::OnInteract()
     HoldInteractProgress = 0.0f;
     HoldingInteractable = CurrentInteractable;
 
-    if (AItemPickupActor* PickupActor = Cast<AItemPickupActor>(HoldingInteractable))
-    {
-        PickupActor->StartHoldInteraction();
-    }
-    
-    if (ADoorActor* DoorActor = Cast<ADoorActor>(HoldingInteractable))
-    {
-        DoorActor->StartHoldInteraction();
-    }
+    HoldInteractDuration = InteractableActor->GetHoldDuration();
 
-    if (AElectricCabinetActor* ElectricCabinetActor = Cast<AElectricCabinetActor>(HoldingInteractable))
-    {
-        ElectricCabinetActor->StartHoldInteraction();
-    }
+    InteractableActor->StartHoldInteraction();
 
-    UE_LOG(LogTemp, Log, TEXT("Started holding interact on: %s (Duration: %.2f seconds)"), 
-        *CurrentInteractable->GetName(), HoldInteractDuration);
+    UE_LOG(LogTemp, Log, TEXT("Started holding interact on: %s (Duration: %.2f seconds, Type: %s)"), 
+        *CurrentInteractable->GetName(), 
+        HoldInteractDuration,
+        InteractionType == EInteractionType::Hold ? TEXT("Hold") : TEXT("Both"));
 }
 
 void AEscapeITPlayerController::OnInteractReleased()
@@ -466,12 +490,51 @@ void AEscapeITPlayerController::OnInteractReleased()
     {
         return;
     }
+    
+    AInteractableActor* InteractableActor = Cast<AInteractableActor>(CurrentInteractable);
+    if (!InteractableActor) return;
+    
+    EInteractionType InteractionType = InteractableActor->GetInteractionType();
 
-    if (HoldInteractProgress < 1.0f)
+    if (InteractionType == EInteractionType::Both && !bIsHoldingInteract)
     {
-        UE_LOG(LogTemp, Log, TEXT("OnInteractReleased: Interaction cancelled at %.1f%%"), 
-            HoldInteractProgress * 100.0f);
-        OnInteractCanceled();
+        ExecuteHoldInteraction();
+        return;
+    }
+
+    if (bIsHoldingInteract)
+    {
+        if (HoldInteractProgress < 1.0f)
+        {
+            UE_LOG(LogTemp, Log, TEXT("OnInteractReleased: Interaction cancelled at %.1f%%"), 
+                   HoldInteractProgress * 100.0f);
+            OnInteractCanceled();
+        }
+    }
+}
+
+void AEscapeITPlayerController::OnPressInteract()
+{
+    if (!CurrentInteractable) return;
+
+    if (!CurrentInteractable->Implements<UInteract>()) return;
+
+    AInteractableActor* InteractableActor = Cast<AInteractableActor>(CurrentInteractable);
+    if (!InteractableActor) return;
+
+    EInteractionType InteractionType = InteractableActor->GetInteractionType();
+
+    if (InteractionType == EInteractionType::Press)
+    {
+        ExecutePressInteraction();
+    }
+    else if (InteractionType == EInteractionType::Both && !bIsHoldingInteract)
+    {
+        UE_LOG(LogTemp, Log, TEXT("OnPressInteract: Both type - waiting to see if hold or press"));
+    }
+    else if (InteractionType == EInteractionType::Hold)
+    {
+        UE_LOG(LogTemp, Log, TEXT("OnPressInteract: Hold type - handled by OnHoldInteract"));
     }
 }
 

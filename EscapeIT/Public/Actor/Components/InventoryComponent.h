@@ -113,6 +113,9 @@ public:
     bool AddItem(FName ItemID, int32 Quantity = 1);
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
+    bool CanAddItem(FName ItemID,int32 Quantity);
+    
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
     bool RemoveItem(FName ItemID, int32 Quantity = 1);
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")

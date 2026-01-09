@@ -2,8 +2,6 @@
 
 
 #include "Actor/InteractableActor.h"
-
-#include "EscapeITCameraManager.h"
 #include "Components/WidgetComponent.h"
 #include "EscapeITPlayerController.h"
 #include "Kismet/GameplayStatics.h"
@@ -77,6 +75,7 @@ void AInteractableActor::ShowPrompt(bool bShow)
 	{
 		if (bShow)
 		{
+			InteractionPromptWidget->SetInteractionType(InteractionType);
 			InteractionPromptWidget->ShowPrompt();
 		}
 		else
@@ -132,6 +131,20 @@ void AInteractableActor::StartHoldInteraction()
 	}
 }
 
+
+void AInteractableActor::OnPressInteraction()
+{
+	if (InteractionPromptWidget)
+	{
+		InteractionPromptWidget->OnPress();
+	}
+}
+
+void AInteractableActor::ExecutePressInteraction()
+{
+	UE_LOG(LogTemp, Log, TEXT("Executing press interaction on: %s"), *GetName());
+}
+
 void AInteractableActor::UpdateHoldProgress(float Progress)
 {
 	if (InteractionPromptWidget)
@@ -168,5 +181,6 @@ void AInteractableActor::UpdateWidgetRotation()
 		PromptWidget->SetWorldRotation(Look);
 	}
 }
+
 
 

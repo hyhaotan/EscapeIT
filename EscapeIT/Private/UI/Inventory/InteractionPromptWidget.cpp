@@ -1,4 +1,3 @@
-
 #include "UI/Inventory/InteractionPromptWidget.h"
 #include "Actor/ItemPickupActor.h"
 #include "Components/TextBlock.h"
@@ -34,20 +33,7 @@ void UInteractionPromptWidget::NativeConstruct()
                 ProgressMaterial->SetScalarParameterValue(TEXT("GlowIntensity"), GlowIntensity);
                 ProgressMaterial->SetScalarParameterValue(TEXT("StartAngle"), StartAngle);
                 ProgressMaterial->SetVectorParameterValue(TEXT("GlowColor"), GlowColor);
-                
-                UE_LOG(LogTemp, Log, TEXT("Circular Progress Material initialized with parameters:"));
-                UE_LOG(LogTemp, Log, TEXT("  InnerRadius: %f, OuterRadius: %f"), InnerRadius, OuterRadius);
-                UE_LOG(LogTemp, Log, TEXT("  Feather: %f, GlowIntensity: %f"), Feather, GlowIntensity);
-                UE_LOG(LogTemp, Log, TEXT("  StartAngle: %f"), StartAngle);
             }
-            else
-            {
-                UE_LOG(LogTemp, Error, TEXT("Failed to create Dynamic Material Instance"));
-            }
-        }
-        else
-        {
-            UE_LOG(LogTemp, Warning, TEXT("No material assigned to ProgressOverlay in UMG Widget"));
         }
         
         ProgressOverlay->SetVisibility(ESlateVisibility::Collapsed);
@@ -69,6 +55,27 @@ void UInteractionPromptWidget::NativeTick(const FGeometry& MyGeometry, float InD
     {
         float PulseValue = FMath::Sin(GetWorld()->GetTimeSeconds() * PulseSpeed) * PulseIntensity + 1.0f;
         SetRenderScale(FVector2D(PulseValue, PulseValue));
+    }
+}
+
+void UInteractionPromptWidget::SetInteractionType(EInteractionType Type)
+{
+    CurrentInteractionType = Type;
+    
+    if (InteractKeyText)
+    {
+        switch (Type)
+        {
+        case EInteractionType::Press:
+            InteractKeyText->SetText(FText::FromString(TEXT("E"))); 
+            break;
+        case EInteractionType::Hold:
+            InteractKeyText->SetText(FText::FromString(TEXT("E")));
+            break;
+        case EInteractionType::Both:
+            InteractKeyText->SetText(FText::FromString(TEXT("E")));
+            break;
+        }
     }
 }
 
@@ -102,6 +109,10 @@ void UInteractionPromptWidget::HidePrompt()
         SetVisibility(ESlateVisibility::Collapsed);
     },0.5f,false);
 }
+
+// ============================================
+// HOLD INTERACTION
+// ============================================
 
 void UInteractionPromptWidget::StartHold()
 {
@@ -210,9 +221,40 @@ void UInteractionPromptWidget::CompleteHold()
         }, 0.15f, false);
 }
 
+// ============================================
+// PRESS INTERACTION
+// ============================================
+
+void UInteractionPromptWidget::OnPress()
+{
+    if (bIsPress) return;
+    
+    bIsPress = true;
+
+    if (InteractBorder)
+    {
+        InteractBorder->SetBrushColor(PressColor);
+    }
+
+    SetRenderScale(FVector2D(1.15f, 1.15f));
+
+    FTimerHandle ResetTimer;
+    GetWorld()->GetTimerManager().SetTimer(
+        ResetTimer,
+        [this]()
+        {
+            bIsPress = false;
+            SetRenderScale(FVector2D(1.0f, 1.0f));
+            if (InteractBorder)
+            {
+                InteractBorder->SetBrushColor(IdleColor);
+            }
+        }, 0.2f, false);
+}
+
 void UInteractionPromptWidget::UpdateVisuals()
 {
-    if (!InteractBorder && !bIsHolding) return;
+    if (!InteractBorder || !bIsHolding) return;
     
     FLinearColor CurrentColor;
     
@@ -226,5 +268,6 @@ void UInteractionPromptWidget::UpdateVisuals()
         float FinalProgress = (CurrentProgress - 0.9f) / 0.1f;
         CurrentColor = FMath::Lerp(ProgressColor, CompleteColor, FinalProgress);
     }
+    
     InteractBorder->SetBrushColor(CurrentColor);
 }

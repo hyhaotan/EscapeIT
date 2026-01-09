@@ -145,6 +145,13 @@ bool UInventoryComponent::AddItem(FName ItemID, int32 Quantity)
     return true;
 }
 
+bool UInventoryComponent::CanAddItem(FName ItemID, int32 Quantity)
+{
+    if (IsInventoryFull()) return false;
+    
+    return true;
+}
+
 bool UInventoryComponent::RemoveItem(FName ItemID, int32 Quantity)
 {
     if (ItemID.IsNone() || Quantity <= 0)

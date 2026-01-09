@@ -245,7 +245,7 @@ bool UElectricCabinetWidget::GenerateCompletePath(FWirePair& OutWire)
         if (EndPoint.X < 0)
             continue;
         
-        // FIXED: Ensure start and end points are different
+        // Ensure start and end points are different
         if (StartPoint == EndPoint)
             continue;
         
@@ -384,7 +384,7 @@ FIntPoint UElectricCabinetWidget::ChooseWeightedRandom(const TArray<FIntPoint>& 
     for (float W : Weights)
         TotalWeight += W;
     
-    // FIXED: Handle edge case where total weight is zero
+    // Handle edge case where total weight is zero
     if (TotalWeight <= 0.0f)
     {
         return Choices[FMath::RandRange(0, Choices.Num() - 1)];
@@ -823,8 +823,8 @@ void UElectricCabinetWidget::StartDrag(FIntPoint CellPosition)
         return;
     }
     
-    // Can start dragging from start point
-    if (Cell->CellType == ECellType::StartPoint)
+    // Can start dragging from BOTH start point AND end point
+    if (Cell->CellType == ECellType::StartPoint || Cell->CellType == ECellType::EndPoint)
     {
         bIsDragging = true;
         CurrentDragColor = Cell->WireColor;
@@ -941,8 +941,9 @@ void UElectricCabinetWidget::UpdateDrag(FIntPoint CellPosition)
             return;
         }
         
-        // Check if trying to reach wrong color endpoint
-        if (Cell->CellType == ECellType::EndPoint && Cell->WireColor != CurrentDragColor)
+        // Check if trying to reach wrong color endpoint OR startpoint
+        if ((Cell->CellType == ECellType::EndPoint || Cell->CellType == ECellType::StartPoint) 
+            && Cell->WireColor != CurrentDragColor)
         {
             AutoClearCurrentPath();
             return;
@@ -951,19 +952,24 @@ void UElectricCabinetWidget::UpdateDrag(FIntPoint CellPosition)
         // Try to place path
         if (CanPlacePath(CellPosition, CurrentDragColor))
         {
-            // Successfully reached correct endpoint
-            if (Cell->CellType == ECellType::EndPoint && Cell->WireColor == CurrentDragColor)
+            // Successfully reached correct endpoint (can be either StartPoint or EndPoint)
+            if ((Cell->CellType == ECellType::EndPoint || Cell->CellType == ECellType::StartPoint) 
+                && Cell->WireColor == CurrentDragColor)
             {
-                CurrentWire->CurrentPath.Add(CellPosition);
-                CurrentWire->bIsComplete = true;
-                bIsDragging = false;
-                
-                UpdateProgressDisplay();
-                
-                // Check if puzzle complete
-                if (CheckPuzzleComplete())
+                // Make sure we have at least moved from the starting point
+                if (CurrentWire->CurrentPath.Num() > 1)
                 {
-                    OnPuzzleCompleted.Broadcast();
+                    CurrentWire->CurrentPath.Add(CellPosition);
+                    CurrentWire->bIsComplete = true;
+                    bIsDragging = false;
+                    
+                    UpdateProgressDisplay();
+                    
+                    // Check if puzzle complete
+                    if (CheckPuzzleComplete())
+                    {
+                        OnPuzzleCompleted.Broadcast();
+                    }
                 }
             }
             // Extend path through empty cell
@@ -985,6 +991,27 @@ void UElectricCabinetWidget::UpdateDrag(FIntPoint CellPosition)
 
 void UElectricCabinetWidget::EndDrag()
 {
+    // If dragging was interrupted without completing the path, clear it
+    if (bIsDragging && CurrentDragColor != EWireColor::None)
+    {
+        // Find the wire being dragged
+        FWirePair* CurrentWire = nullptr;
+        for (FWirePair& Wire : WirePairs)
+        {
+            if (Wire.Color == CurrentDragColor)
+            {
+                CurrentWire = &Wire;
+                break;
+            }
+        }
+        
+        // If path is not complete, clear it
+        if (CurrentWire && !CurrentWire->bIsComplete)
+        {
+            ClearPath(CurrentDragColor);
+        }
+    }
+    
     bIsDragging = false;
     CurrentDragColor = EWireColor::None;
 }
@@ -999,8 +1026,9 @@ bool UElectricCabinetWidget::CanPlacePath(FIntPoint Position, EWireColor Color)
     if (Cell->CellType == ECellType::Empty)
         return true;
     
-    // Can place on matching endpoint
-    if (Cell->CellType == ECellType::EndPoint && Cell->WireColor == Color)
+    // Can place on matching endpoint OR startpoint
+    if ((Cell->CellType == ECellType::EndPoint || Cell->CellType == ECellType::StartPoint) 
+        && Cell->WireColor == Color)
         return true;
     
     return false;
@@ -1045,6 +1073,9 @@ void UElectricCabinetWidget::ClearPath(EWireColor Color)
             break;
         }
     }
+    
+    // Update progress display after clearing
+    UpdateProgressDisplay();
 }
 
 bool UElectricCabinetWidget::IsCellBlockedByOtherPath(FIntPoint Position, EWireColor Color)
@@ -1078,7 +1109,20 @@ bool UElectricCabinetWidget::CheckPuzzleComplete()
             return false;
     }
     
+    // if (WirePairs.Num() == 0)
+    //     return false;
+    
+    // Check if ALL cells are filled (no empty cells)
+    // for (const FGridCell& Grid : GridCells)
+    // {
+    //     if (Grid.CellType == ECellType::Empty)
+    //     {
+    //         return false;
+    //     }
+    // }
+    
     return WirePairs.Num() > 0;
+    // return true;
 }
 
 void UElectricCabinetWidget::UpdateProgressDisplay()
@@ -1159,15 +1203,30 @@ FIntPoint UElectricCabinetWidget::ScreenToGridPosition(const FGeometry& Geometry
 
 void UElectricCabinetWidget::UpdateRepairedPuzzleTime()
 {
-    if (!RepairDuration) return;
+    if (!RepairTimeText) return;
     
-    int32 Seconds = FMath::CeilToInt(RemainingTime);
+    int32 TotalSeconds = FMath::CeilToInt(RemainingTime);
+    
+    FString TimeString;
+    
+    // Format as mm:ss when RepairDuration >= 60 seconds
+    if (RepairDuration >= 60.0f)
+    {
+        int32 Minutes = TotalSeconds / 60;
+        int32 Seconds = TotalSeconds % 60;
+        TimeString = FString::Printf(TEXT("%d:%02d"), Minutes, Seconds);
+    }
+    else
+    {
+        // Format as seconds only for durations less than 60 seconds
+        TimeString = FString::FromInt(TotalSeconds);
+    }
 
-    if (Seconds <= 5)
+    if (TotalSeconds <= 5)
     {
         RepairTimeText->SetColorAndOpacity(FLinearColor::Red);
     }
-    else if (Seconds <= 10)
+    else if (TotalSeconds <= 10)
     {
         RepairTimeText->SetColorAndOpacity(FLinearColor::Yellow);
     }
@@ -1176,7 +1235,7 @@ void UElectricCabinetWidget::UpdateRepairedPuzzleTime()
         RepairTimeText->SetColorAndOpacity(FLinearColor::White);
     }
     
-    RepairTimeText->SetText(FText::AsNumber(Seconds));
+    RepairTimeText->SetText(FText::FromString(TimeString));
     OnUpdateRepairedPuzzleTime.Broadcast(RemainingTime);
 }
 

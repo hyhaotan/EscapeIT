@@ -1,154 +1,104 @@
-﻿// InteractionPromptWidget.h - Complete Header với Circular Progress Support
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Data/InteractionTypes.h"
 #include "InteractionPromptWidget.generated.h"
 
 class UTextBlock;
-class UBorder;
 class UImage;
-class UWidgetAnimation;
-class UMaterialInstanceDynamic;
-class USoundBase;
+class UBorder;
 
 UCLASS()
 class ESCAPEIT_API UInteractionPromptWidget : public UUserWidget
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
 public:
-    // ============================================
-    // CORE FUNCTIONS
-    // ============================================
-    
-    virtual void NativeConstruct() override;
-    virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+	virtual void NativeConstruct() override;
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
-    // ============================================
-    // WIDGET BINDINGS
-    // ============================================
-    
-    UPROPERTY(meta = (BindWidget))
-    TObjectPtr<UTextBlock> InteractKeyText;
-    
-    UPROPERTY(meta = (BindWidget))
-    TObjectPtr<UBorder> InteractBorder;
-    
-    UPROPERTY(meta = (BindWidget))
-    TObjectPtr<UImage> ProgressOverlay;
-    
-    UPROPERTY(meta = (BindWidgetAnim), Transient)
-    TObjectPtr<UWidgetAnimation> DisplayInteractAnim;
-    
-    UPROPERTY(meta = (BindWidgetAnim), Transient)
-    TObjectPtr<UWidgetAnimation> HiddenInteractAnim;
+	// Display Control
+	void ShowPrompt();
+	void HidePrompt();
+	void SetInteractionType(EInteractionType Type);
 
-    // ============================================
-    // INTERACTION PROPERTIES
-    // ============================================
+	// Hold Interaction
+	void StartHold();
+	void UpdateHoldProgress(float Progress);
+	void CancelHold();
+	void CompleteHold();
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
-    float HoldDuration = 1.5f;
+	// Press Interaction
+	void OnPress();
 
-    // ============================================
-    // COLOR PROPERTIES
-    // ============================================
+protected:
+	// Widget Components
+	UPROPERTY(meta = (BindWidget))
+	UTextBlock* InteractKeyText;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction | Colors")
-    FLinearColor IdleColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.8f);
-    
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction | Colors")
-    FLinearColor ProgressColor = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f); 
-    
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction | Colors")
-    FLinearColor CompleteColor = FLinearColor(1.0f, 0.84f, 0.0f, 1.0f);
-    
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction|Progress Ring")
-    float InnerRadius = 0.35f;
-    
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction|Progress Ring")
-    float OuterRadius = 0.45f;
-    
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction|Progress Ring")
-    float Feather = 0.01f;
-    
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction|Progress Ring")
-    FLinearColor GlowColor = FLinearColor(0.0f, 1.0f, 1.0f, 1.0f);
-    
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction|Progress Ring")
-    float GlowIntensity = 2.0f;
-    
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction|Progress Ring")
-    float StartAngle = 0.75f;
+	UPROPERTY(meta = (BindWidget))
+	UImage* ProgressOverlay;
 
-    // ============================================
-    // VISUAL PROPERTIES
-    // ============================================
+	UPROPERTY(meta = (BindWidget))
+	UBorder* InteractBorder;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction | Visual")
-    float PulseSpeed = 8.0f;
+	// Animations
+	UPROPERTY(Transient, meta = (BindWidgetAnim))
+	UWidgetAnimation* DisplayInteractAnim;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction | Visual")
-    float PulseIntensity = 0.05f;
+	UPROPERTY(Transient, meta = (BindWidgetAnim))
+	UWidgetAnimation* HiddenInteractAnim;
 
-    // ============================================
-    // AUDIO (OPTIONAL)
-    // ============================================
+	// Material Parameters
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Appearance|Material")
+	float InnerRadius = 0.4f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction | Audio")
-    TObjectPtr<USoundBase> HoldStartSound;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Appearance|Material")
+	float OuterRadius = 0.5f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction | Audio")
-    TObjectPtr<USoundBase> HoldCompleteSound;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Appearance|Material")
+	float Feather = 0.05f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction | Audio")
-    TObjectPtr<USoundBase> HoldCancelSound;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Appearance|Material")
+	float GlowIntensity = 2.0f;
 
-    // ============================================
-    // PUBLIC FUNCTIONS
-    // ============================================
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Appearance|Material")
+	float StartAngle = -90.0f;
 
-    UFUNCTION(BlueprintCallable, Category = "Interaction")
-    void ShowPrompt();
-    
-    UFUNCTION(BlueprintCallable, Category = "Interaction")
-    void HidePrompt();
-    
-    UFUNCTION(BlueprintCallable, Category = "Interaction")
-    void StartHold();
-    
-    UFUNCTION(BlueprintCallable, Category = "Interaction")
-    void UpdateHoldProgress(float Progress);
-    
-    UFUNCTION(BlueprintCallable, Category = "Interaction")
-    void CancelHold();
-    
-    UFUNCTION(BlueprintCallable, Category = "Interaction")
-    void CompleteHold();
-    
-    UFUNCTION(BlueprintPure, Category = "Interaction")
-    bool IsHolding() const { return bIsHolding; }
-    
-    UFUNCTION(BlueprintPure, Category = "Interaction")
-    float GetCurrentProgress() const { return CurrentProgress; }
+	// Colors
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Appearance|Colors")
+	FLinearColor IdleColor = FLinearColor(0.8f, 0.8f, 0.8f, 1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Appearance|Colors")
+	FLinearColor ProgressColor = FLinearColor(0.2f, 0.6f, 1.0f, 1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Appearance|Colors")
+	FLinearColor CompleteColor = FLinearColor(0.0f, 1.0f, 0.3f, 1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Appearance|Colors")
+	FLinearColor PressColor = FLinearColor(1.0f, 0.8f, 0.0f, 1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Appearance|Colors")
+	FLinearColor GlowColor = FLinearColor(0.2f, 0.6f, 1.0f, 1.0f);
+
+	// Animation
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Appearance|Animation")
+	float PulseSpeed = 3.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Appearance|Animation")
+	float PulseIntensity = 0.1f;
 
 private:
-    // ============================================
-    // INTERNAL STATE
-    // ============================================
-    
-    bool bIsHolding = false;
-    
-    float CurrentProgress = 0.0f;
-    
-    UPROPERTY()
-    TObjectPtr<UMaterialInstanceDynamic> ProgressMaterial;
-    
-    // ============================================
-    // INTERNAL FUNCTIONS
-    // ============================================
-    
-    void UpdateVisuals();
+	void UpdateVisuals();
+
+	UPROPERTY()
+	UMaterialInstanceDynamic* ProgressMaterial;
+
+	EInteractionType CurrentInteractionType = EInteractionType::Hold;
+	bool bIsHolding = false;
+	bool bIsPress = false;
+	float CurrentProgress = 0.0f;
 };
