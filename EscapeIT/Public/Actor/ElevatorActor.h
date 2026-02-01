@@ -58,11 +58,9 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Elevator")
     TObjectPtr<USkeletalMeshComponent> ElevatorMesh;
     
-    // Box để interact (phía trước cửa elevator)
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Elevator")
     TObjectPtr<UBoxComponent> InteractionBox;
     
-    // Box để detect player bên trong elevator
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Elevator")
     TObjectPtr<UBoxComponent> PlayerDetectionBox;
     
@@ -89,7 +87,6 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Elevator|Settings")
     TMap<EFloorType, float> FloorHeights;
     
-    // Override interaction overlap - GỘP TẤT CẢ VÀO ĐÂY
     virtual void OnInteractionBeginOverlap_Implementation(
         UPrimitiveComponent* OverlappedComponent,
         AActor* OtherActor,

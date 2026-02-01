@@ -14,14 +14,14 @@ AElevatorActor::AElevatorActor()
     ElevatorMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("ElevatorMesh"));
     ElevatorMesh->SetupAttachment(RootComponent);
     
-    // Interaction box - ở phía trước cửa
+    // Interaction box
     InteractionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("InteractionBox"));
     InteractionBox->SetupAttachment(ElevatorMesh);
     InteractionBox->SetBoxExtent(FVector(100.0f, 150.0f, 100.0f));
     InteractionBox->SetRelativeLocation(FVector(200.0f, 0.0f, 0.0f));
     InteractionBox->SetCollisionProfileName(TEXT("OverlapAllDynamic"));
     
-    // Player detection box - bên trong
+    // Player detection box
     PlayerDetectionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("PlayerDetectionBox"));
     PlayerDetectionBox->SetupAttachment(ElevatorMesh);
     PlayerDetectionBox->SetBoxExtent(FVector(150.0f, 150.0f, 120.0f));
@@ -50,7 +50,6 @@ void AElevatorActor::BeginPlay()
 {
     Super::BeginPlay();
     
-    // Chỉ bind cho cả 2 boxes vào cùng 1 function
     if (InteractionBox)
     {
         InteractionBox->OnComponentBeginOverlap.AddDynamic(
@@ -254,7 +253,6 @@ float AElevatorActor::GetFloorHeight(EFloorType Floor) const
     return 0.0f;
 }
 
-// *** GỘP TẤT CẢ LOGIC VÀO 1 FUNCTION DUY NHẤT ***
 void AElevatorActor::OnInteractionBeginOverlap_Implementation(
     UPrimitiveComponent* OverlappedComponent,
     AActor* OtherActor,
@@ -266,10 +264,8 @@ void AElevatorActor::OnInteractionBeginOverlap_Implementation(
     if (!OtherActor || !Cast<ACharacter>(OtherActor))
         return;
     
-    // Check box nào trigger overlap
     if (OverlappedComponent == InteractionBox)
     {
-        // InteractionBox - cho phép interact
         Super::OnInteractionBeginOverlap_Implementation(
             OverlappedComponent, OtherActor, OtherComp, 
             OtherBodyIndex, bFromSweep, SweepResult);
@@ -278,7 +274,6 @@ void AElevatorActor::OnInteractionBeginOverlap_Implementation(
     }
     else if (OverlappedComponent == PlayerDetectionBox)
     {
-        // PlayerDetectionBox - detect player bên trong
         bPlayerInside = true;
         UE_LOG(LogTemp, Log, TEXT("Elevator: Player entered elevator"));
     }
@@ -293,10 +288,8 @@ void AElevatorActor::OnInteractionEndOverlap_Implementation(
     if (!OtherActor || !Cast<ACharacter>(OtherActor))
         return;
     
-    // Check box nào trigger overlap
     if (OverlappedComponent == InteractionBox)
     {
-        // InteractionBox - rời khỏi interaction range
         Super::OnInteractionEndOverlap_Implementation(
             OverlappedComponent, OtherActor, OtherComp, OtherBodyIndex);
         
@@ -304,7 +297,6 @@ void AElevatorActor::OnInteractionEndOverlap_Implementation(
     }
     else if (OverlappedComponent == PlayerDetectionBox)
     {
-        // PlayerDetectionBox - rời khỏi elevator
         bPlayerInside = false;
         UE_LOG(LogTemp, Log, TEXT("Elevator: Player exited elevator"));
     }
